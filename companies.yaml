@@ -1,7 +1,12 @@
 # SmartJobHunter 公司列表配置
 # 爬虫会从这里读取要抓取的公司
+# enabled: true 表示已实现爬虫，false 表示待开发
 
 companies:
+  # ============================================================
+  # 第一梯队 - BAT + TMD 核心大厂
+  # ============================================================
+
   # 腾讯
   - id: tencent
     name: 腾讯
@@ -11,11 +16,11 @@ companies:
       campus: "https://careers.tencent.com/search.html?query={keyword}"
     api:
       pattern: "tencentcareer/api/post/Query"
-      type: "intercept"  # 拦截模式
+      type: "intercept"
     job_type_detection:
       internship: ["实习", "intern"]
       campus: ["校招", "应届"]
-      social: []  # 默认
+      social: []
 
   # 字节跳动 - 校招/实习
   - id: bytedance
@@ -42,36 +47,436 @@ companies:
       type: "intercept"
     job_type_detection:
       internship: ["实习", "intern"]
-      social: []  # 社招页面默认为社招
+      social: []
 
-  # 阿里巴巴（待开发）
+  # 阿里巴巴
   - id: alibaba
     name: 阿里巴巴
     enabled: false
     urls:
       social: "https://talent.alibaba.com/off-campus/position-list?keyword={keyword}"
+      campus: "https://talent.alibaba.com/campus/position-list?keyword={keyword}"
     api:
       pattern: null
       type: "unknown"
     note: "需要分析API结构"
 
-  # 美团（待开发）
-  - id: meituan
-    name: 美团
-    enabled: false
-    urls:
-      social: "https://zhaopin.meituan.com/jobs?keyword={keyword}"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # 百度（待开发）
+  # 百度
   - id: baidu
     name: 百度
     enabled: false
     urls:
       social: "https://talent.baidu.com/jobs/list?keyword={keyword}"
+      campus: "https://talent.baidu.com/campus/jobs/list?keyword={keyword}"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 美团
+  - id: meituan
+    name: 美团
+    enabled: false
+    urls:
+      social: "https://zhaopin.meituan.com/jobs?keyword={keyword}"
+      campus: "https://zhaopin.meituan.com/campus?keyword={keyword}"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 滴滴出行
+  - id: didi
+    name: 滴滴出行
+    enabled: false
+    urls:
+      social: "https://didichuxing.zhiye.com/home/social"
+      campus: "https://didichuxing.zhiye.com/home/campus"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 京东
+  - id: jd
+    name: 京东
+    enabled: false
+    urls:
+      social: "https://zhaopin.jd.com/social"
+      campus: "https://zhaopin.jd.com/campus"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 拼多多
+  - id: pinduoduo
+    name: 拼多多
+    enabled: false
+    urls:
+      social: "https://careers.pinduoduo.com/jobs"
+      campus: "https://careers.pinduoduo.com/campus"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 华为
+  - id: huawei
+    name: 华为
+    enabled: false
+    urls:
+      social: "https://career.huawei.com/reccampportal/portal5/index.html"
+      campus: "https://career.huawei.com/reccampportal/portal5/index.html"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 小米
+  - id: xiaomi
+    name: 小米
+    enabled: false
+    urls:
+      social: "https://hr.xiaomi.com/job"
+      campus: "https://hr.xiaomi.com/campus"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # ============================================================
+  # 第二梯队 - 知名互联网公司
+  # ============================================================
+
+  # 网易
+  - id: netease
+    name: 网易
+    enabled: false
+    urls:
+      social: "https://hr.163.com/job-list.html"
+      campus: "https://hr.163.com/campus-list.html"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 快手
+  - id: kuaishou
+    name: 快手
+    enabled: false
+    urls:
+      social: "https://hr.kuaishou.com/job/list"
+      campus: "https://hr.kuaishou.com/campus/list"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 哔哩哔哩
+  - id: bilibili
+    name: 哔哩哔哩
+    enabled: false
+    urls:
+      social: "https://jobs.bilibili.com/position/list"
+      campus: "https://jobs.bilibili.com/campus/position/list"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 小红书
+  - id: xiaohongshu
+    name: 小红书
+    enabled: false
+    urls:
+      social: "https://job.xiaohongshu.com/social/position/list"
+      campus: "https://job.xiaohongshu.com/campus/position/list"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 携程
+  - id: ctrip
+    name: 携程
+    enabled: false
+    urls:
+      social: "https://careers.ctrip.com/jobs"
+      campus: "https://careers.ctrip.com/campus"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 微博
+  - id: weibo
+    name: 微博
+    enabled: false
+    urls:
+      social: "https://hr.weibo.com/job-list.html"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 知乎
+  - id: zhihu
+    name: 知乎
+    enabled: false
+    urls:
+      social: "https://app.mokahr.com/social-apply/zhihu"
+      campus: "https://app.mokahr.com/campus-apply/zhihu"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 唯品会
+  - id: vip
+    name: 唯品会
+    enabled: false
+    urls:
+      social: "https://hr.vip.com/job/list"
+      campus: "https://hr.vip.com/campus/list"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 58同城
+  - id: 58
+    name: 58同城
+    enabled: false
+    urls:
+      social: "https://zhaopin.58.com/joblist"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # OPPO
+  - id: oppo
+    name: OPPO
+    enabled: false
+    urls:
+      social: "https://career.oppo.com/job/list"
+      campus: "https://career.oppo.com/campus/list"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # vivo
+  - id: vivo
+    name: vivo
+    enabled: false
+    urls:
+      social: "https://hr.vivo.com/job/list"
+      campus: "https://hr.vivo.com/campus/list"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 中兴通讯
+  - id: zte
+    name: 中兴通讯
+    enabled: false
+    urls:
+      social: "https://job.zte.com.cn/zteWeb/pages/jobList.html"
+      campus: "https://job.zte.com.cn/zteWeb/pages/campusJobList.html"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 联想
+  - id: lenovo
+    name: 联想
+    enabled: false
+    urls:
+      social: "https://jobs.lenovo.com/cn/zh"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 蚂蚁集团
+  - id: antgroup
+    name: 蚂蚁集团
+    enabled: false
+    urls:
+      social: "https://talent.antgroup.com/off-campus/position-list"
+      campus: "https://talent.antgroup.com/campus/position-list"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 菜鸟网络
+  - id: cainiao
+    name: 菜鸟网络
+    enabled: false
+    urls:
+      social: "https://talent.cainiao.com/position/list"
+      campus: "https://talent.cainiao.com/campus/list"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # ============================================================
+  # 游戏公司专项
+  # ============================================================
+
+  # 网易游戏
+  - id: netease-game
+    name: 网易游戏
+    enabled: false
+    urls:
+      social: "https://game.163.com/hr/"
+      campus: "https://game.163.com/campus/"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 米哈游
+  - id: mihoyo
+    name: 米哈游
+    enabled: false
+    urls:
+      social: "https://jobs.mihoyo.com/position/list"
+      campus: "https://jobs.mihoyo.com/campus/list"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 莉莉丝游戏
+  - id: lilith
+    name: 莉莉丝游戏
+    enabled: false
+    urls:
+      social: "https://jobs.lilith.com/position/list"
+      campus: "https://jobs.lilith.com/campus/list"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 完美世界
+  - id: perfectworld
+    name: 完美世界
+    enabled: false
+    urls:
+      social: "https://hr.pwrd.com/job/list"
+      campus: "https://hr.pwrd.com/campus/list"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 三七互娱
+  - id: 37games
+    name: 三七互娱
+    enabled: false
+    urls:
+      social: "https://hr.37.com/job/list"
+      campus: "https://hr.37.com/campus/list"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # ============================================================
+  # 外资科技公司中国区
+  # ============================================================
+
+  # 微软中国
+  - id: microsoft
+    name: 微软中国
+    enabled: false
+    urls:
+      social: "https://careers.microsoft.com/v2/global/en/search.html"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 苹果中国
+  - id: apple
+    name: 苹果中国
+    enabled: false
+    urls:
+      social: "https://jobs.apple.com/zh-cn/search"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 英伟达中国
+  - id: nvidia
+    name: 英伟达中国
+    enabled: false
+    urls:
+      social: "https://www.nvidia.com/en-us/about-nvidia/careers/"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 特斯拉中国
+  - id: tesla
+    name: 特斯拉中国
+    enabled: false
+    urls:
+      social: "https://www.tesla.com/careers/search"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 英特尔中国
+  - id: intel
+    name: 英特尔中国
+    enabled: false
+    urls:
+      social: "https://jobs.intel.com/search-jobs"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # AMD中国
+  - id: amd
+    name: AMD中国
+    enabled: false
+    urls:
+      social: "https://jobs.amd.com/search-jobs"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 思科中国
+  - id: cisco
+    name: 思科中国
+    enabled: false
+    urls:
+      social: "https://jobs.cisco.com/"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # SAP中国
+  - id: sap
+    name: SAP中国
+    enabled: false
+    urls:
+      social: "https://careers.sap.com/"
     api:
       pattern: null
       type: "unknown"
