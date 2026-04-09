@@ -1,0 +1,84 @@
+# SmartJobHunter 公司列表配置
+# 爬虫会从这里读取要抓取的公司
+
+companies:
+  # 腾讯
+  - id: tencent
+    name: 腾讯
+    enabled: true
+    urls:
+      social: "https://careers.tencent.com/search.html?query={keyword}"
+      campus: "https://careers.tencent.com/search.html?query={keyword}"
+    api:
+      pattern: "tencentcareer/api/post/Query"
+      type: "intercept"  # 拦截模式
+    job_type_detection:
+      internship: ["实习", "intern"]
+      campus: ["校招", "应届"]
+      social: []  # 默认
+
+  # 字节跳动 - 校招/实习
+  - id: bytedance
+    name: 字节跳动
+    enabled: true
+    urls:
+      campus: "https://jobs.bytedance.com/campus/position?keyword={keyword}"
+    api:
+      pattern: "search/job/posts"
+      type: "intercept"
+    job_type_detection:
+      internship: ["实习", "intern"]
+      campus: ["校招", "应届", "ByteIntern"]
+      social: []
+
+  # 字节跳动 - 社招
+  - id: bytedance_social
+    name: 字节跳动(社招)
+    enabled: true
+    urls:
+      social: "https://jobs.bytedance.com/experienced/position?keyword={keyword}"
+    api:
+      pattern: "search/job/posts"
+      type: "intercept"
+    job_type_detection:
+      internship: ["实习", "intern"]
+      social: []  # 社招页面默认为社招
+
+  # 阿里巴巴（待开发）
+  - id: alibaba
+    name: 阿里巴巴
+    enabled: false
+    urls:
+      social: "https://talent.alibaba.com/off-campus/position-list?keyword={keyword}"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 美团（待开发）
+  - id: meituan
+    name: 美团
+    enabled: false
+    urls:
+      social: "https://zhaopin.meituan.com/jobs?keyword={keyword}"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+  # 百度（待开发）
+  - id: baidu
+    name: 百度
+    enabled: false
+    urls:
+      social: "https://talent.baidu.com/jobs/list?keyword={keyword}"
+    api:
+      pattern: null
+      type: "unknown"
+    note: "需要分析API结构"
+
+# 默认抓取配置
+defaults:
+  max_jobs: 50
+  max_pages: 5
+  headless: true
