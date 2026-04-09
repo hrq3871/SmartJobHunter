@@ -7,20 +7,17 @@ global:
   time_filter_days: 3        # 时间过滤（最近N天）
   jd_truncate_length: 6000   # JD文本截断长度
 
-# 求职意向列表
+# 求职意向列表 - 每个意向绑定一份简历
 profiles:
+  # 示例1: TOB产品经理
   - name: "产品经理-TOB方向"
+    enabled: true
     intent: |
       寻找 TOB SaaS 产品经理岗位，偏好企业服务、数据智能、AI方向。
       有 5 年产品经验，擅长需求分析、产品规划、数据驱动决策。
       期望薪资 30-50K，工作地点北京。
-    resume_path: "./resumes/pm_tob.txt"
-    job_type: "社招"  # 实习/校招/社招
-    targets:
-      - company: "tencent"
-        keywords: ["产品经理"]
-      - company: "bytedance"
-        keywords: ["产品经理"]
+    resume_path: "./resumes/pm_tob.txt"  # 支持txt/md/docx/pdf
+    job_type: "社招"
     keywords:
       - "产品经理"
       - "产品总监"
@@ -34,17 +31,47 @@ profiles:
       - "大模型"
       - "数据产品"
 
+  # 示例2: AI产品经理
+  - name: "AI产品经理"
+    enabled: false
+    intent: |
+      寻找AI产品经理岗位，偏好大模型应用、AI Agent方向。
+      有AI产品落地经验，熟悉LLM应用开发。
+      期望薪资 35-55K，工作地点北京/上海。
+    resume_path: "./resumes/pm_ai.txt"
+    job_type: "社招"
+    keywords:
+      - "AI产品"
+      - "大模型"
+      - "LLM"
+      - "Agent"
+      - "人工智能"
+
+  # 示例3: 数据分析师实习
+  - name: "数据分析-实习"
+    enabled: false
+    intent: |
+      寻找数据分析实习岗位，偏好互联网/金融科技方向。
+      在校研究生，熟悉Python、SQL，有数据分析项目经验。
+      每周可实习4天以上。
+    resume_path: "./resumes/data_intern.pdf"
+    job_type: "实习"
+    keywords:
+      - "数据分析"
+      - "数据分析师"
+      - "实习"
+
 # 岗位性质配置
 job_types:
-  internship:  # 实习
+  internship:
     name: "实习"
     keywords: ["实习", "intern", "Intern"]
     exclude: ["社招", "正式"]
-  campus:  # 校招
+  campus:
     name: "校招"
     keywords: ["校招", "校园", "应届", "毕业生"]
     exclude: ["实习", "社招"]
-  social:  # 社招
+  social:
     name: "社招"
     keywords: ["社招", "社会招聘", "正式"]
     exclude: ["实习", "校招", "应届"]

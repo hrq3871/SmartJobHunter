@@ -3,6 +3,7 @@
 """
 SmartJobHunter Agent 主运行脚本
 整合爬虫、过滤、评估、输出全流程
+支持多简历、多意向并行巡检
 """
 
 import json
@@ -19,8 +20,9 @@ from typing import List, Dict, Optional
 # 设置环境变量解决编码问题
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 
-# 导入爬虫模块
+# 导入模块
 from spider import crawl_company, get_enabled_companies, COMPANIES_CONFIG
+from resume_parser import parse_resume, list_resumes
 
 
 class JobHunter:
@@ -399,11 +401,28 @@ class JobHunter:
         profile_name = profile.get('name', 'unknown')
         keywords = profile.get('keywords', [])
         job_type = job_type_override or profile.get('job_type', '全部')
+        resume_path = profile.get('resume_path', '')
+
+        # 检查是否启用
+        if not profile.get('enabled', True):
+            print(f"\n[跳过] {profile_name} (未启用)")
+            return []
 
         print(f"\n{'='*50}")
-        print(f"🎯 开始处理求职意向: {profile_name}")
-        print(f"📋 岗位性质: {job_type}")
+        print(f"[意向] {profile_name}")
+        print(f"[类型] {job_type}")
+        if resume_path:
+            print(f"[简历] {resume_path}")
         print(f"{'='*50}")
+
+        # 加载简历内容
+        resume_content = ""
+        if resume_path:
+            resume_content = parse_resume(resume_path)
+            if resume_content.startswith("[错误]"):
+                print(f"   {resume_content}")
+            else:
+                print(f"   简历加载成功 ({len(resume_content)} 字符)")
 
         # 获取全局配置
         global_config = self.config.get('global', {})
@@ -417,51 +436,44 @@ class JobHunter:
         jobs = self.crawl_jobs(keyword, max_jobs=50, job_type=job_type)
 
         if not jobs:
-            print("⚠️ 未获取到任何岗位数据")
+            print("[WARN] 未获取到任何岗位数据")
             return []
 
         print(f"   共获取 {len(jobs)} 个岗位")
 
-        # Step 2: 第一层过滤 - 时间
-        print(f"\n📍 Step 2: 时间过滤（最近 {time_filter_days} 天）...")
+        # Step 2-9: 过滤、评估、输出
+        print(f"\n[Step 2] 时间过滤（最近 {time_filter_days} 天）...")
         jobs = self.filter_by_time(jobs, time_filter_days)
-        print(f"   过滤后剩余 {len(jobs)} 个岗位")
+        print(f"   剩余 {len(jobs)} 个岗位")
 
-        # Step 3: 第二层过滤 - 去重
-        print("\n📍 Step 3: 去重过滤...")
+        print("\n[Step 3] 去重过滤...")
         jobs = self.filter_by_dedup(jobs)
-        print(f"   过滤后剩余 {len(jobs)} 个岗位")
+        print(f"   剩余 {len(jobs)} 个岗位")
 
-        # Step 4: 第二层过滤 - 关键词
-        print(f"\n📍 Step 4: 关键词过滤...")
+        print("\n[Step 4] 关键词过滤...")
         jobs = self.filter_by_keywords(jobs, keywords)
-        print(f"   过滤后剩余 {len(jobs)} 个岗位")
+        print(f"   剩余 {len(jobs)} 个岗位")
 
-        # Step 5: 第二层过滤 - 岗位性质
-        print(f"\n📍 Step 5: 岗位性质过滤（{job_type}）...")
+        print(f"\n[Step 5] 岗位性质过滤（{job_type}）...")
         jobs = self.filter_by_job_type(jobs, job_type)
-        print(f"   过滤后剩余 {len(jobs)} 个岗位")
+        print(f"   剩余 {len(jobs)} 个岗位")
 
-        # Step 6: 第三层过滤 - 清洗
-        print("\n📍 Step 6: 数据清洗...")
+        print("\n[Step 6] 数据清洗...")
         jobs = self.clean_job_data(jobs, jd_truncate_length)
 
-        # Step 7: AI 评估
-        print("\n📍 Step 7: AI 评估...")
+        print("\n[Step 7] AI 评估...")
         evaluations = []
         for job in jobs:
             eval_result = self.evaluate_job(job, profile)
             evaluations.append(eval_result)
-            print(f"   [{job.get('company')}] {job.get('title')[:20]}... → {eval_result['score']}分")
+            print(f"   [{job.get('company')}] {job.get('title')[:20]}... -> {eval_result['score']}分")
 
-        # Step 8: 生成报告
-        print("\n📍 Step 8: 生成报告...")
+        print("\n[Step 8] 生成报告...")
         output_filename = f"{datetime.now().strftime('%Y%m%d')}_{profile_name}.md"
         output_path = self.output_dir / output_filename
         self.generate_report(jobs, profile, output_path, evaluations)
 
-        # Step 9: 更新去重数据库
-        print("\n📍 Step 9: 更新去重数据库...")
+        print("\n[Step 9] 更新去重数据库...")
         for i, job in enumerate(jobs):
             score = evaluations[i]['score'] if i < len(evaluations) else 0
             self._save_seen_job(job, profile_name, score)
@@ -469,19 +481,31 @@ class JobHunter:
         return jobs
 
     def run(self, profile_name: Optional[str] = None, job_type: Optional[str] = None):
-        """运行完整的求职巡检"""
+        """运行完整的求职巡检
+
+        Args:
+            profile_name: 指定意向名称，None则运行所有启用的意向
+            job_type: 覆盖岗位类型
+        """
         print("="*60)
-        print("🚀 SmartJobHunter Agent 启动")
+        print("SmartJobHunter Agent 启动")
         print("="*60)
 
         profiles = self.config.get('profiles', [])
 
+        # 过滤启用的profile
         if profile_name:
             profiles = [p for p in profiles if p.get('name') == profile_name]
+        else:
+            profiles = [p for p in profiles if p.get('enabled', True)]
 
         if not profiles:
-            print("⚠️ 未找到匹配的求职意向配置")
+            print("[WARN] 未找到匹配的求职意向配置")
             return
+
+        print(f"\n找到 {len(profiles)} 个待处理的求职意向:")
+        for p in profiles:
+            print(f"  - {p.get('name')} ({p.get('job_type', '全部')})")
 
         all_jobs = []
         for profile in profiles:
@@ -489,7 +513,7 @@ class JobHunter:
             all_jobs.extend(jobs)
 
         print("\n" + "="*60)
-        print(f"✅ 巡检完成！共处理 {len(all_jobs)} 个岗位")
+        print(f"[完成] 共处理 {len(all_jobs)} 个岗位")
         print("="*60)
 
 
