@@ -8,23 +8,15 @@
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
 
+<p>
+  <a href="README_EN.md"><b>🇺🇸 English</b></a>
+</p>
+
 </div>
 
 ---
 
-<p align="center">
-  <a href="#-中文文档"><b>🇨🇳 中文</b></a> • 
-  <a href="#-english"><b>🇺🇸 English</b></a>
-</p>
-
----
-
-## 📖 中文文档
-
-<details open>
-<summary><b>📋 点击展开/收起</b></summary>
-
-### ✨ 功能特性
+## ✨ 功能特性
 
 | 功能 | 描述 |
 |:---:|:---|
@@ -37,9 +29,9 @@
 | 🔧 **自我修复** | 爬虫异常自动检测 |
 | 📤 **Git 同步** | 自动推送变更 |
 
-### 🚀 快速开始
+## 🚀 快速开始
 
-#### 1️⃣ 安装依赖
+### 1️⃣ 安装依赖
 
 ```bash
 pip install playwright pyyaml
@@ -49,7 +41,7 @@ playwright install chromium
 pip install python-docx PyMuPDF
 ```
 
-#### 2️⃣ 配置简历和意向
+### 2️⃣ 配置简历和意向
 
 ```bash
 # 📂 放入简历
@@ -59,7 +51,7 @@ cp your_resume.txt resumes/
 vim config.yaml
 ```
 
-#### 3️⃣ 运行巡检
+### 3️⃣ 运行巡检
 
 ```bash
 # 🏃 运行所有启用的意向
@@ -74,14 +66,14 @@ python main.py -t campus      # 校招
 python main.py -p "产品经理-TOB方向"
 ```
 
-#### 4️⃣ 查看报告
+### 4️⃣ 查看报告
 
 ```bash
 ls output/
 # 📄 20260410_产品经理-TOB方向.md
 ```
 
-### 📁 目录结构
+## 📁 目录结构
 
 ```
 SmartJobHunter/
@@ -103,9 +95,9 @@ SmartJobHunter/
 └── 📂 logs/                # 日志
 ```
 
-### ⚙️ 配置说明
+## ⚙️ 配置说明
 
-#### 📋 config.yaml - 求职意向
+### 📋 config.yaml - 求职意向
 
 ```yaml
 profiles:
@@ -120,7 +112,7 @@ profiles:
       - "AI产品"
 ```
 
-#### 🏢 companies.yaml - 公司列表
+### 🏢 companies.yaml - 公司列表
 
 ```yaml
 companies:
@@ -132,7 +124,7 @@ companies:
       campus: "https://..."
 ```
 
-### ⏰ 定时任务
+## ⏰ 定时任务
 
 ```bash
 # Windows - 管理员运行
@@ -141,7 +133,7 @@ setup_schedule.bat
 # 每天晚上8点自动执行 🌙
 ```
 
-### 💻 命令参考
+## 💻 命令参考
 
 | 命令 | 说明 |
 |:-----|:-----|
@@ -153,10 +145,9 @@ setup_schedule.bat
 | `python scheduler.py --check` | 💊 健康检测 |
 | `python scheduler.py --run` | ▶️ 立即巡检 |
 
-### 🏢 支持的公司
+## 🏢 支持的公司
 
-<details>
-<summary><b>🥇 第一梯队 (10家)</b></summary>
+### 🥇 第一梯队 (10家)
 
 | 公司 | 社招 | 校招/实习 |
 |:-----|:----:|:---------:|
@@ -171,10 +162,7 @@ setup_schedule.bat
 | 华为 | 🚧 | 🚧 |
 | 小米 | 🚧 | 🚧 |
 
-</details>
-
-<details>
-<summary><b>🥈 第二梯队 (15家)</b></summary>
+### 🥈 第二梯队 (15家)
 
 | 公司 | 社招 | 校招/实习 |
 |:-----|:----:|:---------:|
@@ -194,10 +182,7 @@ setup_schedule.bat
 | 蚂蚁集团 | 🚧 | 🚧 |
 | 菜鸟网络 | 🚧 | 🚧 |
 
-</details>
-
-<details>
-<summary><b>🎮 游戏公司 (5家)</b></summary>
+### 🎮 游戏公司 (5家)
 
 | 公司 | 社招 | 校招/实习 |
 |:-----|:----:|:---------:|
@@ -207,10 +192,7 @@ setup_schedule.bat
 | 完美世界 | 🚧 | 🚧 |
 | 三七互娱 | 🚧 | 🚧 |
 
-</details>
-
-<details>
-<summary><b>🌍 外资科技 (8家)</b></summary>
+### 🌍 外资科技 (8家)
 
 | 公司 | 社招 |
 |:-----|:----:|
@@ -223,18 +205,16 @@ setup_schedule.bat
 | 思科中国 | 🚧 |
 | SAP中国 | 🚧 |
 
-</details>
-
 > **📊 总计: 38家公司** (✅ 已实现 🚧 待开发)
 
-### ➕ 添加新公司
+## ➕ 添加新公司
 
 1. 📝 在 `companies.yaml` 添加配置
 2. 🔒 设置 `enabled: false`
 3. 🕷️ 在 `spider.py` 实现爬虫
 4. ✅ 测试通过后设置 `enabled: true`
 
-### 📄 输出示例
+## 📄 输出示例
 
 ```markdown
 ### 1. AI产品经理 🟢 85分
@@ -248,217 +228,6 @@ setup_schedule.bat
 **岗位职责**: ...
 ```
 
-</details>
-
----
-
-## 📖 English
-
-<details>
-<summary><b>📋 Click to expand/collapse</b></summary>
-
-### ✨ Features
-
-| Feature | Description |
-|:---:|:---|
-| 🎯 **Multi-Profile** | Support multiple job directions with independent resume inspection |
-| 📄 **Multi-Format Resume** | Support txt, md, docx, pdf formats |
-| 🔍 **Smart Filtering** | Three-layer funnel: Time → Dedup+Keywords → Job Type |
-| 🤖 **AI Evaluation** | Auto scoring (0-100) + Match reasons |
-| 📊 **Job Classification** | Distinguish internship/campus/social recruitment |
-| ⏰ **Scheduled Execution** | Daily automatic inspection |
-| 🔧 **Self-Repair** | Automatic crawler anomaly detection |
-| 📤 **Git Sync** | Auto push changes |
-
-### 🚀 Quick Start
-
-#### 1️⃣ Install Dependencies
-
-```bash
-pip install playwright pyyaml
-playwright install chromium
-
-# Optional: Support docx/pdf resumes
-pip install python-docx PyMuPDF
-```
-
-#### 2️⃣ Configure Resume & Profile
-
-```bash
-# 📂 Put your resume
-cp your_resume.txt resumes/
-
-# ⚙️ Edit config
-vim config.yaml
-```
-
-#### 3️⃣ Run Inspection
-
-```bash
-# 🏃 Run all enabled profiles
-python main.py
-
-# 🏷️ Specify job type
-python main.py -t social      # Social recruitment
-python main.py -t internship  # Internship
-python main.py -t campus      # Campus recruitment
-
-# 🎯 Specify profile
-python main.py -p "Product Manager"
-```
-
-#### 4️⃣ View Report
-
-```bash
-ls output/
-# 📄 20260410_Product_Manager.md
-```
-
-### 📁 Directory Structure
-
-```
-SmartJobHunter/
-├── 📄 config.yaml          # Main config (job profiles)
-├── 📄 companies.yaml       # Company list
-├── 🐍 main.py              # Main program
-├── 🕷️ spider.py            # Crawler module
-├── ⏰ scheduler.py         # Scheduler
-├── 📝 resume_parser.py     # Resume parser
-├── 💊 health_check.py      # Health check
-├── 📤 git_auto_push.py     # Git auto push
-│
-├── 📂 resumes/             # Resume directory
-├── 📂 output/              # Output reports
-├── 📂 data/                # Dedup data
-└── 📂 logs/                # Logs
-```
-
-### ⚙️ Configuration
-
-#### 📋 config.yaml - Job Profile
-
-```yaml
-profiles:
-  - name: "Product Manager"
-    enabled: true
-    intent: "Job intention description..."
-    resume_path: "./resumes/pm.txt"
-    job_type: "social"
-    keywords:
-      - "Product Manager"
-      - "TOB"
-      - "AI Product"
-```
-
-### 💻 Command Reference
-
-| Command | Description |
-|:--------|:------------|
-| `python main.py` | 🏃 Run all enabled profiles |
-| `python main.py -t social` | 👔 Run social recruitment only |
-| `python main.py -p "name"` | 🎯 Run specific profile |
-| `python main.py --list-profiles` | 📋 List all profiles |
-| `python spider.py --list` | 🏢 List companies |
-| `python scheduler.py --check` | 💊 Health check |
-| `python scheduler.py --run` | ▶️ Run immediately |
-
-### 🏢 Supported Companies
-
-> **📊 Total: 38 companies** (✅ Implemented 🚧 Pending)
-
-<details>
-<summary><b>🥇 Tier 1 (10 companies)</b></summary>
-
-| Company | Social | Campus/Intern |
-|:--------|:------:|:-------------:|
-| Tencent | ✅ | ✅ |
-| ByteDance | ✅ | ✅ |
-| Alibaba | 🚧 | 🚧 |
-| Baidu | 🚧 | 🚧 |
-| Meituan | 🚧 | 🚧 |
-| Didi | 🚧 | 🚧 |
-| JD.com | 🚧 | 🚧 |
-| Pinduoduo | 🚧 | 🚧 |
-| Huawei | 🚧 | 🚧 |
-| Xiaomi | 🚧 | 🚧 |
-
-</details>
-
-<details>
-<summary><b>🥈 Tier 2 (15 companies)</b></summary>
-
-| Company | Social | Campus/Intern |
-|:--------|:------:|:-------------:|
-| NetEase | 🚧 | 🚧 |
-| Kuaishou | 🚧 | 🚧 |
-| Bilibili | 🚧 | 🚧 |
-| Xiaohongshu | 🚧 | 🚧 |
-| Ctrip | 🚧 | 🚧 |
-| Weibo | 🚧 | 🚧 |
-| Zhihu | 🚧 | 🚧 |
-| Vipshop | 🚧 | 🚧 |
-| 58.com | 🚧 | 🚧 |
-| OPPO | 🚧 | 🚧 |
-| vivo | 🚧 | 🚧 |
-| ZTE | 🚧 | 🚧 |
-| Lenovo | 🚧 | 🚧 |
-| Ant Group | 🚧 | 🚧 |
-| Cainiao | 🚧 | 🚧 |
-
-</details>
-
-<details>
-<summary><b>🎮 Gaming (5 companies)</b></summary>
-
-| Company | Social | Campus/Intern |
-|:--------|:------:|:-------------:|
-| NetEase Games | 🚧 | 🚧 |
-| miHoYo | 🚧 | 🚧 |
-| Lilith Games | 🚧 | 🚧 |
-| Perfect World | 🚧 | 🚧 |
-| 37Games | 🚧 | 🚧 |
-
-</details>
-
-<details>
-<summary><b>🌍 International Tech (8 companies)</b></summary>
-
-| Company | Social |
-|:--------|:------:|
-| Microsoft China | 🚧 |
-| Apple China | 🚧 |
-| NVIDIA China | 🚧 |
-| Tesla China | 🚧 |
-| Intel China | 🚧 |
-| AMD China | 🚧 |
-| Cisco China | 🚧 |
-| SAP China | 🚧 |
-
-</details>
-
-### ➕ Add New Company
-
-1. 📝 Add config in `companies.yaml`
-2. 🔒 Set `enabled: false`
-3. 🕷️ Implement crawler in `spider.py`
-4. ✅ Set `enabled: true` after testing
-
-### 📄 Output Example
-
-```markdown
-### 1. AI Product Manager 🟢 85 points
-
-| Field | Content |
-|:------|:--------|
-| Company | Tencent |
-| Location | Beijing |
-| Match Reason | Product Manager, AI Product, TOB |
-
-**Responsibilities**: ...
-```
-
-</details>
-
 ---
 
 <div align="center">
@@ -467,7 +236,7 @@ profiles:
 
 **MIT License** © 2026 SmartJobHunter
 
-**⭐ If this project helps you, please give it a star! ⭐**
+**⭐ 如果这个项目对你有帮助，请给个 Star！⭐**
 
 Made with ❤️ by SmartJobHunter Team
 
