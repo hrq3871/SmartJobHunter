@@ -33,11 +33,15 @@ env/
 *.swo
 *~
 
-# 敏感数据 - 简历
-resumes/
+# 敏感数据 - 简历（保留示例）
+resumes/*
+!resumes/example_resume.md
+!resumes/.gitkeep
 
-# 输出文件
-output/
+# 输出文件（保留示例）
+output/*
+!output/example_report.md
+!output/.gitkeep
 
 # 日志和数据
 logs/
@@ -47,8 +51,6 @@ data/*.jsonl
 # 保留目录结构
 !data/.gitkeep
 !logs/.gitkeep
-!output/.gitkeep
-!resumes/.gitkeep
 
 # 调试文件
 debug_*.png
