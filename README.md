@@ -8,16 +8,21 @@
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
 
-**[English](#-english-documentation)** | **[中文文档](#-中文文档)**
-
 </div>
+
+---
+
+<p align="center">
+  <a href="#-中文文档"><b>🇨🇳 中文</b></a> • 
+  <a href="#-english"><b>🇺🇸 English</b></a>
+</p>
 
 ---
 
 ## 📖 中文文档
 
 <details open>
-<summary><b>👉 点击切换语言 / Click to switch language</b></summary>
+<summary><b>📋 点击展开/收起</b></summary>
 
 ### ✨ 功能特性
 
@@ -247,10 +252,10 @@ setup_schedule.bat
 
 ---
 
-## 📖 English Documentation
+## 📖 English
 
 <details>
-<summary><b>👉 Click to switch language / 点击切换语言</b></summary>
+<summary><b>📋 Click to expand/collapse</b></summary>
 
 ### ✨ Features
 
