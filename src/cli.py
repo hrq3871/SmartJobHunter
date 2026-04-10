@@ -32,17 +32,26 @@ def load_config(profile_name: str = None) -> Dict:
     Returns:
         配置字典，包含:
         - global: 全局配置
-        - profile: 当前意向配置
+        - profiles: 当前意向配置列表
         - job_types: 岗位类型配置
         - companies: 公司配置
     """
-    config_path = Path(__file__).parent.parent / "config.yaml"
+    # 加载 Agent 全局配置
+    agent_config_path = Path(__file__).parent.parent / "config" / "agent.yaml"
+    if agent_config_path.exists():
+        with open(agent_config_path, 'r', encoding='utf-8') as f:
+            agent_config = yaml.safe_load(f) or {}
+    else:
+        agent_config = {}
 
-    with open(config_path, 'r', encoding='utf-8') as f:
-        config = yaml.safe_load(f)
-
-    # 获取 profiles
-    profiles = config.get('profiles', [])
+    # 加载 profiles (从 Markdown 文件)
+    profiles_dir = Path(__file__).parent.parent / "profiles"
+    profiles = []
+    if profiles_dir.exists():
+        for profile_file in profiles_dir.glob("*.md"):
+            profile = _parse_profile_md(str(profile_file))
+            if profile:
+                profiles.append(profile)
 
     if profile_name:
         profiles = [p for p in profiles if p.get('name') == profile_name]
@@ -53,16 +62,20 @@ def load_config(profile_name: str = None) -> Dict:
     companies = crawler.get_enabled_companies()
 
     return {
-        'global': config.get('global', {}),
+        'global': agent_config,
         'profiles': profiles,
-        'job_types': config.get('job_types', {}),
+        'job_types': {
+            'internship': {'name': '实习'},
+            'campus': {'name': '校招'},
+            'social': {'name': '社招'}
+        },
         'companies': companies,
-        'output': config.get('output', {})
+        'output': agent_config.get('output', {})
     }
 
 
 def _parse_profile_md(file_path: str) -> Dict:
-    """解析 profile Markdown 文件
+    """解析 profile Markdown 文件 (YAML frontmatter 格式)
 
     Args:
         file_path: profile 文件路径
@@ -76,27 +89,31 @@ def _parse_profile_md(file_path: str) -> Dict:
 
     content = path.read_text(encoding='utf-8')
 
-    # 解析 frontmatter 或结构化内容
+    # 解析 YAML frontmatter
     profile = {
         'name': path.stem,
         'enabled': True
     }
 
-    # 尝试提取关键词
-    keywords_match = re.search(r'关键词[：:]\s*(.+)', content)
-    if keywords_match:
-        keywords = [k.strip() for k in keywords_match.group(1).split(',')]
-        profile['keywords'] = keywords
+    # 提取 frontmatter (--- ... ---)
+    if content.startswith('---'):
+        parts = content.split('---', 2)
+        if len(parts) >= 3:
+            frontmatter = parts[1].strip()
+            try:
+                fm_data = yaml.safe_load(frontmatter)
+                if fm_data:
+                    profile.update(fm_data)
+            except:
+                pass
 
-    # 尝试提取求职意向
-    intent_match = re.search(r'求职意向[：:]\s*(.+?)(?:\n|$)', content)
-    if intent_match:
-        profile['intent'] = intent_match.group(1).strip()
-
-    # 尝试提取岗位类型
-    type_match = re.search(r'岗位类型[：:]\s*(.+?)(?:\n|$)', content)
-    if type_match:
-        profile['job_type'] = type_match.group(1).strip()
+    # 提取正文作为 intent
+    if '---' in content:
+        parts = content.split('---', 2)
+        if len(parts) >= 3:
+            body = parts[2].strip()
+            if body and 'intent' not in profile:
+                profile['intent'] = body[:500]  # 限制长度
 
     return profile
 
@@ -162,11 +179,11 @@ class JobHunter:
         self.config = None
         self.seen_hashes = set()
         self.output_dir = Path("output")
-        self.data_dir = Path("data")
+        self.memory_dir = Path("memory")
 
         # 确保目录存在
         self.output_dir.mkdir(exist_ok=True)
-        self.data_dir.mkdir(exist_ok=True)
+        self.memory_dir.mkdir(exist_ok=True)
 
     def load_config(self):
         """加载配置"""
@@ -177,8 +194,8 @@ class JobHunter:
             self.config = load_config()
 
         # 加载已处理的岗位
-        seen_jobs_path = self.data_dir / "seen_jobs.jsonl"
-        self.seen_hashes = filters.load_seen_hashes_jsonl(str(seen_jobs_path))
+        seen_jobs_path = self.memory_dir / "seen_jobs.md"
+        self.seen_hashes = filters.load_seen_hashes(str(seen_jobs_path))
 
     def crawl_jobs(self, keyword: str, max_jobs: int = 50, job_type: str = None) -> List[dict]:
         """调度爬虫抓取岗位
@@ -354,6 +371,23 @@ class JobHunter:
 
         print(f"\n[Report] Generated: {output_path}")
 
+    def _map_job_type_to_key(self, job_type: str) -> Optional[str]:
+        """将中文岗位类型映射到英文键
+
+        Args:
+            job_type: 中文岗位类型（社招/校招/实习）
+
+        Returns:
+            英文键（social/campus/internship）或 None
+        """
+        mapping = {
+            '社招': 'social',
+            '校招': 'campus',
+            '实习': 'internship',
+            '全部': None
+        }
+        return mapping.get(job_type, None) if job_type else None
+
     def run_profile(self, profile: dict, job_type_override: str = None) -> List[dict]:
         """运行单个求职意向的巡检
 
@@ -392,7 +426,9 @@ class JobHunter:
         # Step 1: 抓取岗位
         print("\n[Step 1] Crawling jobs...")
         keyword = keywords[0] if keywords else "产品经理"
-        jobs = self.crawl_jobs(keyword, max_jobs=50, job_type=job_type)
+        # 将中文岗位类型映射到英文键
+        job_type_key = self._map_job_type_to_key(job_type)
+        jobs = self.crawl_jobs(keyword, max_jobs=50, job_type=job_type_key)
 
         if not jobs:
             print("[Warn] No jobs found")
@@ -421,10 +457,10 @@ class JobHunter:
 
         # Step 6: 更新去重数据库
         print("\n[Step 6] Updating seen jobs...")
-        seen_jobs_path = self.data_dir / "seen_jobs.jsonl"
-        for i, job in enumerate(jobs):
-            score = evaluations[i]['score'] if i < len(evaluations) else 0
-            filters.save_seen_job_jsonl(job, profile_name, score, str(seen_jobs_path))
+        seen_jobs_path = self.memory_dir / "seen_jobs.md"
+        filters.update_memory(jobs, evaluations, str(seen_jobs_path))
+        # 更新 hash 集合
+        for job in jobs:
             self.seen_hashes.add(job.get('hash', ''))
 
         return jobs
@@ -500,7 +536,7 @@ def parse_command(command: str) -> dict:
 def main():
     """CLI 入口"""
     parser = argparse.ArgumentParser(description='SmartJobHunter Agent')
-    parser.add_argument('-c', '--config', default='config.yaml', help='Config file path')
+    parser.add_argument('-c', '--config', default=None, help='Config file path (optional)')
     parser.add_argument('-p', '--profile', help='Profile name')
     parser.add_argument('-t', '--job-type', choices=['internship', 'campus', 'social'], help='Job type')
     parser.add_argument('-k', '--keyword', help='Search keyword')

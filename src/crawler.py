@@ -17,8 +17,8 @@ from playwright.sync_api import sync_playwright
 
 
 def load_companies_config():
-    """从 companies.yaml 加载公司配置"""
-    config_path = Path(__file__).parent.parent / "companies.yaml"
+    """从 config/companies.yaml 加载公司配置"""
+    config_path = Path(__file__).parent.parent / "config" / "companies.yaml"
     with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
