@@ -6,15 +6,24 @@ resume: ./resumes/pm_tob.txt
 keywords:
   - 产品经理
   - 产品总监
+  - 产品负责人
   - TOB
   - SaaS
   - 企业服务
   - B端
   - AI产品
-  - AI解决方案
-  - 人工智能
-  - 大模型
   - 数据产品
+exclude_keywords:
+  - 算法
+  - 工程师
+  - 开发
+  - 架构师
+  - 技术
+  - 研发
+  - 后端
+  - 前端
+  - 测试
+  - 运维
 ---
 
 # 求职意向

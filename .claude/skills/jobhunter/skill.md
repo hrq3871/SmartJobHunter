@@ -1,55 +1,134 @@
 ---
 name: jobhunter
 description: 智能求职巡检 Agent
+user_invocable: true
 ---
 
 # SmartJobHunter Agent
 
-## 状态机流程
+基于 LLM 的智能求职巡检系统，自动抓取、过滤、评估岗位并生成报告。
 
-INIT → LOADED → CRAWLED → FILTERED → EVALUATED → REPORTED → DONE
+## 快速开始
 
----
-
-### INIT
-**目标**: 初始化并加载所有配置
-**执行动作**: 调用 load_config 工具，读取 profiles, resumes, companies, agent config
-**状态转换**: → LOADED
-
-### LOADED
-**目标**: 抓取岗位数据
-**执行动作**: 调用 crawl 工具
-**状态转换**: → CRAWLED
-
-### CRAWLED
-**目标**: 过滤岗位（确定性 + 语义）
-**执行动作**: filter_by_time → dedup → semantic_filter
-**状态转换**: → FILTERED
-
-### FILTERED
-**目标**: 深度评估匹配岗位
-**执行动作**: clean_data → analyze_resume → evaluate
-**状态转换**: → EVALUATED
-
-### EVALUATED
-**目标**: 生成报告
-**执行动作**: report prompt → save_report
-**状态转换**: → REPORTED
-
-### REPORTED
-**目标**: 更新 Memory
-**执行动作**: update_memory
-**状态转换**: → DONE
-
-### DONE
-**输出**: ✅ 巡检完成
+用户说"运行巡检"、"找工作"或"帮我看看有什么岗位"时，按照以下流程执行：
 
 ---
 
-## 执行日志格式
-[INIT] 开始加载配置...
-[LOADED] ✓ 配置加载完成
-...
+## 执行流程
+
+### Step 1: 加载配置 [INIT]
+
+读取以下文件：
+- `profiles/*.md` - 求职意向配置
+- `config/agent.yaml` - Agent 配置
+- `config/companies.yaml` - 公司列表
+
+**输出**: 找到 X 个求职意向，Y 家启用的公司
+
+---
+
+### Step 2: 抓取岗位 [CRAWL]
+
+对每个启用的公司，调用 Python 爬虫抓取岗位。
+
+**输出**: 抓取了 X 个岗位
+
+---
+
+### Step 3: 确定性过滤 [FILTER-1]
+
+调用 Python 工具：
+1. `filter_by_time` - 只保留最近 3 天的岗位
+2. `dedup` - 排除 `memory/seen_jobs.md` 中已处理的岗位
+
+**输出**: 过滤后剩余 X 个岗位
+
+---
+
+### Step 4: 语义过滤 [FILTER-2] ⭐ AI
+
+**这是关键步骤！不要用简单关键词匹配。**
+
+对每个岗位，用 LLM 判断：
+
+```
+求职意向：{从 profile 读取}
+岗位标题：{title}
+岗位描述：{duty}
+
+判断：
+1. 这个岗位是产品岗还是技术岗？
+2. 是否符合求职者的意向？
+3. 匹配度评分 (0-1)
+```
+
+**只保留匹配度 >= 0.6 的岗位。**
+
+---
+
+### Step 5: 深度评估 [EVALUATE] ⭐ AI
+
+对通过过滤的岗位，进行深度评估：
+
+```
+候选人画像：{从简历提取}
+岗位信息：{title, company, duty}
+
+输出：
+- 匹配分数 (0-100)
+- 匹配理由
+- 风险提示
+- 建议
+```
+
+---
+
+### Step 6: 生成报告 [REPORT]
+
+生成 Markdown 报告，保存到 `output/YYYYMMDD_{profile_name}.md`
+
+---
+
+### Step 7: 更新记录 [MEMORY]
+
+将处理过的岗位写入 `memory/seen_jobs.md`
+
+---
+
+## 输出格式
+
+完成后输出：
+```
+✅ 巡检完成
+- 抓取岗位: X 个
+- 时间过滤后: Y 个
+- 语义过滤后: Z 个
+- 推荐岗位: N 个
+- 报告: output/YYYYMMDD_{profile_name}.md
+```
+
+---
+
+## 重要提示
+
+### 语义过滤是 AI 驱动的
+
+**不要**使用简单关键词匹配！例如：
+- ❌ 错误：标题包含"大模型"就保留
+- ✅ 正确：LLM 判断这是产品岗还是技术岗
+
+### 判断标准
+
+产品岗通常：
+- 标题包含：产品经理、产品总监、产品负责人
+- 职责包含：需求分析、产品规划、用户研究
+
+技术岗通常：
+- 标题包含：工程师、架构师、算法、开发
+- 职责包含：编码、系统设计、模型训练
+
+---
 
 ## 错误处理
-[ERROR] 状态: XXX, 错误: ...
+
+如果任何步骤失败，输出错误信息并询问用户是否继续。
