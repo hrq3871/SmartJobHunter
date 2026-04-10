@@ -1,0 +1,18 @@
+# Agent 决策配置
+decision_level: "moderate"  # conservative / moderate / aggressive
+
+# 模型选择策略
+model_strategy:
+  simple_tasks: "haiku"
+  complex_tasks: "sonnet"
+
+# 语义过滤阈值
+semantic_filter:
+  conservative: 0.8
+  moderate: 0.6
+  aggressive: 0.4
+
+# 输出配置
+output:
+  max_jobs_per_report: 20
+  include_company_background: true
