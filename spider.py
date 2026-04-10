@@ -590,7 +590,7 @@ def crawl_baidu(keyword, headless=True, max_jobs=50, max_pages=5, job_type="soci
 
 def parse_meituan_job(item: dict) -> dict:
     """解析美团岗位数据"""
-    title = item.get('jobTitle', '') or item.get('name', '')
+    title = item.get('name', '')
     job_type_label = "社招"
 
     if '实习' in title or 'intern' in title.lower():
@@ -598,19 +598,38 @@ def parse_meituan_job(item: dict) -> dict:
     elif '校招' in title or '应届' in title:
         job_type_label = "校招"
 
+    # 解析城市列表
+    city_list = item.get('cityList', [])
+    location = ', '.join([c.get('name', '') for c in city_list]) if city_list else ''
+
+    # 解析部门
+    dept_list = item.get('department', [])
+    department = ', '.join([d.get('name', '') for d in dept_list]) if dept_list else ''
+
+    # 解析发布时间
+    refresh_time = item.get('refreshTime', 0)
+    publish_time = ''
+    if refresh_time:
+        from datetime import datetime
+        try:
+            dt = datetime.fromtimestamp(refresh_time / 1000)
+            publish_time = dt.strftime('%Y-%m-%d')
+        except:
+            pass
+
     return {
         "title": title,
         "company": "美团",
-        "location": item.get('city', '') or item.get('workPlace', ''),
-        "category": item.get('jobCategory', ''),
-        "url": f"https://zhaopin.meituan.com/jobs/{item.get('id', '')}",
-        "publish_time": item.get('publishDate', ''),
-        "duty": item.get('jobDesc', ''),
-        "requirement": item.get('jobRequire', ''),
-        "product": item.get('department', ''),
-        "bg": '',
+        "location": location,
+        "category": item.get('jobFamily', ''),
+        "url": f"https://zhaopin.meituan.com/jobs/{item.get('jobUnionId', '')}",
+        "publish_time": publish_time,
+        "duty": item.get('jobDuty', ''),
+        "requirement": item.get('jobRequirement', ''),
+        "product": department,
+        "bg": item.get('jobFamilyGroup', ''),
         "work_years": item.get('workYear', ''),
-        "hash": generate_hash(str(item.get('id', ''))),
+        "hash": generate_hash(str(item.get('jobUnionId', ''))),
         "source": "meituan",
         "job_type": job_type_label
     }
@@ -630,7 +649,7 @@ def crawl_meituan(keyword, headless=True, max_jobs=50, max_pages=5, job_type="so
         intercepted_data = []
 
         def handle_response(response):
-            if "api/job/list" in response.url or "job/search" in response.url:
+            if "getJobList" in response.url:
                 try:
                     data = response.json()
                     intercepted_data.append(data)
@@ -641,14 +660,14 @@ def crawl_meituan(keyword, headless=True, max_jobs=50, max_pages=5, job_type="so
 
         try:
             print(f"[爬虫] 正在访问美团招聘...", file=sys.stderr)
-            page.goto(f"{base_url}?keyword={keyword}", timeout=60000, wait_until='networkidle')
+            page.goto(base_url, timeout=60000, wait_until='networkidle')
             page.wait_for_timeout(5000)
 
             for data in intercepted_data:
                 if isinstance(data, dict):
-                    posts = data.get('data', {}).get('list', []) or data.get('result', {}).get('list', []) or []
+                    posts = data.get('data', {}).get('list', [])
                     for item in posts:
-                        job_id = str(item.get('id', ''))
+                        job_id = str(item.get('jobUnionId', ''))
                         if job_id and job_id not in seen_ids:
                             seen_ids.add(job_id)
                             job = parse_meituan_job(item)

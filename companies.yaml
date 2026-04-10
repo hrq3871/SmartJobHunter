@@ -76,14 +76,14 @@ companies:
   # 美团
   - id: meituan
     name: 美团
-    enabled: false
+    enabled: true
     urls:
-      social: "https://zhaopin.meituan.com/jobs?keyword={keyword}"
-      campus: "https://zhaopin.meituan.com/campus?keyword={keyword}"
+      social: "https://zhaopin.meituan.com/jobs"
+      campus: "https://zhaopin.meituan.com/campus"
     api:
-      pattern: "api/job/list"
+      pattern: "getJobList"
       type: "intercept"
-    note: "需要分析API结构"
+    note: "API已验证可用"
 
   # 滴滴出行
   - id: didi
@@ -143,8 +143,6 @@ companies:
     api:
       pattern: "api/job/list"
       type: "intercept"
-    note: "需要分析API结构"
-      type: "unknown"
     note: "需要分析API结构"
 
   # ============================================================
