@@ -88,32 +88,26 @@ def _parse_profile_md(file_path: str) -> Dict:
         return None
 
     content = path.read_text(encoding='utf-8')
-
-    # 解析 YAML frontmatter
     profile = {
         'name': path.stem,
         'enabled': True
     }
 
-    # 提取 frontmatter (--- ... ---)
+    # 解析 YAML frontmatter (--- ... ---)
     if content.startswith('---'):
         parts = content.split('---', 2)
         if len(parts) >= 3:
-            frontmatter = parts[1].strip()
             try:
-                fm_data = yaml.safe_load(frontmatter)
+                fm_data = yaml.safe_load(parts[1].strip())
                 if fm_data:
                     profile.update(fm_data)
-            except:
+            except Exception:
                 pass
 
-    # 提取正文作为 intent
-    if '---' in content:
-        parts = content.split('---', 2)
-        if len(parts) >= 3:
+            # 提取正文作为 intent
             body = parts[2].strip()
             if body and 'intent' not in profile:
-                profile['intent'] = body[:500]  # 限制长度
+                profile['intent'] = body[:500]
 
     return profile
 
@@ -256,15 +250,12 @@ class JobHunter:
         keywords = profile.get('keywords', [])
         if keywords:
             print(f"\n[Filter] Keywords: {keywords}...")
-            filtered = []
-            for job in jobs:
-                title = job.get('title', '').lower()
-                duty = job.get('duty', '').lower()
-                for kw in keywords:
-                    if kw.lower() in title or kw.lower() in duty:
-                        filtered.append(job)
-                        break
-            jobs = filtered
+            keywords_lower = [kw.lower() for kw in keywords]
+            jobs = [
+                job for job in jobs
+                if any(kw in job.get('title', '').lower() or kw in job.get('duty', '').lower()
+                       for kw in keywords_lower)
+            ]
             print(f"   Remaining: {len(jobs)} jobs")
 
         # 数据清洗
@@ -287,21 +278,17 @@ class JobHunter:
         title = job.get('title', '').lower()
         duty = job.get('duty', '').lower()[:2000]
 
-        matched_keywords = []
-        for kw in keywords:
-            if kw.lower() in title or kw.lower() in duty:
-                matched_keywords.append(kw)
+        # 匹配关键词
+        keywords_lower = [kw.lower() for kw in keywords]
+        matched_keywords = [kw for kw in keywords_lower if kw in title or kw in duty]
 
-        score = 0
-        if matched_keywords:
-            score = min(60 + len(matched_keywords) * 5, 85)
+        # 基础评分
+        score = min(60 + len(matched_keywords) * 5, 85) if matched_keywords else 0
 
         # AI 相关加分
         ai_keywords = ['ai', '人工智能', '大模型', '机器学习', '深度学习', 'llm', 'gpt']
-        for kw in ai_keywords:
-            if kw in duty:
-                score = min(score + 10, 95)
-                break
+        if any(kw in duty for kw in ai_keywords):
+            score = min(score + 10, 95)
 
         return {
             'score': score,
@@ -371,6 +358,14 @@ class JobHunter:
 
         print(f"\n[Report] Generated: {output_path}")
 
+    # 岗位类型映射表
+    JOB_TYPE_MAPPING = {
+        '社招': 'social',
+        '校招': 'campus',
+        '实习': 'internship',
+        '全部': None
+    }
+
     def _map_job_type_to_key(self, job_type: str) -> Optional[str]:
         """将中文岗位类型映射到英文键
 
@@ -380,13 +375,7 @@ class JobHunter:
         Returns:
             英文键（social/campus/internship）或 None
         """
-        mapping = {
-            '社招': 'social',
-            '校招': 'campus',
-            '实习': 'internship',
-            '全部': None
-        }
-        return mapping.get(job_type, None) if job_type else None
+        return self.JOB_TYPE_MAPPING.get(job_type) if job_type else None
 
     def run_profile(self, profile: dict, job_type_override: str = None) -> List[dict]:
         """运行单个求职意向的巡检
