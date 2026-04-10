@@ -63,3 +63,8 @@ Thumbs.db
 # 临时文件
 *.tmp
 *.temp
+
+# 旧格式文件
+main.py
+config.yaml
+data/
