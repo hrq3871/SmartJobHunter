@@ -19,10 +19,10 @@ from pathlib import Path
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 # 添加项目路径
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# 导入自动推送模块
-from git_auto_push import auto_commit_push
+# 导入模块
+from src.git_auto_push import auto_commit_push
 
 
 def run_job_hunt(job_type: str = "social"):
@@ -31,9 +31,9 @@ def run_job_hunt(job_type: str = "social"):
     print(f"[巡检] 开始求职巡检 - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print("="*60)
 
-    # 直接运行main.py，不捕获输出
+    # 运行新的 CLI 模块
     result = subprocess.run(
-        [sys.executable, "main.py", "-t", job_type]
+        [sys.executable, "-m", "src.cli", "-t", job_type]
     )
 
     return result.returncode == 0
@@ -41,7 +41,7 @@ def run_job_hunt(job_type: str = "social"):
 
 def run_health_check() -> dict:
     """运行健康检测"""
-    from health_check import HealthChecker
+    from src.health_check import HealthChecker
 
     checker = HealthChecker()
     results = checker.run_all_checks()

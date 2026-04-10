@@ -14,84 +14,160 @@ user_invocable: true
 
 ---
 
-## 执行流程
-
-### Step 1: 加载配置 [INIT]
-
-读取 `profiles/*.md`、`config/agent.yaml`、`config/companies.yaml`
-
-**输出**: 找到 X 个求职意向，Y 家启用的公司
-
----
-
-### Step 2: 抓取岗位 [CRAWL]
-
-对每个启用的公司调用 Python 爬虫抓取岗位。
-
-**输出**: 抓取了 X 个岗位
-
----
-
-### Step 3: 确定性过滤 [FILTER-1]
-
-调用 Python 工具：
-1. `filter_by_time` - 只保留最近 3 天的岗位
-2. `dedup` - 排除 `memory/seen_jobs.md` 中已处理的岗位
-
-**输出**: 过滤后剩余 X 个岗位
-
----
-
-### Step 4: 语义过滤 [FILTER-2] ⭐ AI
-
-**关键：用 LLM 判断岗位类型和匹配度，不要用简单关键词匹配。**
-
-对每个岗位，判断：
-1. 这是产品岗还是技术岗？
-2. 是否符合求职者意向？
-3. 匹配度评分 (0-1)，只保留 >= 0.6 的岗位
-
-**判断参考**：
-- 产品岗：标题含"产品经理/总监/负责人"，职责含"需求分析/产品规划/用户研究"
-- 技术岗：标题含"工程师/架构师/算法/开发"，职责含"编码/系统设计/模型训练"
-
----
-
-### Step 5: 深度评估 [EVALUATE] ⭐ AI
-
-对通过过滤的岗位，输出：
-- 匹配分数 (0-100)
-- 匹配理由
-- 风险提示
-- 建议
-
----
-
-### Step 6: 生成报告 [REPORT]
-
-保存到 `output/YYYYMMDD_{profile_name}.md`
-
----
-
-### Step 7: 更新记录 [MEMORY]
-
-写入 `memory/seen_jobs.md`
-
----
-
-## 输出格式
+## 状态机流程
 
 ```
+INIT → LOADED → CRAWLED → FILTERED → EVALUATED → REPORTED → DONE
+```
+
+---
+
+### INIT
+
+**目标**: 初始化并加载所有配置
+
+**执行动作**:
+1. 调用 `load_config` 工具
+2. 读取 `profiles/{profile_name}.md` 获取求职意向
+3. 读取 `resumes/{resume_file}` 获取简历内容
+4. 读取 `config/companies.yaml` 获取公司列表
+5. 读取 `config/agent.yaml` 获取 Agent 配置
+
+**输出变量**:
+```
+profile = {name, intent, keywords, job_type, resume_path}
+resume = "简历文本内容"
+companies = ["腾讯", "字节跳动"]
+agent_config = {decision_level, model_strategy, ...}
+```
+
+**完成条件**: 所有配置加载成功，无缺失文件
+
+**状态转换**: → LOADED
+
+---
+
+### LOADED
+
+**目标**: 抓取岗位数据
+
+**执行动作**:
+1. 调用 `crawl` 工具，传入 companies 和 job_type
+2. 等待爬虫完成，获取岗位列表
+
+**输入变量**: companies, job_type
+
+**输出变量**:
+```
+jobs = [
+  {title, company, location, duty, requirement, url, hash, ...},
+  ...
+]
+```
+
+**完成条件**: jobs 列表不为空（或确认无新岗位）
+
+**状态转换**: → CRAWLED
+
+---
+
+### CRAWLED
+
+**目标**: 过滤岗位（确定性 + 语义）
+
+**执行动作**:
+1. 调用 `filter_by_time` 工具，传入 jobs 和 time_filter_days
+2. 调用 `dedup` 工具，传入过滤后的 jobs，读取 memory/seen_jobs.md
+3. 对每个剩余岗位，执行语义过滤:
+   - 使用 `semantic_filter` prompt
+   - 输入: profile.intent, profile.keywords, job
+   - 输出: match_score, match_reason, should_keep
+4. 根据 decision_level 阈值过滤
+
+**输入变量**: jobs, profile, agent_config.decision_level
+
+**输出变量**:
+```
+matched_jobs = [
+  {job, match_score, match_reason},
+  ...
+]
+```
+
+**完成条件**: 所有岗位完成语义过滤判断
+
+**状态转换**: → FILTERED
+
+---
+
+### FILTERED
+
+**目标**: 深度评估匹配岗位
+
+**执行动作**:
+1. 调用 `clean_data` 工具，截断过长文本
+2. 检查 memory/profile_cache.md 是否有缓存的能力画像
+3. 执行简历分析 (使用 analyze_resume prompt)
+4. 对每个 matched_job 执行岗位评估 (使用 evaluate prompt)
+
+**状态转换**: → EVALUATED
+
+---
+
+### EVALUATED
+
+**目标**: 生成报告
+
+**执行动作**:
+1. 按评分从高到低排序 evaluations
+2. 执行报告生成 (使用 report prompt)
+3. 保存到 `output/{date}_{profile_name}.md`
+
+**状态转换**: → REPORTED
+
+---
+
+### REPORTED
+
+**目标**: 更新 Memory
+
+**执行动作**:
+1. 调用 `update_memory` 工具
+2. 将处理的岗位追加到 memory/seen_jobs.md
+
+**状态转换**: → DONE
+
+---
+
+### DONE
+
+**输出**:
+```
 ✅ 巡检完成
-- 抓取岗位: X 个
-- 时间过滤后: Y 个
-- 语义过滤后: Z 个
-- 推荐岗位: N 个
-- 报告: output/YYYYMMDD_{profile_name}.md
+📄 报告: output/20260410_产品经理-TOB方向.md
+📊 匹配岗位: 5 个
+🎯 最高分: 腾讯-AI产品经理 (89分)
+```
+
+---
+
+## 执行日志格式
+
+```
+[INIT] 开始加载配置...
+[LOADED] ✓ 配置加载完成 (profile: 产品经理-TOB, companies: 2)
+[CRAWLED] ✓ 抓取完成 (50 个岗位)
+[FILTERED] ✓ 过滤完成 (时间:50 → 去重:45 → 语义:12)
+[EVALUATED] ✓ 评估完成 (12 个岗位)
+[REPORTED] ✓ 报告生成: output/20260410_产品经理-TOB方向.md
+[DONE] ✅ 巡检完成
 ```
 
 ---
 
 ## 错误处理
 
-任何步骤失败时，输出错误信息并询问用户是否继续。
+如果某状态执行失败:
+1. 输出错误信息: `[ERROR] 状态: XXX, 错误: ...`
+2. 停止执行，不进入下一状态
+3. 提示用户检查配置或重试
