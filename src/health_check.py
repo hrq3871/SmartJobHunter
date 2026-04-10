@@ -16,9 +16,9 @@ from typing import Dict, List, Tuple
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 # 添加项目路径
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from spider import crawl_company, get_enabled_companies
+from src.crawler import crawl_company, get_enabled_companies
 
 
 class HealthChecker:
