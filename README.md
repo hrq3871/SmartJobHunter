@@ -2,7 +2,7 @@
 
 # 🎯 SmartJobHunter
 
-**🤖 Automated Job Hunting Inspection System based on Claude Code Agent**
+**🤖 LLM-Agent Driven Automated Job Hunting System**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
@@ -20,14 +20,14 @@
 
 | Feature | Description |
 |:---:|:---|
+| 🤖 **Agent-Driven** | LLM-powered intelligent job matching and evaluation |
 | 🎯 **Multi-Profile** | Support multiple job directions with independent resume inspection |
-| 📄 **Multi-Format Resume** | Support txt, md, docx, pdf formats |
+| 📄 **Multi-Format Resume** | Support txt, md, docx, pdf, png, jpg formats |
 | 🔍 **Smart Filtering** | Three-layer funnel: Time → Dedup+Keywords → Job Type |
-| 🤖 **AI Evaluation** | Auto scoring (0-100) + Match reasons |
+| 📊 **AI Evaluation** | Auto scoring (0-100) + Match reasons |
 | 📊 **Job Classification** | Distinguish internship/campus/social recruitment |
 | ⏰ **Scheduled Execution** | Daily automatic inspection |
 | 🔧 **Self-Repair** | Automatic crawler anomaly detection |
-| 📤 **Git Sync** | Auto push changes |
 
 ## 🚀 Quick Start
 
@@ -41,79 +41,122 @@ playwright install chromium
 pip install python-docx PyMuPDF
 ```
 
-### 2️⃣ Configure Resume & Profile
+### 2️⃣ Configure Profile
+
+Create a profile in `profiles/` directory:
 
 ```bash
-# 📂 Put your resume
-cp your_resume.txt resumes/
+# Create profile with YAML frontmatter
+cat > profiles/my_profile.md << 'EOF'
+---
+name: Product Manager
+enabled: true
+job_type: 社招
+resume: resumes/my_resume.md
+keywords:
+  - Product Manager
+  - TOB
+  - AI Product
+---
 
-# ⚙️ Edit config
-vim config.yaml
+# Job Intention
+
+Looking for TOB SaaS Product Manager positions...
+EOF
 ```
 
 ### 3️⃣ Run Inspection
 
 ```bash
-# 🏃 Run all enabled profiles
-python main.py
+# Run all enabled profiles
+python -m src.cli
 
-# 🏷️ Specify job type
-python main.py -t social      # Social recruitment
-python main.py -t internship  # Internship
-python main.py -t campus      # Campus recruitment
+# Specify job type
+python -m src.cli -t social      # Social recruitment
+python -m src.cli -t internship  # Internship
+python -m src.cli -t campus      # Campus recruitment
 
-# 🎯 Specify profile
-python main.py -p "Product Manager"
+# Specify profile
+python -m src.cli -p "Product Manager"
+
+# List all profiles
+python -m src.cli --list-profiles
 ```
 
 ### 4️⃣ View Report
 
 ```bash
 ls output/
-# 📄 20260410_Product_Manager.md
+# 20260410_Product_Manager.md
 ```
 
 ## 📁 Directory Structure
 
 ```
 SmartJobHunter/
-├── 📄 config.yaml          # Main config (job profiles)
-├── 📄 companies.yaml       # Company list
-├── 🐍 main.py              # Main program
-├── 🕷️ spider.py            # Crawler module
-├── ⏰ scheduler.py         # Scheduler
-├── 📝 resume_parser.py     # Resume parser
-├── 💊 health_check.py      # Health check
-├── 📤 git_auto_push.py     # Git auto push
-├── 🔧 api_probe.py         # API probe tool
+├── 📂 src/                  # Python modules
+│   ├── cli.py               # CLI entry point
+│   ├── crawler.py           # Crawler module
+│   ├── filters.py           # Filter functions
+│   └── resume_parser.py     # Resume parser
 │
-├── 📂 resumes/             # Resume directory
-│   ├── example_resume.md
-│   └── your_resume.txt
+├── 📂 config/               # Configuration
+│   ├── agent.yaml           # Agent settings
+│   └── companies.yaml       # Company list
 │
-├── 📂 output/              # Output reports
-├── 📂 data/                # Dedup data
-└── 📂 logs/                # Logs
+├── 📂 profiles/             # Job profiles (Markdown + YAML frontmatter)
+│   ├── pm_tob.md
+│   └── AI产品经理.md
+│
+├── 📂 memory/               # Dedup data (Markdown)
+│   └── seen_jobs.md
+│
+├── 📂 resumes/              # Resume files
+├── 📂 output/               # Generated reports
+│
+├── 📂 .claude/skills/       # Claude Code Agent Skills
+│   └── jobhunter/           # JobHunter Agent
+│
+└── 📄 companies.md          # User-editable company list
 ```
 
 ## ⚙️ Configuration
 
-### 📋 config.yaml - Job Profile
+### 📋 Profile Format (profiles/*.md)
 
-```yaml
-profiles:
-  - name: "Product Manager"
-    enabled: true
-    intent: "Job intention description..."
-    resume_path: "./resumes/pm.txt"
-    job_type: "social"
-    keywords:
-      - "Product Manager"
-      - "TOB"
-      - "AI Product"
+```markdown
+---
+name: Product Manager
+enabled: true
+job_type: 社招
+resume: resumes/pm.md
+keywords:
+  - Product Manager
+  - TOB
+  - AI Product
+---
+
+# Job Intention
+
+Looking for TOB SaaS Product Manager positions...
 ```
 
-### 🏢 companies.yaml - Company List
+### 🤖 Agent Configuration (config/agent.yaml)
+
+```yaml
+decision_level: "moderate"  # conservative / moderate / aggressive
+
+model_strategy:
+  simple_tasks: "haiku"
+  complex_tasks: "sonnet"
+
+semantic_filter:
+  conservative: 0.8
+  moderate: 0.6
+  aggressive: 0.4
+```
+
+### 🏢 Company Configuration (config/companies.yaml)
 
 ```yaml
 companies:
@@ -121,30 +164,18 @@ companies:
     name: Tencent
     enabled: true
     urls:
-      social: "https://..."
-      campus: "https://..."
-```
-
-## ⏰ Scheduled Tasks
-
-```bash
-# Windows - Run as Administrator
-setup_schedule.bat
-
-# Auto execute at 8 PM daily 🌙
+      social: "https://careers.tencent.com/search.html?query={keyword}"
+      campus: "https://careers.tencent.com/search.html?query={keyword}"
 ```
 
 ## 💻 Command Reference
 
 | Command | Description |
 |:--------|:------------|
-| `python main.py` | 🏃 Run all enabled profiles |
-| `python main.py -t social` | 👔 Run social recruitment only |
-| `python main.py -p "name"` | 🎯 Run specific profile |
-| `python main.py --list-profiles` | 📋 List all profiles |
-| `python spider.py --list` | 🏢 List companies |
-| `python scheduler.py --check` | 💊 Health check |
-| `python scheduler.py --run` | ▶️ Run immediately |
+| `python -m src.cli` | Run all enabled profiles |
+| `python -m src.cli -t social` | Run social recruitment only |
+| `python -m src.cli -p "name"` | Run specific profile |
+| `python -m src.cli --list-profiles` | List all profiles |
 
 ## 🏢 Supported Companies
 
@@ -154,9 +185,9 @@ setup_schedule.bat
 |:--------|:------:|:-------------:|
 | Tencent | ✅ | ✅ |
 | ByteDance | ✅ | ✅ |
+| Meituan | ✅ | ✅ |
 | Alibaba | 🚧 | 🚧 |
 | Baidu | 🚧 | 🚧 |
-| Meituan | ✅ | ✅ |
 | Didi | 🚧 | 🚧 |
 | JD.com | 🚧 | 🚧 |
 | Pinduoduo | 🚧 | 🚧 |
@@ -183,37 +214,30 @@ setup_schedule.bat
 | Ant Group | 🚧 | 🚧 |
 | Cainiao | 🚧 | 🚧 |
 
-### 🎮 Gaming (5 companies)
-
-| Company | Social | Campus/Intern |
-|:--------|:------:|:-------------:|
-| NetEase Games | 🚧 | 🚧 |
-| miHoYo | 🚧 | 🚧 |
-| Lilith Games | 🚧 | 🚧 |
-| Perfect World | 🚧 | 🚧 |
-| 37Games | 🚧 | 🚧 |
-
-### 🌍 International Tech (8 companies)
-
-| Company | Social |
-|:--------|:------:|
-| Microsoft China | 🚧 |
-| Apple China | 🚧 |
-| NVIDIA China | 🚧 |
-| Tesla China | 🚧 |
-| Intel China | 🚧 |
-| AMD China | 🚧 |
-| Cisco China | 🚧 |
-| SAP China | 🚧 |
-
 > **📊 Total: 38 companies** (✅ Implemented 🚧 Pending)
 
-## ➕ Add New Company
+## 🤖 Agent Architecture
 
-1. 📝 Add config in `companies.yaml`
-2. 🔒 Set `enabled: false`
-3. 🕷️ Implement crawler in `spider.py`
-4. ✅ Set `enabled: true` after testing
+SmartJobHunter uses an LLM-Agent architecture:
+
+```
+User Request → Agent (Claude) → Tools (Python) → Output
+                    ↓
+              ┌─────────┐
+              │  State  │
+              │ Machine │
+              └─────────┘
+                    ↓
+    INIT → LOADED → CRAWLED → FILTERED → EVALUATED → REPORTED → DONE
+```
+
+### Agent Skills
+
+Located in `.claude/skills/jobhunter/`:
+
+- `skill.md` - Main agent entry point
+- `tools/*.md` - Tool definitions (crawl, filter, load_config)
+- `prompts/*.md` - Agent prompts (evaluate, report)
 
 ## 📄 Output Example
 
