@@ -2,7 +2,7 @@
 
 # 🎯 SmartJobHunter
 
-**🤖 基于 Claude Code Agent 的自动化求职巡检系统**
+**🤖 基于 LLM-Agent 的自动化求职巡检系统**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
@@ -20,14 +20,14 @@
 
 | 功能 | 描述 |
 |:---:|:---|
+| 🤖 **Agent 驱动** | 大模型驱动的智能岗位匹配与评估 |
 | 🎯 **多意向并行** | 支持多个求职方向，每份简历独立巡检 |
-| 📄 **多格式简历** | 支持 txt、md、docx、pdf 格式 |
+| 📄 **多格式简历** | 支持 txt、md、docx、pdf、png、jpg 格式 |
 | 🔍 **智能过滤** | 三层漏斗：时间 → 去重+关键词 → 岗位性质 |
-| 🤖 **AI 评估** | 自动评分（0-100分）+ 匹配理由 |
+| 📊 **AI 评估** | 自动评分（0-100分）+ 匹配理由 |
 | 📊 **岗位分类** | 区分实习/校招/社招 |
 | ⏰ **定时执行** | 每天自动巡检 |
 | 🔧 **自我修复** | 爬虫异常自动检测 |
-| 📤 **Git 同步** | 自动推送变更 |
 
 ## 🚀 快速开始
 
@@ -41,79 +41,122 @@ playwright install chromium
 pip install python-docx PyMuPDF
 ```
 
-### 2️⃣ 配置简历和意向
+### 2️⃣ 配置求职意向
+
+在 `profiles/` 目录创建配置文件：
 
 ```bash
-# 📂 放入简历
-cp your_resume.txt resumes/
+# 创建带 YAML frontmatter 的配置文件
+cat > profiles/my_profile.md << 'EOF'
+---
+name: 产品经理
+enabled: true
+job_type: 社招
+resume: resumes/my_resume.md
+keywords:
+  - 产品经理
+  - TOB
+  - AI产品
+---
 
-# ⚙️ 编辑配置
-vim config.yaml
+# 求职意向
+
+寻找 TOB SaaS 产品经理岗位...
+EOF
 ```
 
 ### 3️⃣ 运行巡检
 
 ```bash
-# 🏃 运行所有启用的意向
-python main.py
+# 运行所有启用的意向
+python -m src.cli
 
-# 🏷️ 指定岗位类型
-python main.py -t social      # 社招
-python main.py -t internship  # 实习
-python main.py -t campus      # 校招
+# 指定岗位类型
+python -m src.cli -t social      # 社招
+python -m src.cli -t internship  # 实习
+python -m src.cli -t campus      # 校招
 
-# 🎯 指定意向
-python main.py -p "产品经理-TOB方向"
+# 指定意向
+python -m src.cli -p "产品经理"
+
+# 列出所有意向
+python -m src.cli --list-profiles
 ```
 
 ### 4️⃣ 查看报告
 
 ```bash
 ls output/
-# 📄 20260410_产品经理-TOB方向.md
+# 20260410_产品经理.md
 ```
 
 ## 📁 目录结构
 
 ```
 SmartJobHunter/
-├── 📄 config.yaml          # 主配置（求职意向）
-├── 📄 companies.yaml       # 公司列表
-├── 🐍 main.py              # 主程序
-├── 🕷️ spider.py            # 爬虫模块
-├── ⏰ scheduler.py         # 调度器
-├── 📝 resume_parser.py     # 简历解析
-├── 💊 health_check.py      # 健康检测
-├── 📤 git_auto_push.py     # Git自动推送
-├── 🔧 api_probe.py         # API探测工具
+├── 📂 src/                  # Python 模块
+│   ├── cli.py               # CLI 入口
+│   ├── crawler.py           # 爬虫模块
+│   ├── filters.py           # 过滤函数
+│   └── resume_parser.py     # 简历解析
 │
-├── 📂 resumes/             # 简历目录
-│   ├── example_resume.md
-│   └── your_resume.txt
+├── 📂 config/               # 配置文件
+│   ├── agent.yaml           # Agent 设置
+│   └── companies.yaml       # 公司列表
 │
-├── 📂 output/              # 输出报告
-├── 📂 data/                # 去重数据
-└── 📂 logs/                # 日志
+├── 📂 profiles/             # 求职意向（Markdown + YAML frontmatter）
+│   ├── pm_tob.md
+│   └── AI产品经理.md
+│
+├── 📂 memory/               # 去重数据（Markdown）
+│   └── seen_jobs.md
+│
+├── 📂 resumes/              # 简历文件
+├── 📂 output/               # 生成的报告
+│
+├── 📂 .claude/skills/       # Claude Code Agent Skills
+│   └── jobhunter/           # JobHunter Agent
+│
+└── 📄 companies.md          # 用户可编辑的公司列表
 ```
 
 ## ⚙️ 配置说明
 
-### 📋 config.yaml - 求职意向
+### 📋 意向配置格式 (profiles/*.md)
 
-```yaml
-profiles:
-  - name: "产品经理-TOB方向"
-    enabled: true
-    intent: "求职意向描述..."
-    resume_path: "./resumes/pm_tob.txt"
-    job_type: "社招"
-    keywords:
-      - "产品经理"
-      - "TOB"
-      - "AI产品"
+```markdown
+---
+name: 产品经理
+enabled: true
+job_type: 社招
+resume: resumes/pm.md
+keywords:
+  - 产品经理
+  - TOB
+  - AI产品
+---
+
+# 求职意向
+
+寻找 TOB SaaS 产品经理岗位...
 ```
 
-### 🏢 companies.yaml - 公司列表
+### 🤖 Agent 配置 (config/agent.yaml)
+
+```yaml
+decision_level: "moderate"  # conservative / moderate / aggressive
+
+model_strategy:
+  simple_tasks: "haiku"
+  complex_tasks: "sonnet"
+
+semantic_filter:
+  conservative: 0.8
+  moderate: 0.6
+  aggressive: 0.4
+```
+
+### 🏢 公司配置 (config/companies.yaml)
 
 ```yaml
 companies:
@@ -121,30 +164,18 @@ companies:
     name: 腾讯
     enabled: true
     urls:
-      social: "https://..."
-      campus: "https://..."
-```
-
-## ⏰ 定时任务
-
-```bash
-# Windows - 管理员运行
-setup_schedule.bat
-
-# 每天晚上8点自动执行 🌙
+      social: "https://careers.tencent.com/search.html?query={keyword}"
+      campus: "https://careers.tencent.com/search.html?query={keyword}"
 ```
 
 ## 💻 命令参考
 
 | 命令 | 说明 |
 |:-----|:-----|
-| `python main.py` | 🏃 运行所有启用的意向 |
-| `python main.py -t social` | 👔 只运行社招 |
-| `python main.py -p "意向名"` | 🎯 运行指定意向 |
-| `python main.py --list-profiles` | 📋 列出所有意向 |
-| `python spider.py --list` | 🏢 列出公司 |
-| `python scheduler.py --check` | 💊 健康检测 |
-| `python scheduler.py --run` | ▶️ 立即巡检 |
+| `python -m src.cli` | 运行所有启用的意向 |
+| `python -m src.cli -t social` | 只运行社招 |
+| `python -m src.cli -p "意向名"` | 运行指定意向 |
+| `python -m src.cli --list-profiles` | 列出所有意向 |
 
 ## 🏢 支持的公司
 
@@ -154,9 +185,9 @@ setup_schedule.bat
 |:-----|:----:|:---------:|
 | 腾讯 | ✅ | ✅ |
 | 字节跳动 | ✅ | ✅ |
+| 美团 | ✅ | ✅ |
 | 阿里巴巴 | 🚧 | 🚧 |
 | 百度 | 🚧 | 🚧 |
-| 美团 | ✅ | ✅ |
 | 滴滴出行 | 🚧 | 🚧 |
 | 京东 | 🚧 | 🚧 |
 | 拼多多 | 🚧 | 🚧 |
@@ -183,37 +214,29 @@ setup_schedule.bat
 | 蚂蚁集团 | 🚧 | 🚧 |
 | 菜鸟网络 | 🚧 | 🚧 |
 
-### 🎮 游戏公司 (5家)
-
-| 公司 | 社招 | 校招/实习 |
-|:-----|:----:|:---------:|
-| 网易游戏 | 🚧 | 🚧 |
-| 米哈游 | 🚧 | 🚧 |
-| 莉莉丝游戏 | 🚧 | 🚧 |
-| 完美世界 | 🚧 | 🚧 |
-| 三七互娱 | 🚧 | 🚧 |
-
-### 🌍 外资科技 (8家)
-
-| 公司 | 社招 |
-|:-----|:----:|
-| 微软中国 | 🚧 |
-| 苹果中国 | 🚧 |
-| 英伟达中国 | 🚧 |
-| 特斯拉中国 | 🚧 |
-| 英特尔中国 | 🚧 |
-| AMD中国 | 🚧 |
-| 思科中国 | 🚧 |
-| SAP中国 | 🚧 |
-
 > **📊 总计: 38家公司** (✅ 已实现 🚧 待开发)
 
-## ➕ 添加新公司
+## 🤖 Agent 架构
 
-1. 📝 在 `companies.yaml` 添加配置
-2. 🔒 设置 `enabled: false`
-3. 🕷️ 在 `spider.py` 实现爬虫
-4. ✅ 测试通过后设置 `enabled: true`
+SmartJobHunter 采用 LLM-Agent 架构：
+
+```
+用户请求 → Agent (Claude) → 工具层 (Python) → 输出
+                ↓
+          ┌─────────┐
+          │  状态机  │
+          └─────────┘
+                ↓
+  INIT → LOADED → CRAWLED → FILTERED → EVALUATED → REPORTED → DONE
+```
+
+### Agent Skills
+
+位于 `.claude/skills/jobhunter/`：
+
+- `skill.md` - Agent 主入口
+- `tools/*.md` - 工具定义（crawl, filter, load_config）
+- `prompts/*.md` - Agent 提示词（evaluate, report）
 
 ## 📄 输出示例
 
@@ -233,7 +256,7 @@ setup_schedule.bat
 
 <div align="center">
 
-## 📜 License
+## 📜 许可证
 
 **MIT License** © 2026 SmartJobHunter
 
