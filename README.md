@@ -98,7 +98,10 @@ SmartJobHunter/
 │   ├── cli.py               # CLI entry point
 │   ├── crawler.py           # Crawler module
 │   ├── filters.py           # Filter functions
-│   └── resume_parser.py     # Resume parser
+│   ├── resume_parser.py     # Resume parser
+│   ├── scheduler.py         # Job scheduler
+│   ├── health_check.py      # Health checker
+│   └── git_auto_push.py     # Git auto push
 │
 ├── 📂 config/               # Configuration
 │   ├── agent.yaml           # Agent settings
@@ -116,6 +119,9 @@ SmartJobHunter/
 │
 ├── 📂 .claude/skills/       # Claude Code Agent Skills
 │   └── jobhunter/           # JobHunter Agent
+│       ├── skill.md         # Main entry
+│       ├── tools/           # Tool definitions
+│       └── prompts/         # AI prompts
 │
 └── 📄 companies.md          # User-editable company list
 ```

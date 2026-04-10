@@ -98,7 +98,10 @@ SmartJobHunter/
 │   ├── cli.py               # CLI 入口
 │   ├── crawler.py           # 爬虫模块
 │   ├── filters.py           # 过滤函数
-│   └── resume_parser.py     # 简历解析
+│   ├── resume_parser.py     # 简历解析
+│   ├── scheduler.py         # 定时调度
+│   ├── health_check.py      # 健康检测
+│   └── git_auto_push.py     # Git 自动推送
 │
 ├── 📂 config/               # 配置文件
 │   ├── agent.yaml           # Agent 设置
@@ -116,6 +119,9 @@ SmartJobHunter/
 │
 ├── 📂 .claude/skills/       # Claude Code Agent Skills
 │   └── jobhunter/           # JobHunter Agent
+│       ├── skill.md         # 主入口
+│       ├── tools/           # 工具定义
+│       └── prompts/         # AI 提示词
 │
 └── 📄 companies.md          # 用户可编辑的公司列表
 ```
