@@ -85,6 +85,7 @@ SmartJobHunter/
 ├── 📝 resume_parser.py     # 简历解析
 ├── 💊 health_check.py      # 健康检测
 ├── 📤 git_auto_push.py     # Git自动推送
+├── 🔧 api_probe.py         # API探测工具
 │
 ├── 📂 resumes/             # 简历目录
 │   ├── example_resume.md
@@ -155,7 +156,7 @@ setup_schedule.bat
 | 字节跳动 | ✅ | ✅ |
 | 阿里巴巴 | 🚧 | 🚧 |
 | 百度 | 🚧 | 🚧 |
-| 美团 | 🚧 | 🚧 |
+| 美团 | ✅ | ✅ |
 | 滴滴出行 | 🚧 | 🚧 |
 | 京东 | 🚧 | 🚧 |
 | 拼多多 | 🚧 | 🚧 |

@@ -85,6 +85,7 @@ SmartJobHunter/
 ├── 📝 resume_parser.py     # Resume parser
 ├── 💊 health_check.py      # Health check
 ├── 📤 git_auto_push.py     # Git auto push
+├── 🔧 api_probe.py         # API probe tool
 │
 ├── 📂 resumes/             # Resume directory
 │   ├── example_resume.md
@@ -155,7 +156,7 @@ setup_schedule.bat
 | ByteDance | ✅ | ✅ |
 | Alibaba | 🚧 | 🚧 |
 | Baidu | 🚧 | 🚧 |
-| Meituan | 🚧 | 🚧 |
+| Meituan | ✅ | ✅ |
 | Didi | 🚧 | 🚧 |
 | JD.com | 🚧 | 🚧 |
 | Pinduoduo | 🚧 | 🚧 |
