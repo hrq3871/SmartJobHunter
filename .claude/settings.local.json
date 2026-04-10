@@ -31,7 +31,8 @@
       "Bash(git remote:*)",
       "Bash(git branch:*)",
       "Bash(git push:*)",
-      "Bash(cmdkey /list)"
+      "Bash(cmdkey /list)",
+      "WebFetch(domain:zhaopin.meituan.com)"
     ]
   }
 }

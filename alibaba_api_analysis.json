@@ -1,0 +1,109 @@
+[
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "https://talent.alibaba.com/off-campus/position-list",
+    "headers": {
+      "upgrade-insecure-requests": "1",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": "\"Windows\""
+    },
+    "post_data": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://talent.alibaba.com/",
+    "headers": {
+      "upgrade-insecure-requests": "1",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": "\"Windows\""
+    },
+    "post_data": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "https://talent.alibaba.com/",
+    "headers": {
+      "upgrade-insecure-requests": "1",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": "\"Windows\""
+    },
+    "post_data": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "https://losvc.alibaba-inc.com:64556/api/basic",
+    "headers": {
+      "sec-ch-ua-platform": "\"Windows\"",
+      "referer": "https://talent.alibaba.com/",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0"
+    },
+    "post_data": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "https://fourier.taobao.com/rp?ext=51&data=jm_YQFfInnObmYCAQ7GJmq45tf0&random=18037063826243227&href=https%3A%2F%2Ftalent.alibaba.com%2F%3Flang%3Dzh&protocol=https:&callback=jsonpCallback",
+    "headers": {
+      "sec-ch-ua-platform": "\"Windows\"",
+      "referer": "https://talent.alibaba.com/?lang=zh",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0"
+    },
+    "post_data": null
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "https://fourier.taobao.com/rp?ext=51&data=jm_YQFfInnObmYCAQ7GJmq45tf0&random=18037063826243227&href=https%3A%2F%2Ftalent.alibaba.com%2F%3Flang%3Dzh&protocol=https:&callback=jsonpCallback",
+    "content_type": "application/javascript;charset=UTF-8",
+    "body": "!function(){\"use strict\";var e=location,t=document,r=function(r,n,o){(void 0===n&&(n=1),void 0===o&&(o=1),0>=o||Math.random()<o)&&function(e,t){var r=[];for(var n in e)r.push(n+\"=\"+encodeURIComponent(e[n]));(new Image).src=t+r.join(\"&\")}({code:n,msg:r+\"\",pid:\"spl\",page:e.href.split(/[#?]/)[0],query:e.search.substr(1),hash:e.hash,referrer:t.referrer,title:t.title,ua:navigator.userAgent},\"//gm.mmstat.com/fsp.1.1?\")};var n=document,o=location.hostname;try{var a=[],i=function(e,t,r){var o=new Date;o.setTime(o.getTime()+864e5*3);var i=\"xlly_s=\"+e+\";maxAge=259200;expires=\"+o.toUTCString()+\";path=/;domain=\"+t+\";\";\"true\"===r&&(i+=\"Secure;SameSite=None\"),a.push(i),n.cookie=i},s=function(e,t){var r,n=o,a=\"string\"==typeof(r=n)?r.split(\".\"):r,s=a.length>5?5:a.length;if(1===s||2===s)return i(e,n,t);n=a.pop();for(var u=2;s>u&&(n=a.pop()+\".\"+n,i(e,n,t),c()!==e);u++);},c=function(){var e=n.cookie.match(/xlly_s=([^;]+)/);return e&&e[1]};s(\"1\",\"true\"),c()||s(\"2\",\"false\"),c()||r(\"nw\"+a.join(\"__\"),13);var u=function(e){var t=new Date;t.setTime(t.getTime()+-100);var o=\"x5secdata=;maxAge=-100;expires=\"+t.toUTCString()+\";path=/;domain=\"+e+\";\";document.cookie=o,document.cookie=o+\"Secure;SameSite=None\"};!function(){try{if(-1>=document.cookie.indexOf(\"x5secdata\"))return;var e=location.host,t=e.split(\".\"),o=t.length>5?5:t.length;1!==o&&2!==o||u(e),e=t.pop();for(var n=2;o>n;n++)e=\".\"+t.pop()+\".\"+e,u(e)}catch(r){}}()}catch(u){r(u.message,12)}}();"
+  },
+  {
+    "type": "request",
+    "method": "POST",
+    "url": "https://talent.alibaba.com/user/getUser?_csrf=966483cb-772d-4f3d-b3a4-62b12a6d2be7",
+    "headers": {
+      "sec-ch-ua-platform": "\"Windows\"",
+      "referer": "https://talent.alibaba.com/?lang=zh",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*",
+      "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "bx-v": "2.5.11"
+    },
+    "post_data": null
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "https://talent.alibaba.com/user/getUser?_csrf=966483cb-772d-4f3d-b3a4-62b12a6d2be7",
+    "content_type": "application/json;charset=UTF-8",
+    "body": "{\"success\":true,\"errorMsg\":null,\"errorCode\":null,\"content\":null}"
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "https://blank-page-monitor.cn-hangzhou.log.aliyuncs.com/logstores/blank-page-monitor/track.gif?APIVersion=0.6.0&selector=.next-menu-header&checkpoint=innerHTML&app_name=recruit-careers&timeout=8000&is_blank=false&ua=Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F120.0.0.0%20Safari%2F537.36&spm=6bd80d73%2C2ef5001f&uid=&url=https%3A%2F%2Ftalent.alibaba.com%2F%3Flang%3Dzh&client_ts=1775768423415",
+    "headers": {
+      "sec-ch-ua-platform": "\"Windows\"",
+      "referer": "https://talent.alibaba.com/?lang=zh",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "sec-ch-ua": "\"Chromium\";v=\"145\", \"Not:A-Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0"
+    },
+    "post_data": null
+  }
+]

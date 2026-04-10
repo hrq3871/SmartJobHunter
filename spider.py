@@ -378,6 +378,699 @@ def crawl_bytedance_social(keyword, headless=True, max_jobs=50, max_pages=5):
     return crawl_bytedance(keyword, headless, max_jobs, max_pages, job_type="social")
 
 
+# ==================== 阿里巴巴爬虫 ====================
+
+def parse_alibaba_job(item: dict) -> dict:
+    """解析阿里巴巴岗位数据"""
+    title = item.get('name', '')
+    job_type_label = "社招"
+
+    if '实习' in title or 'intern' in title.lower():
+        job_type_label = "实习"
+    elif '校招' in title or '应届' in title:
+        job_type_label = "校招"
+
+    # 解析工作地点
+    locations = item.get('workLocationList', [])
+    location = locations[0] if locations else ''
+
+    return {
+        "title": title,
+        "company": "阿里巴巴",
+        "location": location,
+        "category": item.get('categoryName', ''),
+        "url": f"https://talent.alibaba.com/position/{item.get('id', '')}",
+        "publish_time": item.get('gmtCreate', ''),
+        "duty": item.get('description', ''),
+        "requirement": item.get('requirement', ''),
+        "product": item.get('departmentName', ''),
+        "bg": '',
+        "work_years": item.get('workYears', ''),
+        "hash": generate_hash(str(item.get('id', ''))),
+        "source": "alibaba",
+        "job_type": job_type_label
+    }
+
+
+def crawl_alibaba(keyword, headless=True, max_jobs=50, max_pages=5, job_type="social"):
+    """抓取阿里巴巴招聘 - 支持翻页"""
+    jobs = []
+    seen_ids = set()
+
+    if job_type == "campus":
+        base_url = "https://talent.alibaba.com/campus/position-list"
+    else:
+        base_url = "https://talent.alibaba.com/off-campus/position-list"
+
+    with sync_playwright() as p:
+        browser, context = create_browser(p, headless)
+        page = context.new_page()
+
+        intercepted_data = []
+
+        def handle_response(response):
+            # 阿里巴巴API路径
+            if "api/position/list" in response.url or "position/query" in response.url:
+                try:
+                    data = response.json()
+                    intercepted_data.append(data)
+                    print(f"   [API] 拦截到响应", file=sys.stderr)
+                except:
+                    pass
+
+        page.on("response", handle_response)
+
+        try:
+            print(f"[爬虫] 正在访问阿里巴巴招聘...", file=sys.stderr)
+            page.goto(f"{base_url}?keyword={keyword}", timeout=60000, wait_until='networkidle')
+            page.wait_for_timeout(5000)
+
+            # 解析拦截到的数据
+            for data in intercepted_data:
+                if isinstance(data, dict):
+                    # 尝试不同的数据结构
+                    posts = data.get('data', {}).get('list', []) or data.get('result', {}).get('list', []) or []
+                    for item in posts:
+                        job_id = str(item.get('id', ''))
+                        if job_id and job_id not in seen_ids:
+                            seen_ids.add(job_id)
+                            job = parse_alibaba_job(item)
+                            jobs.append(job)
+
+            print(f"   第 1 页获取 {len(jobs)} 个岗位", file=sys.stderr)
+
+            # 翻页
+            page_count = 2
+            while len(jobs) < max_jobs and page_count <= max_pages:
+                clicked = False
+                for selector in ['.next', '[class*="next"]', 'button[aria-label="下一页"]']:
+                    try:
+                        element = page.query_selector(selector)
+                        if element and element.is_visible():
+                            element.click()
+                            page.wait_for_timeout(3000)
+                            clicked = True
+                            break
+                    except:
+                        continue
+
+                if not clicked:
+                    break
+
+                new_count = 0
+                for data in intercepted_data:
+                    if isinstance(data, dict):
+                        posts = data.get('data', {}).get('list', []) or data.get('result', {}).get('list', []) or []
+                        for item in posts:
+                            job_id = str(item.get('id', ''))
+                            if job_id and job_id not in seen_ids:
+                                seen_ids.add(job_id)
+                                job = parse_alibaba_job(item)
+                                jobs.append(job)
+                                new_count += 1
+
+                print(f"   第 {page_count} 页，新增 {new_count} 个岗位", file=sys.stderr)
+                page_count += 1
+                intercepted_data.clear()
+
+            print(f"[完成] 阿里巴巴共获取 {len(jobs)} 个岗位", file=sys.stderr)
+
+        except Exception as e:
+            print(f"[错误] 阿里巴巴抓取失败: {e}", file=sys.stderr)
+        finally:
+            context.close()
+            browser.close()
+
+    return jobs[:max_jobs]
+
+
+# ==================== 百度爬虫 ====================
+
+def parse_baidu_job(item: dict) -> dict:
+    """解析百度岗位数据"""
+    title = item.get('name', '')
+    job_type_label = "社招"
+
+    if '实习' in title or 'intern' in title.lower():
+        job_type_label = "实习"
+    elif '校招' in title or '应届' in title:
+        job_type_label = "校招"
+
+    return {
+        "title": title,
+        "company": "百度",
+        "location": item.get('workPlace', ''),
+        "category": item.get('serviceType', ''),
+        "url": f"https://talent.baidu.com/jobs/detail/{item.get('id', '')}",
+        "publish_time": item.get('publishTime', ''),
+        "duty": item.get('responsibility', ''),
+        "requirement": item.get('qualification', ''),
+        "product": item.get('department', ''),
+        "bg": '',
+        "work_years": item.get('workYears', ''),
+        "hash": generate_hash(str(item.get('id', ''))),
+        "source": "baidu",
+        "job_type": job_type_label
+    }
+
+
+def crawl_baidu(keyword, headless=True, max_jobs=50, max_pages=5, job_type="social"):
+    """抓取百度招聘"""
+    jobs = []
+    seen_ids = set()
+
+    if job_type == "campus":
+        base_url = "https://talent.baidu.com/campus/jobs/list"
+    else:
+        base_url = "https://talent.baidu.com/jobs/list"
+
+    with sync_playwright() as p:
+        browser, context = create_browser(p, headless)
+        page = context.new_page()
+
+        intercepted_data = []
+
+        def handle_response(response):
+            if "api/job/list" in response.url or "job/query" in response.url:
+                try:
+                    data = response.json()
+                    intercepted_data.append(data)
+                except:
+                    pass
+
+        page.on("response", handle_response)
+
+        try:
+            print(f"[爬虫] 正在访问百度招聘...", file=sys.stderr)
+            page.goto(f"{base_url}?keyword={keyword}", timeout=60000, wait_until='networkidle')
+            page.wait_for_timeout(5000)
+
+            for data in intercepted_data:
+                if isinstance(data, dict):
+                    posts = data.get('data', {}).get('list', []) or data.get('result', {}).get('list', []) or []
+                    for item in posts:
+                        job_id = str(item.get('id', ''))
+                        if job_id and job_id not in seen_ids:
+                            seen_ids.add(job_id)
+                            job = parse_baidu_job(item)
+                            jobs.append(job)
+
+            print(f"[完成] 百度共获取 {len(jobs)} 个岗位", file=sys.stderr)
+
+        except Exception as e:
+            print(f"[错误] 百度抓取失败: {e}", file=sys.stderr)
+        finally:
+            context.close()
+            browser.close()
+
+    return jobs[:max_jobs]
+
+
+# ==================== 美团爬虫 ====================
+
+def parse_meituan_job(item: dict) -> dict:
+    """解析美团岗位数据"""
+    title = item.get('jobTitle', '') or item.get('name', '')
+    job_type_label = "社招"
+
+    if '实习' in title or 'intern' in title.lower():
+        job_type_label = "实习"
+    elif '校招' in title or '应届' in title:
+        job_type_label = "校招"
+
+    return {
+        "title": title,
+        "company": "美团",
+        "location": item.get('city', '') or item.get('workPlace', ''),
+        "category": item.get('jobCategory', ''),
+        "url": f"https://zhaopin.meituan.com/jobs/{item.get('id', '')}",
+        "publish_time": item.get('publishDate', ''),
+        "duty": item.get('jobDesc', ''),
+        "requirement": item.get('jobRequire', ''),
+        "product": item.get('department', ''),
+        "bg": '',
+        "work_years": item.get('workYear', ''),
+        "hash": generate_hash(str(item.get('id', ''))),
+        "source": "meituan",
+        "job_type": job_type_label
+    }
+
+
+def crawl_meituan(keyword, headless=True, max_jobs=50, max_pages=5, job_type="social"):
+    """抓取美团招聘"""
+    jobs = []
+    seen_ids = set()
+
+    base_url = "https://zhaopin.meituan.com/jobs" if job_type == "social" else "https://zhaopin.meituan.com/campus"
+
+    with sync_playwright() as p:
+        browser, context = create_browser(p, headless)
+        page = context.new_page()
+
+        intercepted_data = []
+
+        def handle_response(response):
+            if "api/job/list" in response.url or "job/search" in response.url:
+                try:
+                    data = response.json()
+                    intercepted_data.append(data)
+                except:
+                    pass
+
+        page.on("response", handle_response)
+
+        try:
+            print(f"[爬虫] 正在访问美团招聘...", file=sys.stderr)
+            page.goto(f"{base_url}?keyword={keyword}", timeout=60000, wait_until='networkidle')
+            page.wait_for_timeout(5000)
+
+            for data in intercepted_data:
+                if isinstance(data, dict):
+                    posts = data.get('data', {}).get('list', []) or data.get('result', {}).get('list', []) or []
+                    for item in posts:
+                        job_id = str(item.get('id', ''))
+                        if job_id and job_id not in seen_ids:
+                            seen_ids.add(job_id)
+                            job = parse_meituan_job(item)
+                            jobs.append(job)
+
+            print(f"[完成] 美团共获取 {len(jobs)} 个岗位", file=sys.stderr)
+
+        except Exception as e:
+            print(f"[错误] 美团抓取失败: {e}", file=sys.stderr)
+        finally:
+            context.close()
+            browser.close()
+
+    return jobs[:max_jobs]
+
+
+# ==================== 京东爬虫 ====================
+
+def parse_jd_job(item: dict) -> dict:
+    """解析京东岗位数据"""
+    title = item.get('name', '')
+    job_type_label = "社招"
+
+    if '实习' in title or 'intern' in title.lower():
+        job_type_label = "实习"
+    elif '校招' in title or '应届' in title:
+        job_type_label = "校招"
+
+    return {
+        "title": title,
+        "company": "京东",
+        "location": item.get('workPlace', ''),
+        "category": item.get('category', ''),
+        "url": f"https://zhaopin.jd.com/job/{item.get('id', '')}",
+        "publish_time": item.get('publishDate', ''),
+        "duty": item.get('jobDesc', ''),
+        "requirement": item.get('jobRequire', ''),
+        "product": item.get('department', ''),
+        "bg": '',
+        "work_years": item.get('workYear', ''),
+        "hash": generate_hash(str(item.get('id', ''))),
+        "source": "jd",
+        "job_type": job_type_label
+    }
+
+
+def crawl_jd(keyword, headless=True, max_jobs=50, max_pages=5, job_type="social"):
+    """抓取京东招聘"""
+    jobs = []
+    seen_ids = set()
+
+    base_url = "https://zhaopin.jd.com/social" if job_type == "social" else "https://zhaopin.jd.com/campus"
+
+    with sync_playwright() as p:
+        browser, context = create_browser(p, headless)
+        page = context.new_page()
+
+        intercepted_data = []
+
+        def handle_response(response):
+            if "api/job/list" in response.url or "position/list" in response.url:
+                try:
+                    data = response.json()
+                    intercepted_data.append(data)
+                except:
+                    pass
+
+        page.on("response", handle_response)
+
+        try:
+            print(f"[爬虫] 正在访问京东招聘...", file=sys.stderr)
+            page.goto(f"{base_url}?keyword={keyword}", timeout=60000, wait_until='networkidle')
+            page.wait_for_timeout(5000)
+
+            for data in intercepted_data:
+                if isinstance(data, dict):
+                    posts = data.get('data', {}).get('list', []) or data.get('result', {}).get('list', []) or []
+                    for item in posts:
+                        job_id = str(item.get('id', ''))
+                        if job_id and job_id not in seen_ids:
+                            seen_ids.add(job_id)
+                            job = parse_jd_job(item)
+                            jobs.append(job)
+
+            print(f"[完成] 京东共获取 {len(jobs)} 个岗位", file=sys.stderr)
+
+        except Exception as e:
+            print(f"[错误] 京东抓取失败: {e}", file=sys.stderr)
+        finally:
+            context.close()
+            browser.close()
+
+    return jobs[:max_jobs]
+
+
+# ==================== 华为爬虫 ====================
+
+def parse_huawei_job(item: dict) -> dict:
+    """解析华为岗位数据"""
+    title = item.get('name', '')
+    job_type_label = "社招"
+
+    if '实习' in title or 'intern' in title.lower():
+        job_type_label = "实习"
+    elif '校招' in title or '应届' in title:
+        job_type_label = "校招"
+
+    return {
+        "title": title,
+        "company": "华为",
+        "location": item.get('workPlace', ''),
+        "category": item.get('category', ''),
+        "url": f"https://career.huawei.com/job/{item.get('id', '')}",
+        "publish_time": item.get('publishDate', ''),
+        "duty": item.get('jobDesc', ''),
+        "requirement": item.get('jobRequire', ''),
+        "product": item.get('department', ''),
+        "bg": '',
+        "work_years": item.get('workYear', ''),
+        "hash": generate_hash(str(item.get('id', ''))),
+        "source": "huawei",
+        "job_type": job_type_label
+    }
+
+
+def crawl_huawei(keyword, headless=True, max_jobs=50, max_pages=5, job_type="social"):
+    """抓取华为招聘"""
+    jobs = []
+    seen_ids = set()
+
+    base_url = "https://career.huawei.com/reccampportal/portal5/index.html"
+
+    with sync_playwright() as p:
+        browser, context = create_browser(p, headless)
+        page = context.new_page()
+
+        intercepted_data = []
+
+        def handle_response(response):
+            if "portal5/queryJobList" in response.url or "job/list" in response.url:
+                try:
+                    data = response.json()
+                    intercepted_data.append(data)
+                except:
+                    pass
+
+        page.on("response", handle_response)
+
+        try:
+            print(f"[爬虫] 正在访问华为招聘...", file=sys.stderr)
+            page.goto(base_url, timeout=60000, wait_until='networkidle')
+            page.wait_for_timeout(5000)
+
+            # 尝试输入关键词搜索
+            try:
+                search_input = page.query_selector('input[placeholder*="关键词"]') or page.query_selector('input[type="text"]')
+                if search_input:
+                    search_input.fill(keyword)
+                    page.wait_for_timeout(1000)
+                    search_input.press('Enter')
+                    page.wait_for_timeout(3000)
+            except:
+                pass
+
+            for data in intercepted_data:
+                if isinstance(data, dict):
+                    posts = data.get('data', {}).get('list', []) or data.get('result', {}).get('list', []) or []
+                    for item in posts:
+                        job_id = str(item.get('id', ''))
+                        if job_id and job_id not in seen_ids:
+                            seen_ids.add(job_id)
+                            job = parse_huawei_job(item)
+                            jobs.append(job)
+
+            print(f"[完成] 华为共获取 {len(jobs)} 个岗位", file=sys.stderr)
+
+        except Exception as e:
+            print(f"[错误] 华为抓取失败: {e}", file=sys.stderr)
+        finally:
+            context.close()
+            browser.close()
+
+    return jobs[:max_jobs]
+
+
+# ==================== 小米爬虫 ====================
+
+def parse_xiaomi_job(item: dict) -> dict:
+    """解析小米岗位数据"""
+    title = item.get('name', '')
+    job_type_label = "社招"
+
+    if '实习' in title or 'intern' in title.lower():
+        job_type_label = "实习"
+    elif '校招' in title or '应届' in title:
+        job_type_label = "校招"
+
+    return {
+        "title": title,
+        "company": "小米",
+        "location": item.get('workPlace', ''),
+        "category": item.get('category', ''),
+        "url": f"https://hr.xiaomi.com/job/{item.get('id', '')}",
+        "publish_time": item.get('publishDate', ''),
+        "duty": item.get('jobDesc', ''),
+        "requirement": item.get('jobRequire', ''),
+        "product": item.get('department', ''),
+        "bg": '',
+        "work_years": item.get('workYear', ''),
+        "hash": generate_hash(str(item.get('id', ''))),
+        "source": "xiaomi",
+        "job_type": job_type_label
+    }
+
+
+def crawl_xiaomi(keyword, headless=True, max_jobs=50, max_pages=5, job_type="social"):
+    """抓取小米招聘"""
+    jobs = []
+    seen_ids = set()
+
+    base_url = "https://hr.xiaomi.com/job" if job_type == "social" else "https://hr.xiaomi.com/campus"
+
+    with sync_playwright() as p:
+        browser, context = create_browser(p, headless)
+        page = context.new_page()
+
+        intercepted_data = []
+
+        def handle_response(response):
+            if "api/job/list" in response.url or "position/list" in response.url:
+                try:
+                    data = response.json()
+                    intercepted_data.append(data)
+                except:
+                    pass
+
+        page.on("response", handle_response)
+
+        try:
+            print(f"[爬虫] 正在访问小米招聘...", file=sys.stderr)
+            page.goto(f"{base_url}?keyword={keyword}", timeout=60000, wait_until='networkidle')
+            page.wait_for_timeout(5000)
+
+            for data in intercepted_data:
+                if isinstance(data, dict):
+                    posts = data.get('data', {}).get('list', []) or data.get('result', {}).get('list', []) or []
+                    for item in posts:
+                        job_id = str(item.get('id', ''))
+                        if job_id and job_id not in seen_ids:
+                            seen_ids.add(job_id)
+                            job = parse_xiaomi_job(item)
+                            jobs.append(job)
+
+            print(f"[完成] 小米共获取 {len(jobs)} 个岗位", file=sys.stderr)
+
+        except Exception as e:
+            print(f"[错误] 小米抓取失败: {e}", file=sys.stderr)
+        finally:
+            context.close()
+            browser.close()
+
+    return jobs[:max_jobs]
+
+
+# ==================== 滴滴爬虫 ====================
+
+def parse_didi_job(item: dict) -> dict:
+    """解析滴滴岗位数据"""
+    title = item.get('name', '')
+    job_type_label = "社招"
+
+    if '实习' in title or 'intern' in title.lower():
+        job_type_label = "实习"
+    elif '校招' in title or '应届' in title:
+        job_type_label = "校招"
+
+    return {
+        "title": title,
+        "company": "滴滴出行",
+        "location": item.get('workPlace', ''),
+        "category": item.get('category', ''),
+        "url": f"https://didichuxing.zhiye.com/job/{item.get('id', '')}",
+        "publish_time": item.get('publishDate', ''),
+        "duty": item.get('jobDesc', ''),
+        "requirement": item.get('jobRequire', ''),
+        "product": item.get('department', ''),
+        "bg": '',
+        "work_years": item.get('workYear', ''),
+        "hash": generate_hash(str(item.get('id', ''))),
+        "source": "didi",
+        "job_type": job_type_label
+    }
+
+
+def crawl_didi(keyword, headless=True, max_jobs=50, max_pages=5, job_type="social"):
+    """抓取滴滴招聘"""
+    jobs = []
+    seen_ids = set()
+
+    base_url = "https://didichuxing.zhiye.com/home/social" if job_type == "social" else "https://didichuxing.zhiye.com/home/campus"
+
+    with sync_playwright() as p:
+        browser, context = create_browser(p, headless)
+        page = context.new_page()
+
+        intercepted_data = []
+
+        def handle_response(response):
+            if "api/job/list" in response.url or "position/list" in response.url:
+                try:
+                    data = response.json()
+                    intercepted_data.append(data)
+                except:
+                    pass
+
+        page.on("response", handle_response)
+
+        try:
+            print(f"[爬虫] 正在访问滴滴招聘...", file=sys.stderr)
+            page.goto(base_url, timeout=60000, wait_until='networkidle')
+            page.wait_for_timeout(5000)
+
+            for data in intercepted_data:
+                if isinstance(data, dict):
+                    posts = data.get('data', {}).get('list', []) or data.get('result', {}).get('list', []) or []
+                    for item in posts:
+                        job_id = str(item.get('id', ''))
+                        if job_id and job_id not in seen_ids:
+                            seen_ids.add(job_id)
+                            job = parse_didi_job(item)
+                            jobs.append(job)
+
+            print(f"[完成] 滴滴共获取 {len(jobs)} 个岗位", file=sys.stderr)
+
+        except Exception as e:
+            print(f"[错误] 滴滴抓取失败: {e}", file=sys.stderr)
+        finally:
+            context.close()
+            browser.close()
+
+    return jobs[:max_jobs]
+
+
+# ==================== 拼多多爬虫 ====================
+
+def parse_pinduoduo_job(item: dict) -> dict:
+    """解析拼多多岗位数据"""
+    title = item.get('name', '')
+    job_type_label = "社招"
+
+    if '实习' in title or 'intern' in title.lower():
+        job_type_label = "实习"
+    elif '校招' in title or '应届' in title:
+        job_type_label = "校招"
+
+    return {
+        "title": title,
+        "company": "拼多多",
+        "location": item.get('workPlace', ''),
+        "category": item.get('category', ''),
+        "url": f"https://careers.pinduoduo.com/jobs/{item.get('id', '')}",
+        "publish_time": item.get('publishDate', ''),
+        "duty": item.get('jobDesc', ''),
+        "requirement": item.get('jobRequire', ''),
+        "product": item.get('department', ''),
+        "bg": '',
+        "work_years": item.get('workYear', ''),
+        "hash": generate_hash(str(item.get('id', ''))),
+        "source": "pinduoduo",
+        "job_type": job_type_label
+    }
+
+
+def crawl_pinduoduo(keyword, headless=True, max_jobs=50, max_pages=5, job_type="social"):
+    """抓取拼多多招聘"""
+    jobs = []
+    seen_ids = set()
+
+    base_url = "https://careers.pinduoduo.com/jobs" if job_type == "social" else "https://careers.pinduoduo.com/campus"
+
+    with sync_playwright() as p:
+        browser, context = create_browser(p, headless)
+        page = context.new_page()
+
+        intercepted_data = []
+
+        def handle_response(response):
+            if "api/job/list" in response.url or "position/list" in response.url:
+                try:
+                    data = response.json()
+                    intercepted_data.append(data)
+                except:
+                    pass
+
+        page.on("response", handle_response)
+
+        try:
+            print(f"[爬虫] 正在访问拼多多招聘...", file=sys.stderr)
+            page.goto(f"{base_url}?keyword={keyword}", timeout=60000, wait_until='networkidle')
+            page.wait_for_timeout(5000)
+
+            for data in intercepted_data:
+                if isinstance(data, dict):
+                    posts = data.get('data', {}).get('list', []) or data.get('result', {}).get('list', []) or []
+                    for item in posts:
+                        job_id = str(item.get('id', ''))
+                        if job_id and job_id not in seen_ids:
+                            seen_ids.add(job_id)
+                            job = parse_pinduoduo_job(item)
+                            jobs.append(job)
+
+            print(f"[完成] 拼多多共获取 {len(jobs)} 个岗位", file=sys.stderr)
+
+        except Exception as e:
+            print(f"[错误] 拼多多抓取失败: {e}", file=sys.stderr)
+        finally:
+            context.close()
+            browser.close()
+
+    return jobs[:max_jobs]
+
+
 def crawl_company(company_id: str, keyword: str, headless: bool = True, max_jobs: int = 50, job_type: str = None):
     """根据公司ID抓取岗位
 
@@ -393,6 +1086,14 @@ def crawl_company(company_id: str, keyword: str, headless: bool = True, max_jobs
         "tencent": crawl_tencent,
         "bytedance": crawl_bytedance,
         "bytedance_social": crawl_bytedance_social,
+        "alibaba": crawl_alibaba,
+        "baidu": crawl_baidu,
+        "meituan": crawl_meituan,
+        "jd": crawl_jd,
+        "huawei": crawl_huawei,
+        "xiaomi": crawl_xiaomi,
+        "didi": crawl_didi,
+        "pinduoduo": crawl_pinduoduo,
     }
 
     crawler = crawlers.get(company_id.lower())

@@ -57,9 +57,9 @@ companies:
       social: "https://talent.alibaba.com/off-campus/position-list?keyword={keyword}"
       campus: "https://talent.alibaba.com/campus/position-list?keyword={keyword}"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/position/list"
+      type: "intercept"
+    note: "API结构复杂，需要进一步分析"
 
   # 百度
   - id: baidu
@@ -69,8 +69,8 @@ companies:
       social: "https://talent.baidu.com/jobs/list?keyword={keyword}"
       campus: "https://talent.baidu.com/campus/jobs/list?keyword={keyword}"
     api:
-      pattern: null
-      type: "unknown"
+      pattern: "api/job/list"
+      type: "intercept"
     note: "需要分析API结构"
 
   # 美团
@@ -81,8 +81,8 @@ companies:
       social: "https://zhaopin.meituan.com/jobs?keyword={keyword}"
       campus: "https://zhaopin.meituan.com/campus?keyword={keyword}"
     api:
-      pattern: null
-      type: "unknown"
+      pattern: "api/job/list"
+      type: "intercept"
     note: "需要分析API结构"
 
   # 滴滴出行
@@ -93,8 +93,8 @@ companies:
       social: "https://didichuxing.zhiye.com/home/social"
       campus: "https://didichuxing.zhiye.com/home/campus"
     api:
-      pattern: null
-      type: "unknown"
+      pattern: "api/job/list"
+      type: "intercept"
     note: "需要分析API结构"
 
   # 京东
@@ -105,8 +105,8 @@ companies:
       social: "https://zhaopin.jd.com/social"
       campus: "https://zhaopin.jd.com/campus"
     api:
-      pattern: null
-      type: "unknown"
+      pattern: "api/job/list"
+      type: "intercept"
     note: "需要分析API结构"
 
   # 拼多多
@@ -117,8 +117,8 @@ companies:
       social: "https://careers.pinduoduo.com/jobs"
       campus: "https://careers.pinduoduo.com/campus"
     api:
-      pattern: null
-      type: "unknown"
+      pattern: "api/job/list"
+      type: "intercept"
     note: "需要分析API结构"
 
   # 华为
@@ -129,8 +129,8 @@ companies:
       social: "https://career.huawei.com/reccampportal/portal5/index.html"
       campus: "https://career.huawei.com/reccampportal/portal5/index.html"
     api:
-      pattern: null
-      type: "unknown"
+      pattern: "portal5/queryJobList"
+      type: "intercept"
     note: "需要分析API结构"
 
   # 小米
@@ -141,7 +141,9 @@ companies:
       social: "https://hr.xiaomi.com/job"
       campus: "https://hr.xiaomi.com/campus"
     api:
-      pattern: null
+      pattern: "api/job/list"
+      type: "intercept"
+    note: "需要分析API结构"
       type: "unknown"
     note: "需要分析API结构"
 
