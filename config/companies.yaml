@@ -16,7 +16,28 @@ companies:
       campus: "https://careers.tencent.com/search.html?query={keyword}"
     api:
       pattern: "tencentcareer/api/post/Query"
+      data_path: "Data.Posts"
       type: "intercept"
+    field_mappings:
+      id:
+        source: "PostId"
+      title:
+        source: "RecruitPostName"
+      location:
+        source: "LocationName"
+      category:
+        source: "CategoryName"
+      publish_time:
+        source: "LastUpdateTime"
+      duty:
+        source: "Responsibility"
+      product:
+        source: "ProductName"
+      bg:
+        source: "BGName"
+      work_years:
+        source: "RequireWorkYearsName"
+    url_template: "https://careers.tencent.com/position_detail.html?id={id}"
     job_type_detection:
       internship: ["实习", "intern"]
       campus: ["校招", "应届"]
@@ -30,7 +51,24 @@ companies:
       campus: "https://jobs.bytedance.com/campus/position?keyword={keyword}"
     api:
       pattern: "search/job/posts"
+      data_path: "data.job_post_list"
       type: "intercept"
+    field_mappings:
+      id:
+        source: "id"
+      title:
+        source: "title"
+      location:
+        source: "city_info.name"
+      category:
+        source: "job_category.name"
+      publish_time:
+        source: "publish_time"
+      duty:
+        source: "description"
+      requirement:
+        source: "requirement"
+    url_template: "https://jobs.bytedance.com/campus/position/detail/{id}"
     job_type_detection:
       internship: ["实习", "intern"]
       campus: ["校招", "应届", "ByteIntern"]
@@ -44,7 +82,24 @@ companies:
       social: "https://jobs.bytedance.com/experienced/position?keyword={keyword}"
     api:
       pattern: "search/job/posts"
+      data_path: "data.job_post_list"
       type: "intercept"
+    field_mappings:
+      id:
+        source: "id"
+      title:
+        source: "title"
+      location:
+        source: "city_info.name"
+      category:
+        source: "job_category.name"
+      publish_time:
+        source: "publish_time"
+      duty:
+        source: "description"
+      requirement:
+        source: "requirement"
+    url_template: "https://jobs.bytedance.com/experienced/position/detail/{id}"
     job_type_detection:
       internship: ["实习", "intern"]
       social: []
@@ -82,7 +137,28 @@ companies:
       campus: "https://zhaopin.meituan.com/campus"
     api:
       pattern: "getJobList"
+      data_path: "data.list"
       type: "intercept"
+    field_mappings:
+      id:
+        source: "jobUnionId"
+      title:
+        source: "name"
+      location:
+        source: "cityList"
+      category:
+        source: "jobFamily"
+      publish_time:
+        source: "refreshTime"
+      duty:
+        source: "jobDuty"
+      requirement:
+        source: "jobRequirement"
+      product:
+        source: "department"
+      work_years:
+        source: "workYear"
+    url_template: "https://zhaopin.meituan.com/jobs/{id}"
     note: "API已验证可用"
 
   # 滴滴出行
