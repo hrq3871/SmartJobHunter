@@ -185,42 +185,41 @@ companies:
 
 ## 🏢 Supported Companies
 
-### 🥇 Tier 1 (10 companies)
+### ✅ Working Companies (Config-Driven)
 
-| Company | Social | Campus/Intern | Notes |
-|:--------|:------:|:-------------:|:------|
-| Tencent | ✅ | ✅ | Config-driven |
-| ByteDance | ✅ | ✅ | Config-driven |
-| Meituan | ✅ | ✅ | Config-driven |
-| NetEase | ✅ | ✅ | Config-driven |
-| Alibaba | 🚧 | 🚧 | SSR, needs special handling |
-| Baidu | 🚧 | 🚧 | Needs analysis |
-| Didi | 🚧 | 🚧 | Needs analysis |
-| JD.com | 🚧 | 🚧 | Needs analysis |
-| Pinduoduo | 🚧 | 🚧 | Needs analysis |
-| Huawei | 🚧 | 🚧 | Needs analysis |
+| Company | Social | Campus/Intern | API Pattern | Notes |
+|:--------|:------:|:-------------:|:------------|:------|
+| Meituan | ✅ | ✅ | `getJobList` | Fully tested |
+| NetEase | ✅ | ✅ | `position/queryPage` | Fully tested |
+| Tencent | ✅ | ✅ | `tencentcareer/api/post/Query` | Config ready |
+| ByteDance | ✅ | ✅ | `search/job/posts` | Config ready |
 
-### 🥈 Tier 2 (15 companies)
+### 🚧 Pending Analysis
 
-| Company | Social | Campus/Intern |
-|:--------|:------:|:-------------:|
-| Kuaishou | ❌ | ❌ |
-| Bilibili | ❌ | ❌ |
-| Xiaohongshu | ❌ | ❌ |
-| Ctrip | 🚧 | 🚧 |
-| Weibo | ❌ | ❌ |
-| Zhihu | 🚧 | 🚧 |
-| Vipshop | 🚧 | 🚧 |
-| 58.com | 🚧 | 🚧 |
-| OPPO | 🚧 | 🚧 |
-| vivo | ❌ | ❌ |
-| ZTE | 🚧 | 🚧 |
-| Lenovo | 🚧 | 🚧 |
-| Ant Group | 🚧 | 🚧 |
-| Cainiao | 🚧 | 🚧 |
-| Xiaomi | 🚧 | 🚧 |
+| Company | Status | Notes |
+|:--------|:------:|:------|
+| Alibaba | 🚧 | SSR rendering, needs special handling |
+| Baidu | 🚧 | Network unstable |
+| JD.com | 🚧 | Network unstable |
+| Didi | 🚧 | Network unstable |
+| Pinduoduo | 🚧 | Network unstable |
+| Huawei | 🚧 | No API found |
+| Xiaomi | 🚧 | Network unstable |
+| Ant Group | 🚧 | Similar to Alibaba |
+| Ctrip | 🚧 | API structure unclear |
+| Zhihu | 🚧 | Uses MokaHR platform |
 
-> **📊 Working: 4 companies** | **🚧 Pending: 18 companies** | **❌ Unavailable: 4 companies**
+### ❌ Unavailable
+
+| Company | Reason |
+|:--------|:-------|
+| Kuaishou | Site unreachable |
+| Bilibili | Site unreachable |
+| Xiaohongshu | Site unreachable |
+| vivo | Site unreachable |
+| Weibo | Site unreachable |
+
+> **📊 Status: 4 companies working** | **🚧 10+ pending** | **❌ 5 unavailable**
 
 ### 🔧 Adding New Companies
 
