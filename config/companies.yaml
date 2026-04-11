@@ -228,14 +228,35 @@ companies:
   # 网易
   - id: netease
     name: 网易
-    enabled: false
+    enabled: true
     urls:
       social: "https://hr.163.com/job-list.html"
       campus: "https://hr.163.com/campus-list.html"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "position/queryPage"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "id"
+      title:
+        source: "name"
+      location:
+        source: "workPlaceNameList"
+      category:
+        source: "firstPostTypeName"
+      publish_time:
+        source: "updateTime"
+      duty:
+        source: "description"
+      requirement:
+        source: "requirement"
+      product:
+        source: "productName"
+      work_years:
+        source: "reqWorkYearsName"
+    url_template: "https://hr.163.com/job-detail.html?id={id}"
+    note: "API已验证可用"
 
   # 快手
   - id: kuaishou
