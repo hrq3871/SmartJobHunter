@@ -187,40 +187,67 @@ companies:
 
 ### 🥇 Tier 1 (10 companies)
 
-| Company | Social | Campus/Intern |
-|:--------|:------:|:-------------:|
-| Tencent | ✅ | ✅ |
-| ByteDance | ✅ | ✅ |
-| Meituan | ✅ | ✅ |
-| Alibaba | 🚧 | 🚧 |
-| Baidu | 🚧 | 🚧 |
-| Didi | 🚧 | 🚧 |
-| JD.com | 🚧 | 🚧 |
-| Pinduoduo | 🚧 | 🚧 |
-| Huawei | 🚧 | 🚧 |
-| Xiaomi | 🚧 | 🚧 |
+| Company | Social | Campus/Intern | Notes |
+|:--------|:------:|:-------------:|:------|
+| Tencent | ✅ | ✅ | Config-driven |
+| ByteDance | ✅ | ✅ | Config-driven |
+| Meituan | ✅ | ✅ | Config-driven |
+| NetEase | ✅ | ✅ | Config-driven |
+| Alibaba | 🚧 | 🚧 | SSR, needs special handling |
+| Baidu | 🚧 | 🚧 | Needs analysis |
+| Didi | 🚧 | 🚧 | Needs analysis |
+| JD.com | 🚧 | 🚧 | Needs analysis |
+| Pinduoduo | 🚧 | 🚧 | Needs analysis |
+| Huawei | 🚧 | 🚧 | Needs analysis |
 
 ### 🥈 Tier 2 (15 companies)
 
 | Company | Social | Campus/Intern |
 |:--------|:------:|:-------------:|
-| NetEase | 🚧 | 🚧 |
-| Kuaishou | 🚧 | 🚧 |
-| Bilibili | 🚧 | 🚧 |
-| Xiaohongshu | 🚧 | 🚧 |
+| Kuaishou | ❌ | ❌ |
+| Bilibili | ❌ | ❌ |
+| Xiaohongshu | ❌ | ❌ |
 | Ctrip | 🚧 | 🚧 |
-| Weibo | 🚧 | 🚧 |
+| Weibo | ❌ | ❌ |
 | Zhihu | 🚧 | 🚧 |
 | Vipshop | 🚧 | 🚧 |
 | 58.com | 🚧 | 🚧 |
 | OPPO | 🚧 | 🚧 |
-| vivo | 🚧 | 🚧 |
+| vivo | ❌ | ❌ |
 | ZTE | 🚧 | 🚧 |
 | Lenovo | 🚧 | 🚧 |
 | Ant Group | 🚧 | 🚧 |
 | Cainiao | 🚧 | 🚧 |
+| Xiaomi | 🚧 | 🚧 |
 
-> **📊 Total: 38 companies** (✅ Implemented 🚧 Pending)
+> **📊 Working: 4 companies** | **🚧 Pending: 18 companies** | **❌ Unavailable: 4 companies**
+
+### 🔧 Adding New Companies
+
+The new config-driven architecture makes it easy to add new companies:
+
+1. Edit `config/companies.yaml`
+2. Add `field_mappings` section
+3. No code changes needed!
+
+Example:
+
+```yaml
+- id: new_company
+  name: New Company
+  enabled: true
+  urls:
+    social: "https://jobs.example.com/search?keyword={keyword}"
+  api:
+    pattern: "api/job/list"
+    data_path: "data.jobs"
+  field_mappings:
+    id: {source: "jobId"}
+    title: {source: "title"}
+    location: {source: "city"}
+    # ... more fields
+  url_template: "https://jobs.example.com/detail/{id}"
+```
 
 ## 🤖 Agent Architecture
 
