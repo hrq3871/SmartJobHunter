@@ -170,8 +170,25 @@ companies:
       campus: "https://didichuxing.zhiye.com/home/campus"
     api:
       pattern: "api/job/list"
+      data_path: "data.list"
       type: "intercept"
-    note: "需要分析API结构"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workCity"
+      category:
+        source: "jobCategory"
+      publish_time:
+        source: "publishTime"
+      duty:
+        source: "jobDescription"
+      requirement:
+        source: "jobRequirement"
+    url_template: "https://didichuxing.zhiye.com/job/{id}"
+    note: "需要验证API结构"
 
   # 京东
   - id: jd
@@ -182,8 +199,25 @@ companies:
       campus: "https://zhaopin.jd.com/campus"
     api:
       pattern: "api/job/list"
+      data_path: "data.list"
       type: "intercept"
-    note: "需要分析API结构"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      category:
+        source: "jobCategory"
+      publish_time:
+        source: "publishDate"
+      duty:
+        source: "jobDesc"
+      requirement:
+        source: "jobRequire"
+    url_template: "https://zhaopin.jd.com/job/{id}"
+    note: "需要验证API结构"
 
   # 拼多多
   - id: pinduoduo
@@ -194,8 +228,25 @@ companies:
       campus: "https://careers.pinduoduo.com/campus"
     api:
       pattern: "api/job/list"
+      data_path: "data.list"
       type: "intercept"
-    note: "需要分析API结构"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      category:
+        source: "jobCategory"
+      publish_time:
+        source: "publishDate"
+      duty:
+        source: "jobDesc"
+      requirement:
+        source: "jobRequire"
+    url_template: "https://careers.pinduoduo.com/jobs/{id}"
+    note: "需要验证API结构"
 
   # 华为
   - id: huawei
@@ -206,8 +257,25 @@ companies:
       campus: "https://career.huawei.com/reccampportal/portal5/index.html"
     api:
       pattern: "portal5/queryJobList"
+      data_path: "data.list"
       type: "intercept"
-    note: "需要分析API结构"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      category:
+        source: "jobCategory"
+      publish_time:
+        source: "publishDate"
+      duty:
+        source: "jobDesc"
+      requirement:
+        source: "jobRequire"
+    url_template: "https://career.huawei.com/job/{id}"
+    note: "需要验证API结构"
 
   # 小米
   - id: xiaomi
@@ -218,8 +286,25 @@ companies:
       campus: "https://hr.xiaomi.com/campus"
     api:
       pattern: "api/job/list"
+      data_path: "data.list"
       type: "intercept"
-    note: "需要分析API结构"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      category:
+        source: "jobCategory"
+      publish_time:
+        source: "publishDate"
+      duty:
+        source: "jobDesc"
+      requirement:
+        source: "jobRequire"
+    url_template: "https://hr.xiaomi.com/job/{id}"
+    note: "需要验证API结构"
 
   # ============================================================
   # 第二梯队 - 知名互联网公司
@@ -266,9 +351,22 @@ companies:
       social: "https://hr.kuaishou.com/job/list"
       campus: "https://hr.kuaishou.com/campus/list"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/job/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workCity"
+      category:
+        source: "jobCategory"
+      duty:
+        source: "jobDescription"
+    url_template: "https://hr.kuaishou.com/job/{id}"
+    note: "网站暂时无法访问"
 
   # 哔哩哔哩
   - id: bilibili
@@ -278,9 +376,22 @@ companies:
       social: "https://jobs.bilibili.com/position/list"
       campus: "https://jobs.bilibili.com/campus/position/list"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/position/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "id"
+      title:
+        source: "name"
+      location:
+        source: "workPlace"
+      category:
+        source: "category"
+      duty:
+        source: "description"
+    url_template: "https://jobs.bilibili.com/position/detail/{id}"
+    note: "网站暂时无法访问"
 
   # 小红书
   - id: xiaohongshu
@@ -290,9 +401,22 @@ companies:
       social: "https://job.xiaohongshu.com/social/position/list"
       campus: "https://job.xiaohongshu.com/campus/position/list"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/position/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "positionId"
+      title:
+        source: "positionName"
+      location:
+        source: "workCity"
+      category:
+        source: "positionCategory"
+      duty:
+        source: "positionDescription"
+    url_template: "https://job.xiaohongshu.com/position/detail/{id}"
+    note: "网站暂时无法访问"
 
   # 携程
   - id: ctrip
@@ -302,9 +426,22 @@ companies:
       social: "https://careers.ctrip.com/jobs"
       campus: "https://careers.ctrip.com/campus"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "hrrecruit/getJobList"
+      data_path: "retValue.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      category:
+        source: "jobCategory"
+      duty:
+        source: "jobDescription"
+    url_template: "https://careers.ctrip.com/jobs/{id}"
+    note: "需要验证API结构"
 
   # 微博
   - id: weibo
@@ -313,9 +450,20 @@ companies:
     urls:
       social: "https://hr.weibo.com/job-list.html"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/job/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      duty:
+        source: "jobDescription"
+    url_template: "https://hr.weibo.com/job/{id}"
+    note: "网站暂时无法访问"
 
   # 知乎
   - id: zhihu
@@ -325,9 +473,22 @@ companies:
       social: "https://app.mokahr.com/social-apply/zhihu"
       campus: "https://app.mokahr.com/campus-apply/zhihu"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/jobs"
+      data_path: "data.jobs"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobTitle"
+      location:
+        source: "jobLocation"
+      category:
+        source: "jobCategory"
+      duty:
+        source: "jobDescription"
+    url_template: "https://app.mokahr.com/jobs/{id}"
+    note: "使用MokaHR平台，需要验证"
 
   # 唯品会
   - id: vip
@@ -337,9 +498,20 @@ companies:
       social: "https://hr.vip.com/job/list"
       campus: "https://hr.vip.com/campus/list"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/job/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      duty:
+        source: "jobDescription"
+    url_template: "https://hr.vip.com/job/{id}"
+    note: "需要验证API结构"
 
   # 58同城
   - id: 58
@@ -348,9 +520,20 @@ companies:
     urls:
       social: "https://zhaopin.58.com/joblist"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/job/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      duty:
+        source: "jobDescription"
+    url_template: "https://zhaopin.58.com/job/{id}"
+    note: "需要验证API结构"
 
   # OPPO
   - id: oppo
@@ -360,9 +543,22 @@ companies:
       social: "https://career.oppo.com/job/list"
       campus: "https://career.oppo.com/campus/list"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/job/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      category:
+        source: "jobCategory"
+      duty:
+        source: "jobDescription"
+    url_template: "https://career.oppo.com/job/{id}"
+    note: "需要验证API结构"
 
   # vivo
   - id: vivo
@@ -372,9 +568,22 @@ companies:
       social: "https://hr.vivo.com/job/list"
       campus: "https://hr.vivo.com/campus/list"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/job/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      category:
+        source: "jobCategory"
+      duty:
+        source: "jobDescription"
+    url_template: "https://hr.vivo.com/job/{id}"
+    note: "网站暂时无法访问"
 
   # 中兴通讯
   - id: zte
@@ -384,9 +593,22 @@ companies:
       social: "https://job.zte.com.cn/zteWeb/pages/jobList.html"
       campus: "https://job.zte.com.cn/zteWeb/pages/campusJobList.html"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/job/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      category:
+        source: "jobCategory"
+      duty:
+        source: "jobDescription"
+    url_template: "https://job.zte.com.cn/job/{id}"
+    note: "需要验证API结构"
 
   # 联想
   - id: lenovo
@@ -395,9 +617,22 @@ companies:
     urls:
       social: "https://jobs.lenovo.com/cn/zh"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/jobs"
+      data_path: "jobs"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobTitle"
+      location:
+        source: "location"
+      category:
+        source: "category"
+      duty:
+        source: "description"
+    url_template: "https://jobs.lenovo.com/cn/zh/job/{id}"
+    note: "需要验证API结构"
 
   # 蚂蚁集团
   - id: antgroup
@@ -407,9 +642,22 @@ companies:
       social: "https://talent.antgroup.com/off-campus/position-list"
       campus: "https://talent.antgroup.com/campus/position-list"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/position/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "positionId"
+      title:
+        source: "name"
+      location:
+        source: "workLocationList"
+      category:
+        source: "categoryName"
+      duty:
+        source: "description"
+    url_template: "https://talent.antgroup.com/position/{id}"
+    note: "类似阿里巴巴架构"
 
   # 菜鸟网络
   - id: cainiao
@@ -419,9 +667,22 @@ companies:
       social: "https://talent.cainiao.com/position/list"
       campus: "https://talent.cainiao.com/campus/list"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/position/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "positionId"
+      title:
+        source: "name"
+      location:
+        source: "workLocation"
+      category:
+        source: "categoryName"
+      duty:
+        source: "description"
+    url_template: "https://talent.cainiao.com/position/{id}"
+    note: "需要验证API结构"
 
   # ============================================================
   # 游戏公司专项
@@ -435,9 +696,22 @@ companies:
       social: "https://game.163.com/hr/"
       campus: "https://game.163.com/campus/"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "position/queryPage"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "id"
+      title:
+        source: "name"
+      location:
+        source: "workPlaceNameList"
+      category:
+        source: "firstPostTypeName"
+      duty:
+        source: "description"
+    url_template: "https://game.163.com/job-detail.html?id={id}"
+    note: "使用网易招聘系统"
 
   # 米哈游
   - id: mihoyo
@@ -447,9 +721,22 @@ companies:
       social: "https://jobs.mihoyo.com/position/list"
       campus: "https://jobs.mihoyo.com/campus/list"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "job/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      category:
+        source: "jobCategory"
+      duty:
+        source: "jobDescription"
+    url_template: "https://jobs.mihoyo.com/position/detail/{id}"
+    note: "需要验证API结构"
 
   # 莉莉丝游戏
   - id: lilith
@@ -459,9 +746,22 @@ companies:
       social: "https://jobs.lilith.com/position/list"
       campus: "https://jobs.lilith.com/campus/list"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/position/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "positionId"
+      title:
+        source: "positionName"
+      location:
+        source: "workPlace"
+      category:
+        source: "positionCategory"
+      duty:
+        source: "positionDescription"
+    url_template: "https://jobs.lilith.com/position/detail/{id}"
+    note: "需要验证API结构"
 
   # 完美世界
   - id: perfectworld
@@ -471,9 +771,22 @@ companies:
       social: "https://hr.pwrd.com/job/list"
       campus: "https://hr.pwrd.com/campus/list"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/job/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      category:
+        source: "jobCategory"
+      duty:
+        source: "jobDescription"
+    url_template: "https://hr.pwrd.com/job/{id}"
+    note: "需要验证API结构"
 
   # 三七互娱
   - id: 37games
@@ -483,9 +796,22 @@ companies:
       social: "https://hr.37.com/job/list"
       campus: "https://hr.37.com/campus/list"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/job/list"
+      data_path: "data.list"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobName"
+      location:
+        source: "workPlace"
+      category:
+        source: "jobCategory"
+      duty:
+        source: "jobDescription"
+    url_template: "https://hr.37.com/job/{id}"
+    note: "需要验证API结构"
 
   # ============================================================
   # 外资科技公司中国区
@@ -498,9 +824,22 @@ companies:
     urls:
       social: "https://careers.microsoft.com/v2/global/en/search.html"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/jobs/search"
+      data_path: "jobs"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "title"
+      location:
+        source: "location"
+      category:
+        source: "category"
+      duty:
+        source: "description"
+    url_template: "https://careers.microsoft.com/job/{id}"
+    note: "国际站点，需要验证"
 
   # 苹果中国
   - id: apple
@@ -509,9 +848,22 @@ companies:
     urls:
       social: "https://jobs.apple.com/zh-cn/search"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/jobs"
+      data_path: "jobs"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobTitle"
+      location:
+        source: "location"
+      category:
+        source: "team"
+      duty:
+        source: "description"
+    url_template: "https://jobs.apple.com/zh-cn/details/{id}"
+    note: "需要验证API结构"
 
   # 英伟达中国
   - id: nvidia
@@ -520,9 +872,22 @@ companies:
     urls:
       social: "https://www.nvidia.com/en-us/about-nvidia/careers/"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/jobs"
+      data_path: "jobs"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "jobTitle"
+      location:
+        source: "location"
+      category:
+        source: "category"
+      duty:
+        source: "description"
+    url_template: "https://www.nvidia.com/careers/job/{id}"
+    note: "需要验证API结构"
 
   # 特斯拉中国
   - id: tesla
@@ -531,9 +896,22 @@ companies:
     urls:
       social: "https://www.tesla.com/careers/search"
     api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
+      pattern: "api/jobs"
+      data_path: "jobs"
+      type: "intercept"
+    field_mappings:
+      id:
+        source: "jobId"
+      title:
+        source: "title"
+      location:
+        source: "location"
+      category:
+        source: "department"
+      duty:
+        source: "description"
+    url_template: "https://www.tesla.com/careers/job/{id}"
+    note: "需要验证API结构"
 
   # 英特尔中国
   - id: intel
