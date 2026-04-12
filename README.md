@@ -185,41 +185,63 @@ companies:
 
 ## 🏢 Supported Companies
 
-### ✅ Working Companies (Config-Driven)
+### ✅ Working & Tested (5 companies)
 
-| Company | Social | Campus/Intern | API Pattern | Notes |
-|:--------|:------:|:-------------:|:------------|:------|
+| Company | Social | Campus/Intern | API Pattern | Status |
+|:--------|:------:|:-------------:|:------------|:-------|
 | Meituan | ✅ | ✅ | `getJobList` | Fully tested |
 | NetEase | ✅ | ✅ | `position/queryPage` | Fully tested |
 | Tencent | ✅ | ✅ | `tencentcareer/api/post/Query` | Config ready |
 | ByteDance | ✅ | ✅ | `search/job/posts` | Config ready |
+| ByteDance(社招) | ✅ | - | `search/job/posts` | Config ready |
 
-### 🚧 Pending Analysis
+### 🔧 Configured (28 companies - ready to enable)
 
-| Company | Status | Notes |
-|:--------|:------:|:------|
-| Alibaba | 🚧 | SSR rendering, needs special handling |
-| Baidu | 🚧 | Network unstable |
-| JD.com | 🚧 | Network unstable |
-| Didi | 🚧 | Network unstable |
-| Pinduoduo | 🚧 | Network unstable |
-| Huawei | 🚧 | No API found |
-| Xiaomi | 🚧 | Network unstable |
-| Ant Group | 🚧 | Similar to Alibaba |
-| Ctrip | 🚧 | API structure unclear |
-| Zhihu | 🚧 | Uses MokaHR platform |
+**Tier 1:**
+| Company | Config Status |
+|:--------|:--------------|
+| Didi | field_mappings ready |
+| JD.com | field_mappings ready |
+| Pinduoduo | field_mappings ready |
+| Huawei | field_mappings ready |
+| Xiaomi | field_mappings ready |
 
-### ❌ Unavailable
+**Tier 2:**
+| Company | Config Status |
+|:--------|:--------------|
+| Kuaishou | field_mappings ready |
+| Bilibili | field_mappings ready |
+| Xiaohongshu | field_mappings ready |
+| Ctrip | field_mappings ready |
+| Weibo | field_mappings ready |
+| Zhihu | field_mappings ready |
+| Vipshop | field_mappings ready |
+| 58.com | field_mappings ready |
+| OPPO | field_mappings ready |
+| vivo | field_mappings ready |
+| ZTE | field_mappings ready |
+| Lenovo | field_mappings ready |
+| Ant Group | field_mappings ready |
+| Cainiao | field_mappings ready |
 
-| Company | Reason |
-|:--------|:-------|
-| Kuaishou | Site unreachable |
-| Bilibili | Site unreachable |
-| Xiaohongshu | Site unreachable |
-| vivo | Site unreachable |
-| Weibo | Site unreachable |
+**Game Companies:**
+| Company | Config Status |
+|:--------|:--------------|
+| NetEase Game | field_mappings ready |
+| Mihoyo | field_mappings ready |
+| Lilith | field_mappings ready |
+| Perfect World | field_mappings ready |
+| 37Games | field_mappings ready |
 
-> **📊 Status: 4 companies working** | **🚧 10+ pending** | **❌ 5 unavailable**
+**International:**
+| Company | Config Status |
+|:--------|:--------------|
+| Microsoft China | field_mappings ready |
+| Apple China | field_mappings ready |
+| NVIDIA China | field_mappings ready |
+| Tesla China | field_mappings ready |
+
+> **📊 Total: 33 companies with field_mappings configured**
 
 ### 🔧 Adding New Companies
 
