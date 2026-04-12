@@ -222,17 +222,17 @@ companies:
   # 拼多多
   - id: pinduoduo
     name: 拼多多
-    enabled: false
+    enabled: true
     urls:
       social: "https://careers.pinduoduo.com/jobs"
       campus: "https://careers.pinduoduo.com/campus"
     api:
-      pattern: "api/job/list"
-      data_path: "data.list"
+      pattern: "job/query/list"
+      data_path: "result.infoList"
       type: "intercept"
     field_mappings:
       id:
-        source: "jobId"
+        source: "jobCode"
       title:
         source: "jobName"
       location:
@@ -246,7 +246,7 @@ companies:
       requirement:
         source: "jobRequire"
     url_template: "https://careers.pinduoduo.com/jobs/{id}"
-    note: "需要验证API结构"
+    note: "API已验证可用"
 
   # 华为
   - id: huawei

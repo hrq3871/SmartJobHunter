@@ -185,26 +185,26 @@ companies:
 
 ## 🏢 Supported Companies
 
-### ✅ Working & Tested (5 companies)
+### ✅ Working & Tested (6 companies)
 
 | Company | Social | Campus/Intern | API Pattern | Status |
 |:--------|:------:|:-------------:|:------------|:-------|
+| Tencent | ✅ | ✅ | `tencentcareer/api/post/Query` | Fully tested |
+| ByteDance | ✅ | ✅ | `search/job/posts` | Fully tested |
+| ByteDance(社招) | ✅ | - | `search/job/posts` | Fully tested |
 | Meituan | ✅ | ✅ | `getJobList` | Fully tested |
 | NetEase | ✅ | ✅ | `position/queryPage` | Fully tested |
-| Tencent | ✅ | ✅ | `tencentcareer/api/post/Query` | Config ready |
-| ByteDance | ✅ | ✅ | `search/job/posts` | Config ready |
-| ByteDance(社招) | ✅ | - | `search/job/posts` | Config ready |
+| Pinduoduo | ✅ | ✅ | `job/query/list` | Fully tested |
 
-### 🔧 Configured (28 companies - ready to enable)
+### 🔧 Configured (27 companies - need API verification)
 
 **Tier 1:**
-| Company | Config Status |
-|:--------|:--------------|
-| Didi | field_mappings ready |
-| JD.com | field_mappings ready |
-| Pinduoduo | field_mappings ready |
-| Huawei | field_mappings ready |
-| Xiaomi | field_mappings ready |
+| Company | Config Status | Note |
+|:--------|:--------------|:-----|
+| Didi | field_mappings ready | API pattern needs update |
+| JD.com | field_mappings ready | API pattern needs update |
+| Huawei | field_mappings ready | API pattern needs update |
+| Xiaomi | field_mappings ready | API pattern needs update |
 
 **Tier 2:**
 | Company | Config Status |
@@ -241,7 +241,7 @@ companies:
 | NVIDIA China | field_mappings ready |
 | Tesla China | field_mappings ready |
 
-> **📊 Total: 33 companies with field_mappings configured**
+> **📊 Total: 33 companies with field_mappings configured (6 tested working)**
 
 ### 🔧 Adding New Companies
 
