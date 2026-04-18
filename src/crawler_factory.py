@@ -3,6 +3,11 @@
 """
 SmartJobHunter 爬虫工厂
 根据公司ID创建爬虫实例，统一管理爬虫生命周期
+
+功能：
+1. 创建爬虫实例
+2. 执行爬取任务
+3. 自愈逻辑：失败时自动检测和修复
 """
 
 import sys
@@ -11,6 +16,7 @@ from pathlib import Path
 from typing import Optional, List, Dict
 
 from .config_crawler import ConfigCrawler, create_crawler_from_config
+from .exceptions import CompanyNotFoundError, CrawlerError
 
 
 # 加载公司配置
@@ -112,11 +118,13 @@ def create_crawler(company_id: str) -> Optional[ConfigCrawler]:
 
     Returns:
         ConfigCrawler 实例，配置无效则返回 None
+
+    Raises:
+        CompanyNotFoundError: 公司配置不存在时抛出
     """
     config = get_company_config(company_id)
     if not config:
-        print(f"[Error] Company not found: {company_id}", file=sys.stderr)
-        return None
+        raise CompanyNotFoundError(f"Company not found: {company_id}")
 
     if not config.get('enabled', False):
         print(f"[Warn] Company disabled: {config.get('name', company_id)}", file=sys.stderr)
@@ -138,8 +146,9 @@ def crawl_company(
     max_jobs: int = 50,
     job_type: str = 'social',
     headless: bool = True,
+    auto_repair: bool = True,
 ) -> List[dict]:
-    """爬取单个公司的岗位
+    """爬取单个公司的岗位（带自愈逻辑）
 
     Args:
         company_id: 公司ID
@@ -147,13 +156,34 @@ def crawl_company(
         max_jobs: 最大岗位数
         job_type: 岗位类型
         headless: 是否无头模式
+        auto_repair: 是否启用自愈
 
     Returns:
         岗位列表
     """
     crawler = create_crawler(company_id)
     if not crawler:
-        return []
+        # 尝试自动分析新公司
+        if auto_repair:
+            from .auto_analyzer import AutoAnalyzer
+            from .notifier import notify_new_company_added
+
+            analyzer = AutoAnalyzer()
+            company_config = get_company_config(company_id)
+
+            if company_config:
+                company_name = company_config.get('name', company_id)
+                print(f"[AutoRepair] Attempting to analyze {company_name}...", file=sys.stderr)
+
+                new_config = analyzer.analyze_new_company(company_name)
+                if new_config:
+                    analyzer.save_config(new_config)
+                    notify_new_company_added(company_name, company_id)
+                    reload_config()
+                    crawler = create_crawler(company_id)
+
+        if not crawler:
+            return []
 
     try:
         return crawler.crawl(
@@ -164,7 +194,74 @@ def crawl_company(
         )
     except Exception as e:
         print(f"[Error] Crawl failed for {company_id}: {e}", file=sys.stderr)
+
+        # 触发自愈
+        if auto_repair:
+            return _attempt_repair(company_id, e, keyword, max_jobs, job_type, headless)
+
         return []
+
+
+def _attempt_repair(
+    company_id: str,
+    error: Exception,
+    keyword: str,
+    max_jobs: int,
+    job_type: str,
+    headless: bool,
+) -> List[dict]:
+    """尝试自动修复
+
+    Args:
+        company_id: 公司ID
+        error: 异常
+        keyword: 关键词
+        max_jobs: 最大岗位数
+        job_type: 岗位类型
+        headless: 是否无头模式
+
+    Returns:
+        岗位列表
+    """
+    from .health_monitor import HealthMonitor
+    from .notifier import notify_repair_failed, notify_repair_success, notify_login_required
+
+    monitor = HealthMonitor()
+    diagnosis = monitor.diagnose_failure(company_id, error)
+
+    print(f"[AutoRepair] Diagnosis: {diagnosis.failure_type.value} - {diagnosis.reason}", file=sys.stderr)
+
+    # 需要登录的情况
+    if diagnosis.failure_type.value == 'login_required':
+        company_config = get_company_config(company_id)
+        url = company_config.get('urls', {}).get('social', '') if company_config else ''
+        notify_login_required(company_id, url)
+        return []
+
+    # 尝试自动修复
+    if diagnosis.can_auto_repair:
+        print(f"[AutoRepair] Attempting: {diagnosis.repair_action}", file=sys.stderr)
+
+        if monitor.auto_repair(company_id, diagnosis):
+            notify_repair_success(company_id, diagnosis.repair_action)
+            reload_config()
+
+            # 重试爬取
+            crawler = create_crawler(company_id)
+            if crawler:
+                try:
+                    return crawler.crawl(
+                        keyword=keyword,
+                        max_jobs=max_jobs,
+                        job_type=job_type,
+                        headless=headless,
+                    )
+                except Exception as retry_error:
+                    print(f"[AutoRepair] Retry failed: {retry_error}", file=sys.stderr)
+
+    # 修复失败
+    notify_repair_failed(company_id, diagnosis.reason, [diagnosis.repair_action] if diagnosis.repair_action else None)
+    return []
 
 
 def crawl_all(

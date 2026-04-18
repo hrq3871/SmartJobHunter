@@ -1,0 +1,170 @@
+# 招聘系统模板 - 自动分析时使用
+# 当识别到特定招聘系统时，使用对应模板生成配置
+
+# ============================================================
+# mokahr 招聘系统
+# 使用方：知乎、中兴、吉利、莉莉丝等
+# ============================================================
+mokahr:
+  api:
+    pattern: "jobs"
+    data_path: "data.jobs"
+    type: "intercept"
+  field_mappings:
+    id:
+      source: "id"
+    title:
+      source: "name"
+    location:
+      source: "location"
+    category:
+      source: "category"
+    duty:
+      source: "description"
+  url_template: "https://app.mokahr.com/jobs/{id}"
+  note: "mokahr 招聘系统"
+
+# ============================================================
+# Workday 招聘系统
+# 使用方：Intel、AMD、思科、SAP 等外资公司
+# ============================================================
+workday:
+  api:
+    type: "dom"
+  selectors:
+    job_container: "[data-automation-id='jobPostingItem']"
+    title: "[data-automation-id='jobTitle']"
+    location: "[data-automation-id='locations']"
+    posted: "[data-automation-id='postedOn']"
+  note: "Workday 招聘系统，需 DOM 解析"
+
+# ============================================================
+# 飞书招聘系统
+# 使用方：商汤、Keep、SHEIN、蔚来、理想、小鹏等
+# ============================================================
+feishu:
+  api:
+    pattern: "search/job/posts"
+    data_path: "data.job_post_list"
+    type: "intercept"
+  field_mappings:
+    id:
+      source: "id"
+    title:
+      source: "title"
+    location:
+      source: "city_list.0.name"
+    category:
+      source: "job_category.name"
+    duty:
+      source: "description"
+    requirement:
+      source: "requirement"
+    publish_time:
+      source: "publish_time"
+  url_template: "https://{company}.jobs.feishu.cn/job/{id}"
+  note: "飞书招聘系统"
+
+# ============================================================
+# 智联招聘系统 (zhiye.com)
+# 使用方：海康威视、科大讯飞、中兴、浪潮、吉利、长城汽车等
+# 注意：大部分已迁移到其他系统
+# ============================================================
+zhiye:
+  api:
+    type: "dom"
+  selectors:
+    job_list: ".job-list li"
+    title: ".job-name"
+    location: ".job-area"
+    category: ".job-category"
+  note: "智联招聘系统，需 DOM 解析，大部分已失效"
+
+# ============================================================
+# 北森招聘系统
+# 使用方：部分国央企
+# ============================================================
+beisen:
+  api:
+    type: "dom"
+  selectors:
+    job_list: ".job-item"
+    title: ".job-title"
+    location: ".job-location"
+  note: "北森招聘系统，需 DOM 解析"
+
+# ============================================================
+# 自建系统模板
+# 需要手动分析 API 结构
+# ============================================================
+self_built:
+  api:
+    type: "intercept"
+    pattern: null
+    data_path: "data"
+  field_mappings:
+    id:
+      source: "id"
+    title:
+      source: "title"
+    location:
+      source: "location"
+    category:
+      source: "category"
+  note: "自建招聘系统，需手动分析 API"
+
+# ============================================================
+# 需要登录态
+# 无法自动爬取，需要用户先登录
+# ============================================================
+requires_login:
+  api:
+    type: "intercept"
+    pattern: null
+  note: "需要用户登录后才能爬取"
+  login_required: true
+
+# ============================================================
+# 系统识别规则
+# 用于自动识别招聘系统类型
+# ============================================================
+identification_rules:
+  mokahr:
+    url_patterns:
+      - "mokahr.com"
+      - "app.mokahr.com"
+    api_patterns:
+      - "mokahr"
+      - "jobs"
+
+  workday:
+    url_patterns:
+      - "myworkdayjobs.com"
+      - "wd1.myworkdayjobs.com"
+    api_patterns:
+      - "workday"
+    dom_selectors:
+      - "[data-automation-id='jobTitle']"
+
+  feishu:
+    url_patterns:
+      - "jobs.feishu.cn"
+      - ".jobs.feishu.cn"
+    api_patterns:
+      - "search/job/posts"
+
+  zhiye:
+    url_patterns:
+      - "zhiye.com"
+    api_patterns:
+      - "zhiye"
+
+  beisen:
+    url_patterns:
+      - "beisen.com"
+    dom_selectors:
+      - ".job-item"
+
+  self_built:
+    # 默认 fallback
+    condition: "default"
