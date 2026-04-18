@@ -16,6 +16,25 @@
 
 ---
 
+## 😣 Pain Points
+
+Job hunting gets noisy fast:
+
+- **Openings are scattered** across dozens of company career sites, each with different search behavior, filters, and data quality.
+- **Keyword search is not enough**. "AI", "Product", and "SaaS" can point to real product ownership, operations, algorithm engineering, sales support, or unrelated roles.
+- **Resume fit needs evidence**. A useful recommendation must explain why the JD matches the resume, which signals are strong, and which gaps remain.
+- **Daily manual checks do not scale**. Recency filtering, deduplication, profile-specific preferences, and follow-up records are easy to miss by hand.
+- **Crawler failures are normal**. Career sites change APIs, login rules, and page structures, so the system needs monitoring and repair paths instead of silent failure.
+
+## 🌟 Highlights
+
+- **Evidence-based job scoring**: evaluates role fit, domain fit, resume evidence, preferences, evidence quality, and risk penalties with a 0-100 rubric.
+- **Semantic intent filtering**: treats keywords as supporting evidence, not the final decision, so surface-level keyword noise is filtered out earlier.
+- **Multi-profile inspection**: run separate job directions and resumes independently, such as TOB PM, AI PM, campus roles, or internships.
+- **Config-driven crawler fleet**: manage company targets, API patterns, field mappings, and job-type support from YAML configuration.
+- **Self-healing operations**: health checks classify crawler failures and create repair signals for API, selector, login, and data-path issues.
+- **Markdown reports**: generate readable application shortlists with scores, reasons, risks, publish time, location, and direct job links.
+
 ## ✨ Features
 
 | Feature | Description |
