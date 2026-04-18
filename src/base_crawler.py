@@ -245,6 +245,39 @@ class InterceptCrawler(BaseCrawler):
             except Exception as e:
                 print(f"  [API] Parse error: {e}", file=sys.stderr)
 
+    def _try_search(self, page: Page, keyword: str):
+        """尝试在页面上搜索关键词
+
+        Args:
+            page: Playwright Page 对象
+            keyword: 搜索关键词
+        """
+        search_selectors = [
+            'input[placeholder*="搜索"]',
+            'input[placeholder*="职位"]',
+            'input[placeholder*="关键词"]',
+            'input[type="text"]',
+            '.search-input',
+            '#search-input',
+            '[class*="search"] input',
+        ]
+
+        for selector in search_selectors:
+            try:
+                element = page.query_selector(selector)
+                if element and element.is_visible():
+                    element.click()
+                    page.wait_for_timeout(300)
+                    element.fill(keyword)
+                    page.wait_for_timeout(300)
+                    element.press('Enter')
+                    print(f"  [Search] Searched for: {keyword}", file=sys.stderr)
+                    return True
+            except Exception as e:
+                continue
+
+        return False
+
     def crawl_with_intercept(
         self,
         url: str,
@@ -281,8 +314,14 @@ class InterceptCrawler(BaseCrawler):
 
             try:
                 print(f"[Crawler] Accessing {self.config.get('name', 'Unknown')}...", file=sys.stderr)
-                page.goto(url, timeout=60000, wait_until='networkidle')
+                page.goto(url, timeout=60000, wait_until='domcontentloaded')
                 page.wait_for_timeout(5000)
+
+                # 如果没有捕获到数据，尝试搜索交互
+                if not intercepted_data:
+                    print(f"  [Search] No API captured, trying search interaction...", file=sys.stderr)
+                    self._try_search(page, keyword)
+                    page.wait_for_timeout(5000)
 
                 # 解析拦截的数据
                 for data in intercepted_data:

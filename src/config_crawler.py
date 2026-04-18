@@ -8,6 +8,7 @@ SmartJobHunter 配置驱动爬虫
 import sys
 from typing import Optional, List
 from .base_crawler import InterceptCrawler
+from .dom_crawler import DomCrawler
 
 
 class ConfigCrawler(InterceptCrawler):
@@ -150,14 +151,14 @@ class ConfigCrawler(InterceptCrawler):
         )
 
 
-def create_crawler_from_config(company_config: dict) -> Optional[ConfigCrawler]:
+def create_crawler_from_config(company_config: dict) -> Optional[object]:
     """从配置创建爬虫实例
 
     Args:
         company_config: 公司配置字典
 
     Returns:
-        ConfigCrawler 实例，如果配置无效则返回 None
+        ConfigCrawler 或 DomCrawler 实例，如果配置无效则返回 None
     """
     # 检查必要字段
     if not company_config.get('id') or not company_config.get('name'):
@@ -169,8 +170,18 @@ def create_crawler_from_config(company_config: dict) -> Optional[ConfigCrawler]:
         print(f"[Warn] No field_mappings for {company_config.get('id')}", file=sys.stderr)
         return None
 
-    # 检查 API 配置
     api_config = company_config.get('api', {})
+    api_type = api_config.get('type', 'intercept')
+
+    # DOM 类型：使用 DOM 解析爬虫
+    if api_type == 'dom':
+        selectors = api_config.get('selectors', {})
+        if not selectors.get('job_container'):
+            print(f"[Warn] Missing DOM selectors for {company_config.get('id')}", file=sys.stderr)
+            return None
+        return DomCrawler(company_config)
+
+    # Intercept 类型：使用 API 拦截爬虫
     if not api_config.get('pattern') or not api_config.get('data_path'):
         print(f"[Warn] Missing API config for {company_config.get('id')}", file=sys.stderr)
         return None

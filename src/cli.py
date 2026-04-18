@@ -7,6 +7,7 @@ SmartJobHunter CLI 模块
 
 import os
 import re
+import sys
 import yaml
 import argparse
 import json
@@ -18,9 +19,49 @@ from typing import Dict, List, Optional
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 # 导入模块
-from . import crawler
+from . import crawler_factory
 from . import filters
 from . import resume_parser
+from .exceptions import ConfigError, ProfileNotFoundError
+
+
+def validate_profile(profile: dict) -> bool:
+    """验证意向配置
+
+    Args:
+        profile: 意向配置字典
+
+    Raises:
+        ConfigError: 配置无效时抛出
+    """
+    required = ['name']
+    for field in required:
+        if not profile.get(field):
+            raise ConfigError(f"Profile missing required field: {field}")
+
+    # 检查 keywords 是否为列表
+    keywords = profile.get('keywords')
+    if keywords and not isinstance(keywords, list):
+        raise ConfigError(f"Profile '{profile.get('name')}' keywords must be a list")
+
+    return True
+
+
+def validate_company_config(company: dict) -> bool:
+    """验证公司配置
+
+    Args:
+        company: 公司配置字典
+
+    Raises:
+        ConfigError: 配置无效时抛出
+    """
+    required = ['id', 'name']
+    for field in required:
+        if not company.get(field):
+            raise ConfigError(f"Company config missing required field: {field}")
+
+    return True
 
 
 def load_config(profile_name: str = None) -> Dict:
@@ -108,6 +149,13 @@ def _parse_profile_md(file_path: str) -> Dict:
             body = parts[2].strip()
             if body and 'intent' not in profile:
                 profile['intent'] = body[:500]
+
+    # 验证
+    try:
+        validate_profile(profile)
+    except ConfigError as e:
+        print(f"[Warn] Invalid profile {file_path}: {e}", file=sys.stderr)
+        return None
 
     return profile
 
@@ -205,7 +253,7 @@ class JobHunter:
         all_jobs = []
 
         # 从配置获取启用的公司
-        companies = crawler.get_enabled_companies(job_type)
+        companies = crawler_factory.get_enabled_companies(job_type)
         print(f"[Crawler] Found {len(companies)} companies for {job_type or 'all'}")
 
         for company in companies:
@@ -214,7 +262,7 @@ class JobHunter:
 
             print(f"[Crawler] Crawling {company_name}...")
             try:
-                jobs = crawler.crawl_company(company_id, keyword, max_jobs=max_jobs, job_type=job_type)
+                jobs = crawler_factory.crawl_company(company_id, keyword, max_jobs=max_jobs, job_type=job_type)
                 all_jobs.extend(jobs)
                 print(f"   Got {len(jobs)} jobs")
             except Exception as e:
