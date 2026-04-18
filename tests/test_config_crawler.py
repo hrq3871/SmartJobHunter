@@ -19,6 +19,7 @@ from src.crawler_factory import (
 )
 from src.config_crawler import ConfigCrawler
 from src.base_crawler import BaseCrawler, InterceptCrawler
+from src.exceptions import CompanyNotFoundError
 
 
 class TestCompanyConfig:
@@ -85,8 +86,8 @@ class TestCrawlerCreation:
 
     def test_create_invalid_crawler(self):
         """测试创建无效公司的爬虫"""
-        crawler = create_crawler('invalid_company')
-        assert crawler is None
+        with pytest.raises(CompanyNotFoundError):
+            create_crawler('invalid_company')
 
 
 class TestFieldParsing:

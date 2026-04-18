@@ -21,6 +21,7 @@ os.environ['PYTHONIOENCODING'] = 'utf-8'
 # 导入模块
 from . import crawler_factory
 from . import filters
+from . import matching
 from . import resume_parser
 from .exceptions import ConfigError, ProfileNotFoundError
 
@@ -100,7 +101,7 @@ def load_config(profile_name: str = None) -> Dict:
         profiles = [p for p in profiles if p.get('enabled', True)]
 
     # 加载公司配置
-    companies = crawler.get_enabled_companies()
+    companies = crawler_factory.get_enabled_companies()
 
     return {
         'global': agent_config,
@@ -294,26 +295,32 @@ class JobHunter:
         jobs = filters.dedup(jobs, self.seen_hashes)
         print(f"   Remaining: {len(jobs)} jobs")
 
-        # 关键词过滤
-        keywords = profile.get('keywords', [])
-        if keywords:
-            print(f"\n[Filter] Keywords: {keywords}...")
-            keywords_lower = [kw.lower() for kw in keywords]
-            jobs = [
-                job for job in jobs
-                if any(kw in job.get('title', '').lower() or kw in job.get('duty', '').lower()
-                       for kw in keywords_lower)
-            ]
-            print(f"   Remaining: {len(jobs)} jobs")
-
         # 数据清洗
         print("\n[Filter] Cleaning data...")
         jobs = filters.clean_data(jobs, truncate_length)
 
+        # 语义过滤：Python fallback 按 Agent 评分规则判断，不再只做关键词包含
+        if profile.get('keywords') or profile.get('intent'):
+            decision_level = global_config.get('decision_level', 'moderate')
+            semantic_thresholds = global_config.get('semantic_filter', {})
+            print(f"\n[Filter] Semantic intent match ({decision_level})...")
+            matched_jobs = []
+            for job in jobs:
+                semantic = matching.match_job_intent(job, profile, decision_level)
+                if decision_level in semantic_thresholds:
+                    threshold = semantic_thresholds[decision_level]
+                    semantic['threshold'] = threshold
+                    semantic['should_keep'] = semantic.get('match_score', 0) >= threshold
+                job['semantic_match'] = semantic
+                if semantic.get('should_keep'):
+                    matched_jobs.append(job)
+            jobs = matched_jobs
+            print(f"   Remaining: {len(jobs)} jobs")
+
         return jobs
 
     def evaluate_job(self, job: dict, profile: dict) -> dict:
-        """评估岗位匹配度（基础评估，实际由 Agent 完成）
+        """评估岗位匹配度（Python fallback，Agent 可用更深度 LLM 评估）
 
         Args:
             job: 岗位数据
@@ -322,28 +329,12 @@ class JobHunter:
         Returns:
             评估结果
         """
-        keywords = profile.get('keywords', [])
-        title = job.get('title', '').lower()
-        duty = job.get('duty', '').lower()[:2000]
-
-        # 匹配关键词
-        keywords_lower = [kw.lower() for kw in keywords]
-        matched_keywords = [kw for kw in keywords_lower if kw in title or kw in duty]
-
-        # 基础评分
-        score = min(60 + len(matched_keywords) * 5, 85) if matched_keywords else 0
-
-        # AI 相关加分
-        ai_keywords = ['ai', '人工智能', '大模型', '机器学习', '深度学习', 'llm', 'gpt']
-        if any(kw in duty for kw in ai_keywords):
-            score = min(score + 10, 95)
-
-        return {
-            'score': score,
-            'match_reasons': [f"Matched keywords: {', '.join(matched_keywords)}"] if matched_keywords else [],
-            'missing_skills': [],
-            'risk_warning': ''
-        }
+        return matching.evaluate_job_fit(
+            job,
+            profile,
+            resume_text=profile.get('_resume_content', ''),
+            ability_profile=profile.get('_ability_profile'),
+        )
 
     def generate_report(self, jobs: List[dict], profile: dict, evaluations: List[dict]):
         """生成报告
@@ -377,6 +368,8 @@ class JobHunter:
         for i, job in enumerate(jobs, 1):
             evaluation = evaluations[i-1] if i <= len(evaluations) else {}
             score = evaluation.get('score', 0)
+            recommendation = evaluation.get('recommendation', 'N/A')
+            risk_warning = evaluation.get('risk_warning')
 
             score_emoji = "Green" if score >= 80 else "Yellow" if score >= 60 else "Red"
 
@@ -389,8 +382,11 @@ class JobHunter:
 | Category | {job.get('category', '')} |
 | Published | {job.get('publish_time', '')} |
 | Work Years | {job.get('work_years', '')} |
+| Recommendation | {recommendation} |
 
 **Match Reasons**: {', '.join(evaluation.get('match_reasons', [])) or 'N/A'}
+
+**Risk Warning**: {risk_warning or 'N/A'}
 
 **Duties**:
 {job.get('duty', 'N/A')[:500]}...
@@ -438,7 +434,8 @@ class JobHunter:
         profile_name = profile.get('name', 'unknown')
         keywords = profile.get('keywords', [])
         job_type = job_type_override or profile.get('job_type', '全部')
-        resume_path = profile.get('resume_path', '')
+        profile = dict(profile)
+        resume_path = profile.get('resume_path') or profile.get('resume') or ''
 
         print(f"\n{'='*50}")
         print(f"[Profile] {profile_name}")
@@ -454,6 +451,8 @@ class JobHunter:
                 print(f"   {resume_result['content']}")
             else:
                 print(f"   Resume loaded ({resume_result['length']} chars)")
+                profile['_resume_content'] = resume_result.get('content', '')
+                profile['_ability_profile'] = matching.summarize_resume_ability(profile['_resume_content'])
 
         # 获取全局配置
         global_config = self.config.get('global', {}) if self.config else {}

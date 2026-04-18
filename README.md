@@ -23,8 +23,8 @@
 | 🤖 **Agent-Driven** | LLM-powered intelligent job matching and evaluation |
 | 🎯 **Multi-Profile** | Support multiple job directions with independent resume inspection |
 | 📄 **Multi-Format Resume** | Support txt, md, docx, pdf, png, jpg formats |
-| 🔍 **Smart Filtering** | Three-layer funnel: Time → Dedup+Keywords → Job Type |
-| 📊 **AI Evaluation** | Auto scoring (0-100) + Match reasons |
+| 🔍 **Smart Filtering** | Three-layer funnel: Time → Dedup → semantic intent match |
+| 📊 **AI Evaluation** | Rule-guided scoring (0-100) + evidence-based match reasons |
 | 📊 **Job Classification** | Distinguish internship/campus/social recruitment |
 | ⏰ **Scheduled Execution** | Daily automatic inspection at 20:00 |
 | 🔧 **Self-Healing** | Automatic crawler health monitoring and repair |
@@ -106,6 +106,7 @@ SmartJobHunter/
 │   ├── auto_analyzer.py     # New company auto-analysis
 │   ├── notifier.py          # User notification system
 │   ├── filters.py           # Filter functions (time, dedup, clean)
+│   ├── matching.py          # Semantic matching fallback and scoring rubric
 │   ├── resume_parser.py     # Resume parser (txt/md/docx/pdf/image)
 │   ├── scheduler.py         # Job scheduler (daily at 20:00)
 │   ├── health_check.py      # Health checker
@@ -195,6 +196,30 @@ companies:
       campus: ["校招", "应届"]
 ```
 
+## 🧠 Matching & Scoring Logic
+
+SmartJobHunter no longer treats keyword hits as a match by themselves.
+
+The matching flow is:
+
+1. **Deterministic filters**: time window and deduplication stay in Python.
+2. **Semantic intent filter**: the Agent judges whether the job's real responsibilities match the profile intent. Keywords are only supporting evidence.
+3. **Resume-job fit scoring**: the Agent scores role fit, domain fit, resume evidence, preferences, evidence quality, and risk penalties.
+4. **Python fallback**: `src.matching` mirrors the same rubric for CLI runs and tests when no Agent is executing the prompts.
+
+Scoring dimensions:
+
+| Dimension | Weight | Meaning |
+|:--|:--:|:--|
+| `core_role_fit` | 30 | Whether the job's core role matches the target role |
+| `domain_fit` | 25 | Whether the domain matches the intent, such as AI Agent, LLM apps, ToB SaaS |
+| `resume_evidence` | 25 | Whether the resume contains evidence for the JD requirements |
+| `preference_fit` | 10 | Location, job type, and other stated preferences |
+| `evidence_quality` | 10 | How clear and verifiable the JD/resume evidence is |
+| `risk_penalty` | -20 | Keyword noise, role mismatch, or missing core evidence |
+
+The Agent prompts live in `.claude/skills/jobhunter/prompts/` and require evidence-backed JSON output. For example, an "AI labeling operations" role should not be scored as a strong AI product match just because it contains "AI".
+
 ## 💻 Command Reference
 
 ### CLI Commands
@@ -207,6 +232,18 @@ companies:
 | `python -m src.cli -t campus` | Run campus recruitment only |
 | `python -m src.cli -p "name"` | Run specific profile |
 | `python -m src.cli --list-profiles` | List all profiles |
+
+## ✅ Testing
+
+```bash
+# Unit and non-network tests
+pytest -q -p no:cacheprovider -m "not integration"
+
+# Matching/scoring tests only
+pytest -q -p no:cacheprovider tests/test_matching.py
+```
+
+Integration crawler tests require browser/network access and are marked with `integration`.
 
 ### Crawler Commands
 

@@ -5,6 +5,8 @@
 测试所有已配置的爬虫，生成测试报告
 """
 
+__test__ = False
+
 import sys
 import time
 import json

@@ -23,8 +23,8 @@
 | 🤖 **Agent 驱动** | 大模型驱动的智能岗位匹配与评估 |
 | 🎯 **多意向并行** | 支持多个求职方向，每份简历独立巡检 |
 | 📄 **多格式简历** | 支持 txt、md、docx、pdf、png、jpg 格式 |
-| 🔍 **智能过滤** | 三层漏斗：时间 → 去重+关键词 → 岗位性质 |
-| 📊 **AI 评估** | 自动评分（0-100分）+ 匹配理由 |
+| 🔍 **智能过滤** | 三层漏斗：时间 → 去重 → 语义意向匹配 |
+| 📊 **AI 评估** | 规则指导评分（0-100分）+ 基于证据的匹配理由 |
 | 📊 **岗位分类** | 区分实习/校招/社招 |
 | ⏰ **定时执行** | 每天 20:00 自动巡检 |
 | 🔧 **自愈系统** | 爬虫健康监控与自动修复 |
@@ -106,6 +106,7 @@ SmartJobHunter/
 │   ├── auto_analyzer.py     # 新公司自动分析
 │   ├── notifier.py          # 用户通知系统
 │   ├── filters.py           # 过滤函数（时间、去重、清洗）
+│   ├── matching.py          # 语义匹配 fallback 与评分规则
 │   ├── resume_parser.py     # 简历解析（txt/md/docx/pdf/图片）
 │   ├── scheduler.py         # 定时调度（每天 20:00）
 │   ├── health_check.py      # 健康检测
@@ -195,6 +196,30 @@ companies:
       campus: ["校招", "应届"]
 ```
 
+## 🧠 匹配与评分逻辑
+
+SmartJobHunter 不再把关键词命中本身视为匹配。
+
+匹配流程：
+
+1. **确定性过滤**：时间窗口和去重仍由 Python 处理。
+2. **语义意向过滤**：Agent 判断岗位真实职责是否符合求职意向，关键词只作为辅助证据。
+3. **简历-岗位匹配评分**：Agent 按角色匹配、领域匹配、简历证据、偏好、证据质量和风险扣分评分。
+4. **Python fallback**：当没有 Agent 执行 prompt 时，`src.matching` 用同一套规则支持 CLI 运行和自动化测试。
+
+评分维度：
+
+| 维度 | 权重 | 含义 |
+|:--|:--:|:--|
+| `core_role_fit` | 30 | 岗位核心角色是否符合目标方向 |
+| `domain_fit` | 25 | 是否符合 AI Agent、大模型应用、ToB SaaS 等目标领域 |
+| `resume_evidence` | 25 | 简历是否有能支撑 JD 要求的证据 |
+| `preference_fit` | 10 | 地点、岗位性质和其他偏好是否一致 |
+| `evidence_quality` | 10 | JD 和简历证据是否清晰、可验证 |
+| `risk_penalty` | -20 | 关键词噪声、角色偏离或核心证据缺失 |
+
+Agent 提示词位于 `.claude/skills/jobhunter/prompts/`，要求输出有证据支撑的 JSON。例如，“AI 标注运营”不能只因为包含 “AI” 就被评为强匹配 AI 产品岗位。
+
 ## 💻 命令参考
 
 ### CLI 命令
@@ -207,6 +232,18 @@ companies:
 | `python -m src.cli -t campus` | 只运行校招 |
 | `python -m src.cli -p "意向名"` | 运行指定意向 |
 | `python -m src.cli --list-profiles` | 列出所有意向 |
+
+## ✅ 测试
+
+```bash
+# 单元测试和非联网测试
+pytest -q -p no:cacheprovider -m "not integration"
+
+# 仅运行匹配/评分测试
+pytest -q -p no:cacheprovider tests/test_matching.py
+```
+
+集成爬虫测试需要浏览器和网络访问，并使用 `integration` 标记。
 
 ### 爬虫命令
 

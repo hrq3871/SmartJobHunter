@@ -78,11 +78,16 @@ jobs = [
 **执行动作**:
 1. 调用 `filter_by_time` 工具，传入 jobs 和 time_filter_days
 2. 调用 `dedup` 工具，传入过滤后的 jobs，读取 memory/seen_jobs.md
-3. 对每个剩余岗位，执行语义过滤:
+3. 对每个剩余岗位，执行 AI 语义过滤:
    - 使用 `semantic_filter` prompt
    - 输入: profile.intent, profile.keywords, job
-   - 输出: match_score, match_reason, should_keep
+   - 输出: match_score, match_reason, match_reasons, concerns, evidence, should_keep
 4. 根据 decision_level 阈值过滤
+
+**判断边界**:
+- 时间过滤和去重属于 Python 确定性逻辑。
+- 岗位语义是否匹配由 AI 做主判，Python CLI 只提供 `src.matching` fallback。
+- 不允许只用关键词命中决定保留；必须看岗位核心职责。
 
 **输入变量**: jobs, profile, agent_config.decision_level
 
@@ -109,6 +114,11 @@ matched_jobs = [
 2. 检查 memory/profile_cache.md 是否有缓存的能力画像
 3. 执行简历分析 (使用 analyze_resume prompt)
 4. 对每个 matched_job 执行岗位评估 (使用 evaluate prompt)
+
+**职责边界**:
+- AI 负责匹配判断、简历能力画像、投递建议。
+- Python 负责数据清洗、fallback 评分、Markdown 文件落盘。
+- ReportGenerator 只做格式化，不替代 AI 判断。
 
 **状态转换**: → EVALUATED
 
