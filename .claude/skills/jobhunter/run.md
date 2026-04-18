@@ -24,7 +24,7 @@ user_invocable: true
 - 时间过滤：只保留最近 3 天的岗位
 - 去重：排除 memory/seen_jobs.md 中已处理的岗位
 
-### Step 4: 语义过滤（AI）
+### Step 4: 语义过滤（AI 主判，Python fallback）
 对每个岗位，使用 `semantic_filter` prompt 进行 LLM 判断：
 
 ```
@@ -33,12 +33,18 @@ user_invocable: true
 - 岗位标题：{title}
 - 岗位描述：{duty}
 
-输出：{match_score, should_keep, match_reason}
+输出：{match_score, should_keep, match_reason, match_reasons, concerns, evidence}
 ```
 
-只保留 `should_keep: true` 的岗位。
+判断时必须遵守：
+- AI 根据职责语义做主判，关键词只作为辅助证据。
+- 标题或 JD 命中关键词但职责偏运营、销售、标注、审核、客服时，应降分。
+- 信息不足时保留 concerns，不要编造候选人能力或岗位内容。
+- 只保留 `should_keep: true` 的岗位。
 
-### Step 5: 深度评估（AI）
+在非 Agent CLI 模式下，`src.matching.match_job_intent()` 提供同一套规则的 Python fallback。
+
+### Step 5: 深度评估（AI 主评，Python fallback）
 对通过过滤的岗位，使用 `evaluate` prompt 进行深度评估：
 
 ```
@@ -46,11 +52,13 @@ user_invocable: true
 - 候选人画像：{从简历提取}
 - 岗位信息：{title, company, duty}
 
-输出：{score, match_reasons, suggestions, recommendation}
+输出：{score, match_analysis, match_reasons, suggestions, risk_warning, recommendation, scoring_breakdown}
 ```
 
+Python CLI 模式下，`src.matching.evaluate_job_fit()` 作为可测试 fallback，避免退回粗暴关键词评分。
+
 ### Step 6: 生成报告
-使用 `report` prompt 生成 Markdown 报告，保存到 `output/` 目录。
+Agent 模式优先使用 `report` prompt 生成 Markdown 报告；CLI 模式使用 Python 模板渲染同样的评分和风险字段，保存到 `output/` 目录。
 
 ### Step 7: 更新 Memory
 调用 `update_memory` 工具，将处理过的岗位写入 `memory/seen_jobs.md`。
