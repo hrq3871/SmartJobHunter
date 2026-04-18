@@ -16,24 +16,74 @@
 
 ---
 
-## 😣 Pain Points
+## Why This Project
 
-Job hunting gets noisy fast:
+SmartJobHunter is an intelligent job-hunting tool for **company career-site monitoring**.
+Most job tools focus on platforms like Boss, LinkedIn, or other job boards.
+Those platforms are useful, but browsing them is not the hardest part, and their own recommendation systems are already mature.
 
-- **Openings are scattered** across dozens of company career sites, each with different search behavior, filters, and data quality.
-- **Keyword search is not enough**. "AI", "Product", and "SaaS" can point to real product ownership, operations, algorithm engineering, sales support, or unrelated roles.
-- **Resume fit needs evidence**. A useful recommendation must explain why the JD matches the resume, which signals are strong, and which gaps remain.
-- **Daily manual checks do not scale**. Recency filtering, deduplication, profile-specific preferences, and follow-up records are easy to miss by hand.
-- **Crawler failures are normal**. Career sites change APIs, login rules, and page structures, so the system needs monitoring and repair paths instead of silent failure.
+The opportunities people miss are often the first-party roles that only appear on company career sites.
+For large companies, the official career site is often the earliest publishing channel.
+Some roles never flow into external job boards at all.
 
-## 🌟 Highlights
+Checking 10 company sites by hand every day is still barely manageable.
+Checking 100 company sites consistently is not.
+This is where AI is useful: turning manual monitoring into automated coverage.
 
-- **Evidence-based job scoring**: evaluates role fit, domain fit, resume evidence, preferences, evidence quality, and risk penalties with a 0-100 rubric.
-- **Semantic intent filtering**: treats keywords as supporting evidence, not the final decision, so surface-level keyword noise is filtered out earlier.
-- **Multi-profile inspection**: run separate job directions and resumes independently, such as TOB PM, AI PM, campus roles, or internships.
-- **Config-driven crawler fleet**: manage company targets, API patterns, field mappings, and job-type support from YAML configuration.
-- **Self-healing operations**: health checks classify crawler failures and create repair signals for API, selector, login, and data-path issues.
-- **Markdown reports**: generate readable application shortlists with scores, reasons, risks, publish time, location, and direct job links.
+This project uses AI to automate that workflow, and upgrades the process from "finding jobs by keyword" to "judging whether a role fits you and helping you apply better." The goal is to reduce both missed opportunities and false positives.
+
+## What This Solves
+
+Job hunting is hard not only because you need to search for roles, but because you need to keep the whole filtering process reliable:
+
+- **Official career sites are fragmented**: each company has a different page structure, search behavior, and field quality.
+- **Surface relevance is not real fit**: a title or keyword match does not mean the role fits your target direction or experience.
+- **Multiple job directions make screening harder**: when you track campus roles, internships, AI product, TOB product, and other directions at the same time, information volume and filtering complexity grow quickly.
+- **Recommendations need evidence**: a useful shortlist should explain why a role matches, where the risks are, and what gaps remain.
+- **Applications take more work after discovery**: resume tailoring, ATS fit, JD-based writing, and interview preparation often take more effort than finding the opening.
+
+## What Makes It Different
+
+### 1. Focuses on official career sites, not duplicated platform data
+
+The goal is to cover **career-site-first, career-site-only, and not-yet-synced** openings, reducing the chance of missing first-party opportunities.
+
+### 2. Finds roles, then filters for real fit
+
+SmartJobHunter does not simply crawl everything and push a long list to the user.
+It combines resume content, job intention, and preferences to reduce roles that look relevant but are not actually suitable.
+
+### 3. Gives resume and application advice, not just job links
+
+The system can analyze:
+
+- where the JD and resume match
+- what strong signals already exist in the candidate's experience
+- what risks and gaps remain
+- how the resume can be improved for the role
+
+## Current Capabilities
+
+- Monitor roles across multiple company career sites
+- Filter duplicate and low-relevance openings
+- Score job fit based on resume evidence
+- Output match reasons, supporting evidence, and risk warnings
+- Generate structured job reports for faster application decisions
+
+## Planned Capabilities
+
+- **ATS-oriented resume regeneration**
+  Generate a role-specific resume version based on the JD and ATS rules.
+
+- **Application writing from resume, experience library, and JD**
+  Generate self-introductions, application notes, project-fit narratives, and mock interview Q&A.
+
+- **From opportunity discovery to application assistance**
+  Move from a job monitoring tool to a full job-search assistant agent.
+
+## One-Line Summary
+
+**SmartJobHunter is not just a job crawler. It is an intelligent job-search agent that monitors company career sites, finds real fit, and helps improve resumes and application materials.**
 
 ## ✨ Features
 
