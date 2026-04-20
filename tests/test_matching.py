@@ -51,6 +51,35 @@ def test_intent_match_rejects_surface_keyword_noise():
     assert result["concerns"]
 
 
+def test_intent_match_limits_title_only_domain_keyword_score():
+    profile = {
+        "intent": "寻找 AI 产品经理岗位，偏好大模型应用和 Agent 方向。",
+        "keywords": ["AI", "大模型", "Agent"],
+    }
+    strong_job = {
+        "title": "大模型 Agent 产品经理",
+        "company": "Example",
+        "location": "北京",
+        "category": "产品",
+        "duty": "负责大模型 Agent 产品规划，设计 LLM 应用工作流并推动模型应用落地。",
+        "requirement": "需要 AI 产品经验，熟悉 RAG、Agent 和跨团队协作。",
+    }
+    title_only_job = {
+        "title": "AI 产品经理",
+        "company": "Example",
+        "location": "北京",
+        "category": "产品",
+        "duty": "负责内部工具的需求收集、PRD撰写、版本排期和用户反馈跟进。",
+        "requirement": "需要产品经理经验，具备沟通协调能力。",
+    }
+
+    strong_result = match_job_intent(strong_job, profile, decision_level="moderate")
+    title_only_result = match_job_intent(title_only_job, profile, decision_level="moderate")
+
+    assert title_only_result["match_score"] <= 0.65
+    assert strong_result["match_score"] - title_only_result["match_score"] >= 0.1
+
+
 def test_evaluate_job_fit_scores_core_requirements_with_resume_evidence():
     profile = {
         "intent": "寻找 AI Agent 和大模型应用方向的产品经理岗位，偏好 ToB SaaS。",
@@ -77,3 +106,47 @@ def test_evaluate_job_fit_scores_core_requirements_with_resume_evidence():
     assert result["recommendation"] in {"strong_apply", "apply"}
     assert result["match_analysis"]["strong_matches"]
     assert result["scoring_breakdown"]["core_role_fit"] >= 20
+
+
+def test_evaluate_job_fit_separates_deep_domain_match_from_title_only_keyword():
+    profile = {
+        "intent": "寻找 AI 产品经理岗位，偏好大模型应用和 Agent 方向。",
+        "keywords": ["AI", "大模型", "Agent"],
+    }
+    resume = """
+    4年产品经理经验，负责需求分析、PRD和跨团队上线。
+    主导过企业知识库 AI 助手，熟悉 LLM、RAG、Agent 工作流和产品指标。
+    """
+    ability_profile = summarize_resume_ability(resume)
+    strong_job = {
+        "title": "大模型 Agent 产品经理",
+        "company": "Example",
+        "location": "北京",
+        "category": "产品",
+        "duty": "负责大模型 Agent 产品规划，设计 LLM 应用工作流，推动企业客户场景上线。",
+        "requirement": "需要 AI 产品经验，理解 RAG、模型应用边界和跨团队落地。",
+    }
+    title_only_job = {
+        "title": "AI 产品经理",
+        "company": "Example",
+        "location": "北京",
+        "category": "产品",
+        "duty": "负责内部工具的需求收集、PRD撰写、版本排期和用户反馈跟进。",
+        "requirement": "需要产品经理经验，具备沟通协调能力和项目推动经验。",
+    }
+
+    strong_result = evaluate_job_fit(
+        strong_job,
+        profile,
+        resume_text=resume,
+        ability_profile=ability_profile,
+    )
+    title_only_result = evaluate_job_fit(
+        title_only_job,
+        profile,
+        resume_text=resume,
+        ability_profile=ability_profile,
+    )
+
+    assert strong_result["score"] - title_only_result["score"] >= 12
+    assert title_only_result["scoring_breakdown"]["domain_fit"] < 20

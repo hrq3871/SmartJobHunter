@@ -180,11 +180,17 @@ def match_job_intent(
     if domain_groups:
         per_group = 0.38 / len(domain_groups)
         for group in domain_groups:
-            group_hits = _hits(job_text, TERM_GROUPS[group])
+            group_evidence = _job_group_evidence(job, group)
+            group_hits = group_evidence["hits"]
             if group_hits:
-                score += per_group
+                score += per_group * group_evidence["strength"]
                 evidence[group] = group_hits[:4]
-                reasons.append(f"{group} 方向证据: {', '.join(group_hits[:3])}")
+                if group_evidence["strength"] < 0.6:
+                    concerns.append(
+                        f"{group} 方向只有弱证据，可能只是标题或孤立关键词: {', '.join(group_hits[:3])}"
+                    )
+                else:
+                    reasons.append(f"{group} 方向证据: {', '.join(group_hits[:3])}")
             else:
                 concerns.append(f"岗位未明显体现 {group} 方向")
 
@@ -276,6 +282,198 @@ def _resume_has_any(ability_profile: Dict[str, Any], terms: Iterable[str]) -> bo
     return bool(_hits(text, terms))
 
 
+def _unique_hits(text: str, terms: Iterable[str]) -> List[str]:
+    return sorted(set(_hits(text, terms)))
+
+
+def _job_group_evidence(job: Dict[str, Any], group: str) -> Dict[str, Any]:
+    terms = TERM_GROUPS[group]
+    title_hits = _unique_hits(_normalize(job.get("title", "")), terms)
+    category_hits = _unique_hits(_normalize(job.get("category", "")), terms)
+    duty_hits = _unique_hits(_normalize(job.get("duty", "")), terms)
+    requirement_hits = _unique_hits(_normalize(job.get("requirement", "")), terms)
+    all_hits = sorted(set(title_hits + category_hits + duty_hits + requirement_hits))
+    has_description = bool(duty_hits or requirement_hits)
+    has_title = bool(title_hits)
+
+    if not all_hits:
+        strength = 0.0
+    else:
+        strength = 0.35
+        strength += min(0.35, 0.12 * (len(all_hits) - 1))
+        if has_description:
+            strength += 0.25
+        if has_title:
+            strength += 0.15
+        strength = min(1.0, strength)
+
+    return {
+        "hits": all_hits,
+        "title_hits": title_hits,
+        "category_hits": category_hits,
+        "duty_hits": duty_hits,
+        "requirement_hits": requirement_hits,
+        "has_description": has_description,
+        "strength": strength,
+    }
+
+
+def _score_core_role_fit(job: Dict[str, Any], expected: List[str]) -> int:
+    evidence = _job_group_evidence(job, "product")
+    if "product" not in expected:
+        return 15 if evidence["hits"] else 10
+
+    if not evidence["hits"]:
+        return 8
+
+    score = 8
+    if evidence["title_hits"]:
+        score += 14
+    elif evidence["category_hits"]:
+        score += 8
+
+    if evidence["category_hits"]:
+        score += 4
+
+    description_hits = set(evidence["duty_hits"] + evidence["requirement_hits"])
+    if description_hits:
+        score += min(8, 3 + 2 * len(description_hits))
+
+    return min(30, score)
+
+
+def _score_domain_fit(
+    job: Dict[str, Any],
+    expected: List[str],
+) -> Tuple[int, List[str], Dict[str, float]]:
+    domain_groups = [group for group in expected if group != "product"]
+    if not domain_groups:
+        return 0, [], {}
+
+    per_group = 25 / len(domain_groups)
+    domain_score = 0.0
+    domain_reasons = []
+    domain_strengths: Dict[str, float] = {}
+
+    for group in domain_groups:
+        evidence = _job_group_evidence(job, group)
+        strength = evidence["strength"]
+        domain_strengths[group] = strength
+        if not strength:
+            continue
+
+        group_score = per_group * strength
+        domain_score += group_score
+        domain_reasons.append(
+            f"{group}: {', '.join(evidence['hits'][:3])} ({round(group_score)}/{round(per_group)})"
+        )
+
+    return min(25, int(round(domain_score))), domain_reasons, domain_strengths
+
+
+def _resume_group_hits(ability_profile: Dict[str, Any], group: str) -> List[str]:
+    text = _normalize(" ".join([
+        " ".join(ability_profile.get("explicit_skills", [])),
+        " ".join(ability_profile.get("highlights", [])),
+        ability_profile.get("career_summary", ""),
+        ability_profile.get("raw_text", ""),
+    ]))
+    return _unique_hits(text, TERM_GROUPS[group])
+
+
+def _resume_evidence_strength(ability_profile: Dict[str, Any], group: str) -> Tuple[float, List[str]]:
+    hits = _resume_group_hits(ability_profile, group)
+    if not hits:
+        return 0.0, []
+
+    strength = 0.55 + min(0.45, 0.15 * (len(hits) - 1))
+    return min(1.0, strength), hits
+
+
+def _score_resume_fit(
+    job: Dict[str, Any],
+    ability_profile: Dict[str, Any],
+) -> Tuple[int, List[Dict[str, str]], List[Dict[str, str]], Dict[str, float]]:
+    required_groups: List[Tuple[str, Dict[str, Any]]] = []
+    for group in ["product", "ai", "tob", "data", "execution"]:
+        evidence = _job_group_evidence(job, group)
+        if evidence["hits"]:
+            required_groups.append((group, evidence))
+
+    if not required_groups:
+        return 0, [], [], {}
+
+    per_group = 25 / len(required_groups)
+    resume_fit = 0.0
+    strong_matches = []
+    potential_matches = []
+    resume_strengths: Dict[str, float] = {}
+
+    for group, job_evidence in required_groups:
+        resume_strength, resume_hits = _resume_evidence_strength(ability_profile, group)
+        if resume_strength:
+            effective_strength = min(resume_strength, max(0.35, job_evidence["strength"]))
+            group_score = per_group * effective_strength
+            resume_fit += group_score
+            resume_strengths[group] = effective_strength
+            match = {
+                "requirement": f"{group} capability",
+                "candidate_evidence": f"简历体现 {group} 相关经验: {', '.join(resume_hits[:3])}",
+                "match_level": "strong" if effective_strength >= 0.75 else "partial",
+            }
+            if effective_strength >= 0.75:
+                strong_matches.append(match)
+            else:
+                potential_matches.append({
+                    **match,
+                    "match_level": "potential",
+                    "suggestion": f"补充更直接的 {group} 量化案例",
+                })
+        else:
+            resume_strengths[group] = 0.0
+            potential_matches.append({
+                "requirement": f"{group} capability",
+                "candidate_evidence": "简历未直接命中，但可面试确认",
+                "match_level": "potential",
+                "suggestion": f"补充 {group} 相关案例",
+            })
+
+    return min(25, int(round(resume_fit))), strong_matches, potential_matches, resume_strengths
+
+
+def _score_preference_fit(intent_result: Dict[str, Any]) -> int:
+    concerns = intent_result["concerns"]
+    if not concerns:
+        return 10
+    if any("地点" in concern for concern in concerns):
+        return 4
+    return 7
+
+
+def _score_evidence_quality(
+    job: Dict[str, Any],
+    strong_matches: List[Dict[str, str]],
+    potential_matches: List[Dict[str, str]],
+) -> int:
+    duty = _normalize(job.get("duty", ""))
+    requirement = _normalize(job.get("requirement", ""))
+    jd_detail = 0
+    if len(duty) >= 25:
+        jd_detail += 2
+    if len(requirement) >= 25:
+        jd_detail += 2
+
+    resume_detail = min(3, len(strong_matches))
+    if potential_matches and strong_matches:
+        resume_detail += 1
+
+    clarity = 2 if strong_matches else 0
+    if len(strong_matches) >= 3:
+        clarity += 1
+
+    return min(10, jd_detail + resume_detail + clarity)
+
+
 def evaluate_job_fit(
     job: Dict[str, Any],
     profile: Dict[str, Any],
@@ -289,45 +487,13 @@ def evaluate_job_fit(
     expected = _expected_groups(profile)
 
     role_hits = _hits(job_text, TERM_GROUPS["product"])
-    core_role_fit = 30 if role_hits else 8 if "product" in expected else 15
-
-    domain_fit = 0
-    domain_reasons = []
-    domain_groups = [group for group in expected if group != "product"]
-    for group in domain_groups:
-        group_hits = _hits(job_text, TERM_GROUPS[group])
-        if group_hits:
-            domain_fit += max(1, 25 // max(1, len(domain_groups)))
-            domain_reasons.append(f"{group}: {', '.join(group_hits[:3])}")
-    domain_fit = min(25, domain_fit)
-
-    resume_fit = 0
-    strong_matches = []
-    potential_matches = []
+    core_role_fit = _score_core_role_fit(job, expected)
+    domain_fit, domain_reasons, domain_strengths = _score_domain_fit(job, expected)
+    resume_fit, strong_matches, potential_matches, _ = _score_resume_fit(job, ability_profile)
     gaps = []
 
-    for group in ["product", "ai", "tob", "data", "execution"]:
-        job_hits = _hits(job_text, TERM_GROUPS[group])
-        if not job_hits:
-            continue
-        if _resume_has_any(ability_profile, TERM_GROUPS[group]):
-            resume_fit += 5
-            strong_matches.append({
-                "requirement": f"{group} capability",
-                "candidate_evidence": f"简历体现 {group} 相关经验",
-                "match_level": "strong",
-            })
-        else:
-            potential_matches.append({
-                "requirement": f"{group} capability",
-                "candidate_evidence": "简历未直接命中，但可面试确认",
-                "match_level": "potential",
-                "suggestion": f"补充 {group} 相关案例",
-            })
-    resume_fit = min(25, resume_fit)
-
-    preference_fit = 8 if not intent_result["concerns"] else 4
-    evidence_quality = 7 if strong_matches else 3
+    preference_fit = _score_preference_fit(intent_result)
+    evidence_quality = _score_evidence_quality(job, strong_matches, potential_matches)
     risk_penalty = 0
 
     if any("噪声" in concern for concern in intent_result["concerns"]):
@@ -337,6 +503,22 @@ def evaluate_job_fit(
             "gap_type": "role_mismatch",
             "suggestion": "岗位关键词可能误导，建议跳过或人工复核",
         })
+    if "product" in expected and not role_hits:
+        risk_penalty += 6
+
+    weak_expected_domains = [
+        group
+        for group, strength in domain_strengths.items()
+        if 0 < strength < 0.6
+    ]
+    if weak_expected_domains:
+        risk_penalty += min(6, 3 * len(weak_expected_domains))
+        for group in weak_expected_domains:
+            gaps.append({
+                "requirement": f"{group} 方向证据不足",
+                "gap_type": "weak_domain_evidence",
+                "suggestion": "标题或单个关键词命中不足以证明岗位方向，建议人工复核 JD",
+            })
     for concern in intent_result["concerns"]:
         if "未明显体现" in concern or "未体现" in concern:
             gaps.append({
@@ -344,6 +526,7 @@ def evaluate_job_fit(
                 "gap_type": "uncertain",
                 "suggestion": "需要人工确认 JD 或补充简历证据",
             })
+    risk_penalty = min(20, risk_penalty)
 
     score = core_role_fit + domain_fit + resume_fit + preference_fit + evidence_quality - risk_penalty
     score = max(0, min(100, int(score)))
