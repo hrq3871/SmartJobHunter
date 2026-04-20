@@ -101,6 +101,28 @@ python -m src.health_monitor --check-all          # 检测所有爬虫
 
 ## 文件管理规范
 
+### 飞书推送配置
+
+每日扫描结果自动推送到飞书 Wiki，配置位于 `config/agent.yaml`：
+
+```yaml
+feishu:
+  app_id: "cli_xxx"           # 飞书应用 ID
+  app_secret: "xxx"           # 飞书应用 Secret
+  wiki_node_token: "xxx"      # Wiki 节点 token
+  bitable_token: "xxx"        # 多维表格 token（可选，首次运行自动创建）
+  bitable_table_id: "xxx"     # 数据表 ID（可选）
+  enabled: true               # 是否启用推送
+```
+
+**报告命名格式**：`{简历标识}_{YYYYMMDD_HHMM}.md`
+
+**多维表格字段**：
+- 岗位标题、公司、岗位链接
+- AI评分、投递状态、录取状态
+- 岗位类型（社招/校招/实习）
+- 投递简历、报告链接、创建时间
+
 ### 临时文件清理
 
 **一次性文件用完必须清理：**

@@ -336,16 +336,21 @@ class JobHunter:
             ability_profile=profile.get('_ability_profile'),
         )
 
-    def generate_report(self, jobs: List[dict], profile: dict, evaluations: List[dict]):
+    def generate_report(self, jobs: List[dict], profile: dict, evaluations: List[dict]) -> str:
         """生成报告
 
         Args:
             jobs: 岗位列表
             profile: 意向配置
             evaluations: 评估结果列表
+
+        Returns:
+            输出文件路径
         """
         profile_name = profile.get('name', 'unknown')
-        output_filename = f"{datetime.now().strftime('%Y%m%d')}_{profile_name}.md"
+        # 新格式：{简历标识}_{YYYYMMDD_HHMM}.md
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        output_filename = f"{profile_name}_{timestamp}.md"
         output_path = self.output_dir / output_filename
 
         report = f"""# Job Hunting Report
@@ -371,7 +376,7 @@ class JobHunter:
             recommendation = evaluation.get('recommendation', 'N/A')
             risk_warning = evaluation.get('risk_warning')
 
-            score_emoji = "Green" if score >= 80 else "Yellow" if score >= 60 else "Red"
+            score_emoji = "🟢" if score >= 80 else "🟡" if score >= 60 else "🔴"
 
             report += f"""### {i}. {job.get('title', 'Unknown')} [{score_emoji}] Score: {score}
 
@@ -401,6 +406,7 @@ class JobHunter:
             f.write(report)
 
         print(f"\n[Report] Generated: {output_path}")
+        return str(output_path)
 
     # 岗位类型映射表
     JOB_TYPE_MAPPING = {
@@ -489,10 +495,33 @@ class JobHunter:
 
         # Step 5: 生成报告
         print("\n[Step 5] Generating report...")
-        self.generate_report(jobs, profile, evaluations)
+        report_path = self.generate_report(jobs, profile, evaluations)
 
-        # Step 6: 更新去重数据库
-        print("\n[Step 6] Updating seen jobs...")
+        # Step 6: 推送到飞书
+        print("\n[Step 6] Pushing to Feishu...")
+        try:
+            from .feishu_push import push_to_feishu
+            feishu_result = push_to_feishu(report_path, profile_name)
+            report_url = feishu_result.get('url') if feishu_result else None
+        except ImportError:
+            print("[Feishu] 模块未安装，跳过推送")
+            report_url = None
+
+        # Step 7: 添加到多维表格
+        print("\n[Step 7] Adding to Bitable...")
+        try:
+            from .feishu_bitable import add_jobs_to_bitable
+            # 为岗位添加评分信息
+            for i, job in enumerate(jobs):
+                if i < len(evaluations):
+                    job['score'] = evaluations[i].get('score', 0)
+                job['job_type'] = job_type or profile.get('job_type', '社招')
+            add_jobs_to_bitable(jobs, profile_name, report_url)
+        except ImportError:
+            print("[Bitable] 模块未安装，跳过添加")
+
+        # Step 8: 更新去重数据库
+        print("\n[Step 8] Updating seen jobs...")
         seen_jobs_path = self.memory_dir / "seen_jobs.md"
         filters.update_memory(jobs, evaluations, str(seen_jobs_path))
         # 更新 hash 集合
