@@ -236,6 +236,9 @@ semantic_filter:
   conservative: 0.8
   moderate: 0.6
   aggressive: 0.4
+
+output:
+  max_jobs_per_report: 20  # Keep only the top N scored jobs in the report
 ```
 
 ### 🏢 Company Configuration (config/companies.yaml)
@@ -274,7 +277,8 @@ The matching flow is:
 1. **Deterministic filters**: time window and deduplication stay in Python.
 2. **Semantic intent filter**: the Agent judges whether the job's real responsibilities match the profile intent. Keywords are only supporting evidence.
 3. **Resume-job fit scoring**: the Agent scores role fit, domain fit, resume evidence, preferences, evidence quality, and risk penalties.
-4. **Python fallback**: `src.matching` mirrors the same rubric for CLI runs and tests when no Agent is executing the prompts.
+4. **Report ranking**: jobs are sorted by final score, filtered by `threshold_score`, and capped by `output.max_jobs_per_report`.
+5. **Python fallback**: `src.matching` mirrors the same rubric for CLI runs and tests when no Agent is executing the prompts.
 
 Scoring dimensions:
 
@@ -512,9 +516,9 @@ Located in `config/system_templates.yaml`:
 ```
 1. Load Config     → Read profiles, companies, resumes
 2. Crawl Jobs      → API intercept via Playwright
-3. Filter          → Time → Dedup → Keywords
-4. Evaluate        → Score (0-100) + Match reasons
-5. Generate Report → Markdown file in output/
+3. Filter          → Time → Dedup → Semantic intent
+4. Evaluate        → Score (0-100) + evidence-backed match reasons
+5. Generate Report → Sort by score, apply threshold_score, write Markdown
 6. Update Memory   → Append to seen_jobs.md
 ```
 
@@ -527,11 +531,11 @@ Raw Jobs (from crawlers)
     ↓
 [Dedup Filter] Remove seen jobs (hash-based)
     ↓
-[Keyword Filter] Match title/duty keywords
-    ↓
 [Data Clean] Truncate, normalize text
     ↓
-Filtered Jobs
+[Semantic Intent Filter] Judge real role fit; keywords are supporting evidence only
+    ↓
+[Resume Fit Scoring] Score, sort, threshold, cap report size
 ```
 
 ## 🤖 Agent Architecture

@@ -150,3 +150,80 @@ def test_evaluate_job_fit_separates_deep_domain_match_from_title_only_keyword():
 
     assert strong_result["score"] - title_only_result["score"] >= 12
     assert title_only_result["scoring_breakdown"]["domain_fit"] < 20
+
+
+def test_profile_exclude_keywords_reject_engineering_noise_for_product_profile():
+    profile = {
+        "intent": "寻找 AI 产品经理岗位，偏好大模型应用和 ToB SaaS。",
+        "keywords": ["产品经理", "AI产品", "B端"],
+        "exclude_keywords": ["工程师", "算法", "开发", "架构师", "研发", "测试"],
+    }
+    job = {
+        "title": "AI数据工程师",
+        "company": "Example",
+        "location": "北京",
+        "category": "技术",
+        "duty": "负责大模型数据平台建设，参与业务需求分析和数据治理，支持 B端 AI 产品落地。",
+        "requirement": "需要 Python、SQL、数据仓库和模型训练经验，有研发背景优先。",
+    }
+
+    intent_result = match_job_intent(job, profile, decision_level="moderate")
+    fit_result = evaluate_job_fit(
+        job,
+        profile,
+        resume_text="5年 ToB SaaS 产品经理经验，负责 AI 产品规划、需求分析和客户场景落地。",
+    )
+
+    assert intent_result["should_keep"] is False
+    assert "excluded_terms" in intent_result["evidence"]
+    assert fit_result["score"] < 70
+    assert fit_result["recommendation"] in {"consider", "skip"}
+
+
+def test_exclude_keywords_do_not_auto_reject_technical_product_manager():
+    profile = {
+        "intent": "寻找 AI 产品经理岗位，偏好大模型应用和 ToB SaaS。",
+        "keywords": ["产品经理", "AI产品", "B端"],
+        "exclude_keywords": ["工程师", "算法", "开发", "架构师", "研发", "测试", "技术"],
+    }
+    job = {
+        "title": "技术产品经理",
+        "company": "Example",
+        "location": "北京",
+        "category": "产品",
+        "duty": "负责 B端 AI 平台产品规划、需求分析、路线图设计和跨团队落地。",
+        "requirement": "需要产品经理经验，理解大模型应用场景，能与研发团队协作。",
+    }
+
+    result = match_job_intent(job, profile, decision_level="moderate")
+
+    assert result["should_keep"] is True
+    assert result["match_score"] >= 0.6
+
+
+def test_resume_evidence_uses_source_snippet_in_strong_match():
+    profile = {
+        "intent": "寻找 AI Agent 和大模型应用方向的产品经理岗位，偏好 ToB SaaS。",
+        "keywords": ["AI产品", "大模型", "Agent", "ToB"],
+    }
+    resume = """
+    5年 ToB SaaS 产品经验，主导企业知识库 AI 助手从0到1上线。
+    负责需求分析、PRD、跨部门推进和客户访谈，搭建数据看板优化转化率。
+    熟悉 LLM 应用、RAG、Agent 工作流和产品指标体系。
+    """
+    job = {
+        "title": "大模型 Agent 产品经理",
+        "company": "Example",
+        "location": "北京",
+        "category": "产品",
+        "duty": "负责大模型 Agent 产品规划、需求分析和商业化落地。",
+        "requirement": "需要 ToB 产品经验、LLM 应用理解、数据分析和跨团队推动能力。",
+    }
+
+    result = evaluate_job_fit(job, profile, resume_text=resume)
+    evidence_text = "\n".join(
+        match["candidate_evidence"]
+        for match in result["match_analysis"]["strong_matches"]
+    )
+
+    assert "主导企业知识库 AI 助手从0到1上线" in evidence_text

@@ -10,6 +10,7 @@ keyword hits.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, Iterable, List, Tuple
 
 
@@ -88,6 +89,16 @@ NEGATIVE_ROLE_TERMS = [
     "运营专员",
 ]
 
+PRODUCT_ROLE_TERMS = [
+    "产品经理",
+    "产品负责人",
+    "产品总监",
+    "产品专家",
+    "产品策划",
+    "product manager",
+    "product owner",
+]
+
 
 def _normalize(value: Any) -> str:
     return str(value or "").lower()
@@ -131,6 +142,34 @@ def _keyword_hits(job_text: str, profile: Dict[str, Any]) -> List[str]:
         for keyword in profile.get("keywords", []) or []
         if _normalize(keyword) in job_text
     ]
+
+
+def _profile_exclude_terms(profile: Dict[str, Any]) -> List[str]:
+    return [
+        _normalize(term)
+        for term in profile.get("exclude_keywords", []) or []
+        if _normalize(term)
+    ]
+
+
+def _title_has_product_role(job: Dict[str, Any]) -> bool:
+    return bool(_hits(_normalize(job.get("title", "")), PRODUCT_ROLE_TERMS))
+
+
+def _profile_exclude_hits(job: Dict[str, Any], profile: Dict[str, Any]) -> Dict[str, Any]:
+    terms = _profile_exclude_terms(profile)
+    if not terms:
+        return {"hits": [], "title_hits": [], "hard": False}
+
+    title_hits = _unique_hits(_normalize(job.get("title", "")), terms)
+    all_hits = _unique_hits(_job_text(job), terms)
+    hard = bool(title_hits and not _title_has_product_role(job))
+
+    return {
+        "hits": all_hits,
+        "title_hits": title_hits,
+        "hard": hard,
+    }
 
 
 def _location_preference(profile: Dict[str, Any], job: Dict[str, Any]) -> Tuple[float, List[str]]:
@@ -214,6 +253,20 @@ def match_job_intent(
         evidence["negative_role"] = negative_hits[:4]
         concerns.append(f"表面关键词可能是噪声，岗位更像: {', '.join(negative_hits[:3])}")
 
+    exclude_result = _profile_exclude_hits(job, profile)
+    if exclude_result["hits"]:
+        evidence["excluded_terms"] = exclude_result["hits"][:5]
+        if exclude_result["hard"]:
+            score -= 0.45
+            concerns.append(
+                f"岗位标题命中排除方向: {', '.join(exclude_result['title_hits'][:3])}"
+            )
+        else:
+            score -= 0.05
+            concerns.append(
+                f"岗位内容命中排除词，需人工复核: {', '.join(exclude_result['hits'][:3])}"
+            )
+
     score = max(0.0, min(1.0, score))
     should_keep = score >= threshold
 
@@ -227,6 +280,7 @@ def match_job_intent(
         "should_keep": should_keep,
         "concerns": concerns,
         "evidence": evidence,
+        "exclude_severity": "hard" if exclude_result["hard"] else "soft" if exclude_result["hits"] else None,
         "decision_level": decision_level,
         "threshold": threshold,
     }
@@ -390,6 +444,34 @@ def _resume_evidence_strength(ability_profile: Dict[str, Any], group: str) -> Tu
     return min(1.0, strength), hits
 
 
+def _resume_source_snippets(
+    ability_profile: Dict[str, Any],
+    terms: Iterable[str],
+    limit: int = 2,
+) -> List[str]:
+    raw_text = str(ability_profile.get("raw_text", "") or "")
+    normalized_terms = [_normalize(term) for term in terms if _normalize(term)]
+    if not raw_text or not normalized_terms:
+        return []
+
+    chunks = [
+        re.sub(r"\s+", " ", chunk).strip(" ，,。；;：:")
+        for chunk in re.split(r"[\n。；;]", raw_text)
+    ]
+
+    snippets: List[str] = []
+    for chunk in chunks:
+        if not chunk:
+            continue
+        normalized_chunk = _normalize(chunk)
+        if any(term in normalized_chunk for term in normalized_terms):
+            snippets.append(chunk)
+        if len(snippets) >= limit:
+            break
+
+    return snippets
+
+
 def _score_resume_fit(
     job: Dict[str, Any],
     ability_profile: Dict[str, Any],
@@ -416,9 +498,15 @@ def _score_resume_fit(
             group_score = per_group * effective_strength
             resume_fit += group_score
             resume_strengths[group] = effective_strength
+            snippets = _resume_source_snippets(ability_profile, resume_hits)
+            candidate_evidence = (
+                f"简历证据: {'；'.join(snippets)}"
+                if snippets
+                else f"简历体现 {group} 相关经验: {', '.join(resume_hits[:3])}"
+            )
             match = {
                 "requirement": f"{group} capability",
-                "candidate_evidence": f"简历体现 {group} 相关经验: {', '.join(resume_hits[:3])}",
+                "candidate_evidence": candidate_evidence,
                 "match_level": "strong" if effective_strength >= 0.75 else "partial",
             }
             if effective_strength >= 0.75:
@@ -505,6 +593,22 @@ def evaluate_job_fit(
         })
     if "product" in expected and not role_hits:
         risk_penalty += 6
+
+    exclude_severity = intent_result.get("exclude_severity")
+    if exclude_severity == "hard":
+        risk_penalty += 14
+        gaps.append({
+            "requirement": "岗位方向排除",
+            "gap_type": "excluded_role",
+            "suggestion": "岗位标题命中 profile 排除词，默认不作为优先投递岗位",
+        })
+    elif exclude_severity == "soft":
+        risk_penalty += 4
+        gaps.append({
+            "requirement": "岗位内容命中排除词",
+            "gap_type": "review_needed",
+            "suggestion": "岗位仍可能匹配，但需要人工确认排除词是否只是协作背景",
+        })
 
     weak_expected_domains = [
         group

@@ -13,7 +13,7 @@ import argparse
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 # 设置环境变量解决编码问题
 os.environ['PYTHONIOENCODING'] = 'utf-8'
@@ -336,6 +336,32 @@ class JobHunter:
             ability_profile=profile.get('_ability_profile'),
         )
 
+    def _rank_and_filter_results(self, jobs: List[dict], evaluations: List[dict]) -> Tuple[List[dict], List[dict]]:
+        """按评分排序，并应用报告阈值和数量上限。"""
+        global_config = self.config.get('global', {}) if self.config else {}
+        output_config = self.config.get('output', {}) if self.config else {}
+        threshold_score = global_config.get('threshold_score', 70)
+        max_jobs = output_config.get('max_jobs_per_report')
+
+        paired = list(zip(jobs, evaluations))
+        paired.sort(key=lambda item: item[1].get('score', 0), reverse=True)
+
+        if threshold_score is not None:
+            paired = [
+                (job, evaluation)
+                for job, evaluation in paired
+                if evaluation.get('score', 0) >= threshold_score
+            ]
+
+        if max_jobs:
+            paired = paired[:int(max_jobs)]
+
+        if not paired:
+            return [], []
+
+        ranked_jobs, ranked_evaluations = zip(*paired)
+        return list(ranked_jobs), list(ranked_evaluations)
+
     def generate_report(self, jobs: List[dict], profile: dict, evaluations: List[dict]) -> str:
         """生成报告
 
@@ -493,9 +519,18 @@ class JobHunter:
             evaluations.append(eval_result)
             print(f"   [{job.get('company')}] {job.get('title')[:20]}... -> {eval_result['score']}")
 
+        report_jobs, report_evaluations = self._rank_and_filter_results(jobs, evaluations)
+        if not report_jobs:
+            print("[Warn] No jobs meet threshold_score after evaluation")
+            seen_jobs_path = self.memory_dir / "seen_jobs.md"
+            filters.update_memory(jobs, evaluations, str(seen_jobs_path))
+            for job in jobs:
+                self.seen_hashes.add(job.get('hash', ''))
+            return []
+
         # Step 5: 生成报告
         print("\n[Step 5] Generating report...")
-        report_path = self.generate_report(jobs, profile, evaluations)
+        report_path = self.generate_report(report_jobs, profile, report_evaluations)
 
         # Step 6: 推送到飞书
         print("\n[Step 6] Pushing to Feishu...")
@@ -512,11 +547,11 @@ class JobHunter:
         try:
             from .feishu_bitable import add_jobs_to_bitable
             # 为岗位添加评分信息
-            for i, job in enumerate(jobs):
-                if i < len(evaluations):
-                    job['score'] = evaluations[i].get('score', 0)
+            for i, job in enumerate(report_jobs):
+                if i < len(report_evaluations):
+                    job['score'] = report_evaluations[i].get('score', 0)
                 job['job_type'] = job_type or profile.get('job_type', '社招')
-            add_jobs_to_bitable(jobs, profile_name, report_url)
+            add_jobs_to_bitable(report_jobs, profile_name, report_url)
         except ImportError:
             print("[Bitable] 模块未安装，跳过添加")
 
@@ -528,7 +563,7 @@ class JobHunter:
         for job in jobs:
             self.seen_hashes.add(job.get('hash', ''))
 
-        return jobs
+        return report_jobs
 
     def run(self, profile_name: str = None, job_type: str = None):
         """运行完整的求职巡检

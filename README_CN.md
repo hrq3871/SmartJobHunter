@@ -234,6 +234,9 @@ semantic_filter:
   conservative: 0.8
   moderate: 0.6
   aggressive: 0.4
+
+output:
+  max_jobs_per_report: 20  # 报告只保留评分最高的 N 个岗位
 ```
 
 ### 🏢 公司配置 (config/companies.yaml)
@@ -272,7 +275,8 @@ SmartJobHunter 不再把关键词命中本身视为匹配。
 1. **确定性过滤**：时间窗口和去重仍由 Python 处理。
 2. **语义意向过滤**：Agent 判断岗位真实职责是否符合求职意向，关键词只作为辅助证据。
 3. **简历-岗位匹配评分**：Agent 按角色匹配、领域匹配、简历证据、偏好、证据质量和风险扣分评分。
-4. **Python fallback**：当没有 Agent 执行 prompt 时，`src.matching` 用同一套规则支持 CLI 运行和自动化测试。
+4. **报告排序**：岗位按最终评分降序排列，低于 `threshold_score` 的岗位不进入报告，并受 `output.max_jobs_per_report` 数量上限控制。
+5. **Python fallback**：当没有 Agent 执行 prompt 时，`src.matching` 用同一套规则支持 CLI 运行和自动化测试。
 
 评分维度：
 
@@ -510,9 +514,9 @@ SmartJobHunter 内置自动自愈系统：
 ```
 1. 加载配置     → 读取意向、公司、简历
 2. 抓取岗位     → Playwright API 拦截
-3. 过滤         → 时间 → 去重 → 关键词
-4. 评估         → 评分（0-100）+ 匹配理由
-5. 生成报告     → Markdown 文件到 output/
+3. 过滤         → 时间 → 去重 → 语义意向
+4. 评估         → 评分（0-100）+ 有证据的匹配理由
+5. 生成报告     → 按评分排序，应用 threshold_score，写入 Markdown
 6. 更新记忆     → 追加到 seen_jobs.md
 ```
 
@@ -525,11 +529,11 @@ SmartJobHunter 内置自动自愈系统：
     ↓
 [去重过滤] 移除已见岗位（基于 hash）
     ↓
-[关键词过滤] 匹配标题/职责关键词
-    ↓
 [数据清洗] 截断、规范化文本
     ↓
-过滤后岗位
+[语义意向过滤] 判断岗位真实职责是否匹配，关键词只作为辅助证据
+    ↓
+[简历匹配评分] 打分、排序、按阈值和数量上限生成报告
 ```
 
 ## 🤖 Agent 架构
