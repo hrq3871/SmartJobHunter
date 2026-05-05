@@ -72,14 +72,23 @@ The system can analyze:
 
 ## Planned Capabilities
 
-- **ATS-oriented resume regeneration**
-  Generate a role-specific resume version based on the JD and ATS rules.
+- **Personal experience library and JD-based resume generation**
+  Maintain a local wiki-style experience library, then generate an HTML resume version from a target JD plus selected personal experiences. This is planned to integrate with an existing open-source GitHub resume project instead of rebuilding the rendering layer from scratch.
 
-- **Application writing from resume, experience library, and JD**
-  Generate self-introductions, application notes, project-fit narratives, and mock interview Q&A.
+- **JD-specific interview preparation**
+  Generate an interview assistance document for each target role, including high-frequency questions, suggested answers, and evidence-backed talking points focused on that JD rather than generic interview questions.
+
+- **Feishu conversation and daily reminders**
+  Mount a Feishu chat/dialog entry so the system can send daily reminders after job crawling, including newly found roles, high-score recommendations, and roles that need manual review.
+
+- **Frontend management console**
+  Provide a visual interface for configurable and interactive workflows: maintaining resumes, maintaining target companies, tracking application status, and recording which resume or generated file was used for each job.
+
+- **Post-interview review and strategy improvement**
+  Support interview retrospectives from uploaded recordings or transcripts, compare actual questions against predicted questions, calculate hit rate, summarize gaps, and improve future JD-specific prediction strategy.
 
 - **From opportunity discovery to application assistance**
-  Move from a job monitoring tool to a full job-search assistant agent.
+  Move from a job monitoring tool to a full job-search assistant agent covering discovery, matching, tailored materials, reminders, interview preparation, and post-interview learning.
 
 ## One-Line Summary
 
