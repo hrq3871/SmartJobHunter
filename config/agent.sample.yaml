@@ -1,0 +1,32 @@
+# Agent decision settings
+decision_level: "moderate"  # conservative / moderate / aggressive
+time_filter_days: 3
+threshold_score: 70
+jd_truncate_length: 6000
+
+# Model selection strategy
+model_strategy:
+  simple_tasks: "haiku"
+  complex_tasks: "sonnet"
+
+# Semantic filter thresholds
+semantic_filter:
+  conservative: 0.8
+  moderate: 0.6
+  aggressive: 0.4
+
+# Output settings
+output:
+  max_jobs_per_report: 20
+  include_company_background: true
+
+# Feishu/Lark settings
+# Copy this file to config/agent.yaml and fill these values locally.
+# Do not commit config/agent.yaml.
+feishu:
+  app_id: ""
+  app_secret: ""
+  wiki_node_token: ""
+  bitable_token: ""
+  bitable_table_id: ""
+  enabled: false

@@ -121,7 +121,19 @@ playwright install chromium
 pip install python-docx PyMuPDF
 ```
 
-### 2️⃣ Configure Profile
+### 2️⃣ Create Local Agent Config
+
+Copy the sample config and keep your real secrets only in the local `config/agent.yaml`.
+This file is ignored by Git and must not be committed.
+
+```powershell
+Copy-Item config\agent.sample.yaml config\agent.yaml
+```
+
+Then fill local-only settings such as Feishu app credentials, Wiki node token, and Bitable token in `config/agent.yaml`.
+If a real secret was ever committed or pushed, rotate it in the Feishu developer console.
+
+### 3️⃣ Configure Profile
 
 Create a profile in `profiles/` directory:
 
@@ -145,7 +157,7 @@ Looking for TOB SaaS Product Manager positions...
 EOF
 ```
 
-### 3️⃣ Run Inspection
+### 4️⃣ Run Inspection
 
 ```bash
 # Run all enabled profiles
@@ -163,7 +175,7 @@ python -m src.cli -p "Product Manager"
 python -m src.cli --list-profiles
 ```
 
-### 4️⃣ View Report
+### 5️⃣ View Report
 
 ```bash
 ls output/
@@ -191,7 +203,8 @@ SmartJobHunter/
 │   └── git_auto_push.py     # Git auto push
 │
 ├── 📂 config/               # Configuration
-│   ├── agent.yaml           # Agent settings
+│   ├── agent.sample.yaml    # Safe sample agent settings
+│   ├── agent.yaml           # Local private agent settings (ignored by Git)
 │   ├── companies.yaml       # Company list (56 companies)
 │   └── system_templates.yaml # Recruiting system templates
 │
@@ -229,7 +242,10 @@ keywords:
 Looking for TOB SaaS Product Manager positions...
 ```
 
-### 🤖 Agent Configuration (config/agent.yaml)
+### 🤖 Agent Configuration
+
+Use `config/agent.sample.yaml` as the tracked template and copy it to local `config/agent.yaml` before running the agent.
+The local file can contain Feishu credentials and is intentionally ignored by Git.
 
 ```yaml
 decision_level: "moderate"  # conservative / moderate / aggressive
@@ -248,6 +264,14 @@ semantic_filter:
 
 output:
   max_jobs_per_report: 20  # Keep only the top N scored jobs in the report
+
+feishu:
+  app_id: ""
+  app_secret: ""
+  wiki_node_token: ""
+  bitable_token: ""
+  bitable_table_id: ""
+  enabled: false
 ```
 
 ### 🏢 Company Configuration (config/companies.yaml)

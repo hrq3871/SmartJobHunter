@@ -38,6 +38,10 @@ resumes/*
 !resumes/example_resume.md
 !resumes/.gitkeep
 
+# 本地私有配置（保留示例）
+config/agent.yaml
+!config/agent.sample.yaml
+
 # 输出文件（保留示例）
 output/*
 !output/example_report.md

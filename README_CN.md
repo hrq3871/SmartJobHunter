@@ -119,7 +119,19 @@ playwright install chromium
 pip install python-docx PyMuPDF
 ```
 
-### 2️⃣ 配置求职意向
+### 2️⃣ 创建本地 Agent 配置
+
+先复制示例配置，把真实密钥只保存在本地 `config/agent.yaml`。
+该文件已被 Git 忽略，不应提交到 GitHub。
+
+```powershell
+Copy-Item config\agent.sample.yaml config\agent.yaml
+```
+
+然后在本地 `config/agent.yaml` 中填写飞书应用凭证、Wiki 节点 token、多维表格 token 等私有配置。
+如果真实密钥曾经被提交或推送过，需要在飞书开发者后台轮换或重置。
+
+### 3️⃣ 配置求职意向
 
 在 `profiles/` 目录创建配置文件：
 
@@ -143,7 +155,7 @@ keywords:
 EOF
 ```
 
-### 3️⃣ 运行巡检
+### 4️⃣ 运行巡检
 
 ```bash
 # 运行所有启用的意向
@@ -161,7 +173,7 @@ python -m src.cli -p "产品经理"
 python -m src.cli --list-profiles
 ```
 
-### 4️⃣ 查看报告
+### 5️⃣ 查看报告
 
 ```bash
 ls output/
@@ -189,7 +201,8 @@ SmartJobHunter/
 │   └── git_auto_push.py     # Git 自动推送
 │
 ├── 📂 config/               # 配置文件
-│   ├── agent.yaml           # Agent 设置
+│   ├── agent.sample.yaml    # 可提交的 Agent 示例配置
+│   ├── agent.yaml           # 本地私有 Agent 配置（Git 忽略）
 │   ├── companies.yaml       # 公司列表（56 家）
 │   └── system_templates.yaml # 招聘系统模板
 │
@@ -227,7 +240,10 @@ keywords:
 寻找 TOB SaaS 产品经理岗位...
 ```
 
-### 🤖 Agent 配置 (config/agent.yaml)
+### 🤖 Agent 配置
+
+`config/agent.sample.yaml` 是可提交的模板；运行前复制为本地 `config/agent.yaml`。
+本地文件可包含飞书密钥，已被 Git 忽略。
 
 ```yaml
 decision_level: "moderate"  # conservative / moderate / aggressive
@@ -246,6 +262,14 @@ semantic_filter:
 
 output:
   max_jobs_per_report: 20  # 报告只保留评分最高的 N 个岗位
+
+feishu:
+  app_id: ""
+  app_secret: ""
+  wiki_node_token: ""
+  bitable_token: ""
+  bitable_table_id: ""
+  enabled: false
 ```
 
 ### 🏢 公司配置 (config/companies.yaml)
