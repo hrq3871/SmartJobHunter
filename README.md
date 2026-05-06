@@ -69,7 +69,11 @@ The system can analyze:
 - Support different resumes and target roles, not only product-manager profiles
 - Score job fit based on resume evidence, target profile, and JD evidence
 - Output match reasons, supporting evidence, and risk warnings
-- Generate structured job reports for faster application decisions
+- Generate structured job reports under date archives for faster application decisions
+- Validate job detail URLs before reporting, keeping only reachable links
+- Generate a Top 3 application package with JD-specific Cover Letters
+- Run daily career-site strategy inspection and create evidence packages for Agent-side fixes
+- Optionally push finished daily results to Feishu Wiki and Bitable
 
 ## Planned Capabilities
 
@@ -88,8 +92,8 @@ The system can analyze:
 - **Post-interview review and strategy improvement**
   Support interview retrospectives from uploaded recordings or transcripts, compare actual questions against predicted questions, calculate hit rate, summarize gaps, and improve future JD-specific prediction strategy.
 
-- **From opportunity discovery to application assistance**
-  Move from a job monitoring tool to a full job-search assistant agent covering discovery, matching, tailored materials, reminders, interview preparation, and post-interview learning.
+- **Richer application tracking**
+  Extend the current report, Feishu, and Top 3 application package workflow into a fuller application tracker that records which resume, Cover Letter, and status were used for each role.
 
 ## One-Line Summary
 
@@ -107,9 +111,11 @@ The system can analyze:
 | 📊 **AI Evaluation** | Agent judgment + Python fallback coarse scoring (0-100) + evidence-based match reasons |
 | 📊 **Job Classification** | Distinguish internship/campus/social recruitment |
 | ⏰ **Scheduled Execution** | Daily automatic inspection at 20:00 |
-| 🔧 **Health Repair** | Crawler health monitoring with Agent-assisted repair |
+| 🔧 **Daily Strategy Inspection** | Inspect company links before crawling, collect evidence, and let the current Agent solidify crawler strategies |
 | 🏢 **Company Sites** | Enabled company configs are validated by current test results |
 | ⚙️ **Config-Driven** | Prefer config-driven company support; special sites may still need code adapters |
+| 📦 **Application Package** | Generate Top 3 JD-specific Cover Letters after link validation |
+| 🗂️ **Date Archives** | Reports and application packages are stored by run date |
 
 ## 🚀 Quick Start
 
@@ -180,8 +186,9 @@ python -m src.cli --list-profiles
 ### 5️⃣ View Report
 
 ```bash
-ls output/
-# 20260410_Product_Manager.md
+ls output/2026-05-07/
+# pm_tob_20260507_2030.md
+# application_packages/pm_tob_20260507_2030/
 ```
 
 ## 📁 Directory Structure
@@ -191,18 +198,23 @@ SmartJobHunter/
 ├── 📂 src/                  # Python modules
 │   ├── cli.py               # CLI entry point & JobHunter class
 │   ├── crawler.py           # Legacy crawlers (Tencent, ByteDance, etc.)
-│   ├── crawler_factory.py   # Crawler factory with self-healing
+│   ├── crawler_factory.py   # Strategy-aware crawler factory
 │   ├── config_crawler.py    # Config-driven crawler
 │   ├── base_crawler.py      # Base crawler class (API intercept)
-│   ├── health_monitor.py    # Health monitoring & diagnosis
-│   ├── auto_analyzer.py     # New company auto-analysis
+│   ├── company_registry.py  # Company link and strategy registry
+│   ├── site_inspector.py    # Lightweight link/strategy inspection
+│   ├── strategy_planner.py  # Strategy task planner
+│   ├── crawler_evidence.py  # Page/network/DOM evidence collector
+│   ├── health_monitor.py    # Daily strategy inspection and diagnosis
+│   ├── auto_analyzer.py     # Legacy recruiting-system template matcher
 │   ├── notifier.py          # User notification system
 │   ├── filters.py           # Filter functions (time, dedup, clean)
 │   ├── matching.py          # Semantic matching fallback and scoring rubric
 │   ├── resume_parser.py     # Resume parser (txt/md/docx/pdf/image)
 │   ├── scheduler.py         # Job scheduler (daily at 20:00)
-│   ├── health_check.py      # Health checker
-│   └── git_auto_push.py     # Git auto push
+│   ├── health_check.py      # Legacy health-check wrapper
+│   ├── site_strategies/     # Custom Python site strategies
+│   └── git_auto_push.py     # Optional Git auto push
 │
 ├── 📂 config/               # Configuration
 │   ├── agent.sample.yaml    # Safe sample agent settings
@@ -213,7 +225,7 @@ SmartJobHunter/
 ├── 📂 profiles/             # Job profiles (Markdown + YAML frontmatter)
 ├── 📂 resumes/              # Resume files
 ├── 📂 memory/               # Dedup data (seen_jobs.md)
-├── 📂 output/               # Generated reports
+├── 📂 output/               # Date-archived reports and application packages
 ├── 📂 logs/                 # Log files
 ├── 📂 tests/                # Test files
 │
@@ -313,7 +325,9 @@ The matching flow is:
 2. **Semantic intent filter**: the Agent judges whether the job's real responsibilities match the profile intent. Keywords are only supporting evidence.
 3. **Resume-job fit scoring**: the Agent scores role fit, domain fit, resume evidence, preferences, evidence quality, and risk penalties.
 4. **Report ranking**: jobs are sorted by final score, filtered by `threshold_score`, and capped by `output.max_jobs_per_report`.
-5. **Python fallback**: `src.matching` mirrors the same rubric for CLI runs and tests when no Agent is executing the prompts.
+5. **URL validation**: report generation checks job detail links and drops empty or unreachable URLs.
+6. **Application package**: the Top 3 scored jobs get a dedicated Cover Letter package.
+7. **Python fallback**: `src.matching` mirrors the same rubric for CLI runs and tests when no Agent is executing the prompts.
 
 Scoring dimensions:
 
@@ -341,6 +355,13 @@ The Agent prompts live in `.claude/skills/jobhunter/prompts/` and require eviden
 | `python -m src.cli -p "name"` | Run specific profile |
 | `python -m src.cli --list-profiles` | List all profiles |
 
+CLI outputs are date-archived:
+
+```text
+output/YYYY-MM-DD/<profile_id>_<YYYYMMDD_HHMM>.md
+output/YYYY-MM-DD/application_packages/<profile_id>_<YYYYMMDD_HHMM>/
+```
+
 ## ✅ Testing
 
 ```bash
@@ -366,16 +387,21 @@ Integration crawler tests require browser/network access and are marked with `in
 | Command | Description |
 |:--------|:------------|
 | `python -m src.scheduler --run` | Run inspection immediately |
-| `python -m src.scheduler --check` | Run health check |
-| `python -m src.scheduler --repair` | Trigger repair flow |
+| `python -m src.scheduler --check` | Run daily strategy inspection |
+| `python -m src.scheduler --repair` | Print strategy tasks for the current Agent |
 | `python -m src.scheduler --schedule` | Scheduled mode (called by system) |
+| `python -m src.scheduler --feishu-push status` | Show Feishu Wiki/Bitable push switch |
+| `python -m src.scheduler --feishu-push on` | Enable Feishu push after reports |
+| `python -m src.scheduler --feishu-push off` | Disable Feishu push after reports |
 
 ### Health Monitor Commands
 
 | Command | Description |
 |:--------|:------------|
-| `python -m src.health_monitor --check <id>` | Check single crawler |
-| `python -m src.health_monitor --check-all` | Check all crawlers |
+| `python -m src.health_monitor --inspect-strategies` | Inspect all enabled company links and strategies |
+| `python -m src.health_monitor --inspect-company <id>` | Inspect one company link and strategy |
+| `python -m src.health_monitor --check <id>` | Legacy single crawler check |
+| `python -m src.health_monitor --check-all` | Legacy all-crawler check |
 | `python -m src.health_monitor --report` | Generate health report |
 
 ## 🏢 Supported Companies
@@ -464,11 +490,15 @@ Integration crawler tests require browser/network access and are marked with `in
 
 ### 🔧 Adding New Companies
 
-The config-driven architecture makes it easy to add new companies:
+Company support starts from `config/companies.yaml`, but not every official career site can be handled by configuration alone. The intended workflow is:
 
-1. Edit `config/companies.yaml`
-2. Add `field_mappings` section
-3. No code changes needed!
+1. Add or update the company's official career links in `config/companies.yaml`.
+2. Run daily strategy inspection or a company-specific inspection.
+3. Let the current Claude/Codex Agent review the collected evidence when the site is new, changed, blocked, or failing.
+4. Solidify the reusable solution either as config (`api`, `field_mappings`, `url_template`) or as a dedicated Python strategy under `src/site_strategies/`.
+5. Rerun the crawler test before considering the company supported.
+
+For standard API/list pages, config may be enough:
 
 Example:
 
@@ -495,45 +525,49 @@ Example:
     campus: ["校招", "应届"]
 ```
 
-## 🔧 Self-Healing System
+For login-heavy, anti-crawl, browser-only, or unusual sites, keep the company enabled only after a strategy has been validated. Strategy evidence is written under `logs/strategy_tasks/` so the Agent can explain what changed and what still needs manual review.
 
-SmartJobHunter includes an automatic self-healing system:
+## 🔧 Daily Strategy Inspection
+
+SmartJobHunter does not pretend that Python can autonomously understand every recruiting site. Python collects evidence and runs known strategies; the current Claude/Codex Agent analyzes failures and turns a working approach into reusable config or code.
 
 ### Architecture
 
 ```
-Crawl Request → Crawler Factory → Health Monitor
-                      ↓                  ↓
-                Auto Analyzer ← Diagnosis
-                      ↓                  ↓
-                Config Update ← Repair Action
-                      ↓
-                Notifier → User
+Daily Task → Load Profiles + Company Links
+          → Strategy Inspection
+          → Evidence Collection (page, DOM, network, screenshot, errors)
+          → Crawl Known Companies
+          → Agent Strategy Tasks for new/changed/failed companies
+          → User Report + Optional Feishu Push
 ```
 
 ### Components
 
 | Module | Purpose |
 |:-------|:--------|
-| `health_monitor.py` | Detect crawler health, diagnose failures |
-| `auto_analyzer.py` | Analyze new companies, identify recruiting systems |
-| `notifier.py` | Notify user of repair results |
-| `crawler_factory.py` | Integrate self-healing logic |
+| `company_registry.py` | Read and normalize configured company links |
+| `site_inspector.py` | Inspect official pages, detect redirects, login gates, blocked pages, and evidence |
+| `crawler_evidence.py` | Capture page, DOM, network, screenshot, and error evidence |
+| `strategy_planner.py` | Turn inspection results into Agent-readable strategy tasks |
+| `health_monitor.py` | Coordinate daily strategy inspection and legacy health checks |
+| `crawler_factory.py` | Choose config crawlers or dedicated Python strategies |
 
-### Failure Types
+### Strategy Outcomes
 
-| Type | Auto-Repair | Action |
-|:-----|:-----------:|:-------|
-| Network Error | ❌ | Retry later |
-| API Changed | ✅ | Re-analyze API |
-| URL Invalid | ✅ | Search new URL |
-| Login Required | ❌ | Notify user |
-| Anti-Crawl | ❌ | Adjust frequency |
-| Config Error | ❌ | Notify user |
+| Outcome | What Happens |
+|:--------|:-------------|
+| Known and healthy | Continue normal crawl |
+| New link or unknown strategy | Collect evidence and create an Agent strategy task |
+| Link invalid or redirected | Capture final URL/status and ask Agent to update config |
+| No jobs returned | Keep crawling other companies, collect evidence, and report the suspected cause |
+| Login required | Mark as blocked/manual unless a permitted browser workflow exists |
+| Anti-crawl or blocked | Record evidence and avoid claiming success |
+| Config/code bug | Report the failing strategy and rerun tests after repair |
 
 ### Recruiting System Templates
 
-Located in `config/system_templates.yaml`:
+`config/system_templates.yaml` remains useful as a legacy template library and strategy hint source:
 
 | System | API Pattern | Data Path | Companies |
 |:-------|:------------|:----------|:----------|
@@ -549,12 +583,15 @@ Located in `config/system_templates.yaml`:
 ### Inspection Flow
 
 ```
-1. Load Config     → Read profiles, companies, resumes
-2. Crawl Jobs      → API intercept via Playwright
-3. Filter          → Time → Dedup → Semantic intent
-4. Evaluate        → Score (0-100) + evidence-backed match reasons
-5. Generate Report → Sort by score, apply threshold_score, write Markdown
-6. Update Memory   → Append to seen_jobs.md
+1. Load Config        → Read enabled profiles, resumes, company links, and Agent settings
+2. Inspect Strategies → Check new/changed/failed company links and collect evidence
+3. Crawl Jobs         → Use config crawlers or dedicated Python strategies
+4. Filter             → Time → Dedup → Semantic intent
+5. Evaluate           → Score (0-100) + evidence-backed match reasons and risks
+6. Validate URLs      → Drop empty or unreachable job detail links before reporting
+7. Generate Outputs   → Date-archived Markdown report + Top 3 application package
+8. Push/Notify        → Optional Feishu Wiki/Bitable push and optional Git auto-push
+9. Update Memory      → Append accepted job hashes to seen_jobs.md
 ```
 
 ### Filter Pipeline
@@ -571,6 +608,10 @@ Raw Jobs (from crawlers)
 [Semantic Intent Filter] Judge real role fit; keywords are supporting evidence only
     ↓
 [Resume Fit Scoring] Score, sort, threshold, cap report size
+    ↓
+[URL Validation] Remove unavailable or empty job links
+    ↓
+[Application Package] Generate Cover Letters for the Top 3 scored jobs
 ```
 
 ## 🤖 Agent Architecture
@@ -585,7 +626,8 @@ User Request → Agent (Claude) → Tools (Python) → Output
               │ Machine │
               └─────────┘
                     ↓
-    INIT → LOADED → CRAWLED → FILTERED → EVALUATED → REPORTED → DONE
+    INIT → LOADED → STRATEGY_INSPECTED → CRAWLED → FILTERED
+         → EVALUATED → URL_VALIDATED → REPORTED → PACKAGED → DONE
 ```
 
 ### Agent Skills
@@ -594,9 +636,13 @@ Located in `.claude/skills/jobhunter/`:
 
 - `skill.md` - Main agent entry point
 - `tools/*.md` - Tool definitions (crawl, filter, load_config)
-- `prompts/*.md` - Agent prompts (evaluate, report)
+- `prompts/evaluate.md` - Evidence-backed fit scoring
+- `prompts/report.md` - Report, URL-validation, and application package guidance
+- `prompts/analyze_crawler_strategy.md` - Strategy repair guidance for new/changed/failed career sites
 
 ## 📄 Output Example
+
+Reports are written under the current run date. The same run can also create an application package for the Top 3 scored jobs.
 
 ```markdown
 # Job Hunting Report
@@ -604,8 +650,9 @@ Located in `.claude/skills/jobhunter/`:
 ## Basic Info
 - **Profile**: Product Manager
 - **Job Type**: 社招
-- **Generated**: 2026-04-18 20:00
+- **Generated**: 2026-05-07 20:00
 - **Jobs Found**: 15
+- **Output Path**: output/2026-05-07/pm_tob_20260507_2000.md
 
 ## Intent
 Looking for TOB SaaS Product Manager positions...
@@ -631,6 +678,16 @@ Looking for TOB SaaS Product Manager positions...
 **Link**: [View Job](https://careers.tencent.com/position_detail.html?id=xxx)
 
 ---
+```
+
+Application package example:
+
+```text
+output/2026-05-07/application_packages/pm_tob_20260507_2000/
+├── index.md
+├── cover_letter_1_tencent_ai_product_manager.md
+├── cover_letter_2_bytedance_ai_product_manager.md
+└── cover_letter_3_meituan_marketing_ai_product_manager.md
 ```
 
 ## 📜 License
