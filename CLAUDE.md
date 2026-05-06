@@ -8,6 +8,34 @@ SmartJobHunter 是 agent-platform 项目。Python 只负责抓取、文本抽取
 
 `CLAUDE.md` 和 `AGENTS.md` 面向不同 AI 平台，但必须表达同一套规则。更新其中一个文件时，要同步另一个文件，避免 Claude、Codex 或其他 agent 读到不同工作流。
 
+## 每日官网链接巡检与策略固化
+
+这是项目原始设计的关键路径：用户只维护公司官网/招聘链接，Agent 负责在每日任务中主动发现新链接、失效链接、策略变化和需要登录/反爬的问题。Python 不调用外部 LLM API；当前 Claude/Codex Agent 根据证据包进行分析和代码/配置修改。
+
+每日任务顺序必须是：
+
+1. 读取 `config/companies.yaml` 中用户维护的 `links`/旧版 `urls`。
+2. 运行策略巡检：
+   ```powershell
+   python -m src.health_monitor --inspect-strategies --keyword "产品经理" --job-type social
+   ```
+3. 对 `unknown/new/changed/failed` 策略，读取生成的 `logs/strategy_tasks/.../task.json` 和 `logs/crawler_evidence/...` 证据包。
+4. 当前 Agent 判断站点类型：
+   - `config_intercept`：稳定 XHR/fetch API，可写入 `api.pattern`、`api.data_path`、`field_mappings`。
+   - `config_dom`：无稳定 API，但 DOM selector 可复现。
+   - `legacy_python`：保留旧 `src.crawler` 中已经固化的手写逻辑。
+   - `custom_python`：新建或更新 `src/site_strategies/*.py`。
+   - `browser_operation`：只能通过可复现浏览器操作抓取，需记录步骤和限制。
+   - `unsupported`：登录、验证码、强反爬、信息不足或不可解析。
+5. Agent 可自动修改 `config/companies.yaml` 或 `src/site_strategies/*.py`，但修改后必须运行单公司验证：
+   ```powershell
+   python tests/test_all_crawlers.py --company <company_id> --keyword "产品经理" --max-jobs 3
+   ```
+6. 如果某家公司策略失败或被阻塞，跳过该公司，继续其他公司；最终汇总告诉用户哪些公司可抓、哪些生成了策略任务、哪些需要登录/验证码/人工处理。
+7. 只有策略可用的公司进入岗位抓取、过滤、匹配和报告。
+
+Python-only Windows 定时任务只能生成证据、任务和抓取可用公司；如果要“AI 自动分析并修改策略”，必须由当前 Claude/Codex Agent 执行该任务，而不是只跑 `.bat`。
+
 ## Python 过滤与 Agent 判断的关系
 
 不要废掉原有“已爬取岗位过滤”设计。它是工具链的一部分，用来把官网岗位变成可处理的候选集：
@@ -96,22 +124,33 @@ python -m src.crawler_factory --test <id>         # 测试爬虫
 python -m src.crawler_factory --crawl <id>        # 抓取指定公司
 
 # 健康检测
+python -m src.health_monitor --inspect-strategies # 每日策略巡检
+python -m src.health_monitor --inspect-company <id> --keyword "产品经理"
 python -m src.health_monitor --check <id>         # 检测单个爬虫
 python -m src.health_monitor --check-all          # 检测所有爬虫
+
+# 定时任务入口
+python -m src.scheduler --schedule
+python -m src.scheduler --schedule --push   # 可选：巡检后执行 Git commit/push 到远程仓库，不是飞书推送
+
+# 飞书推送开关（控制每日巡检报告是否写入飞书 Wiki / 多维表格）
+python -m src.scheduler --feishu-push status
+python -m src.scheduler --feishu-push on
+python -m src.scheduler --feishu-push off
 ```
 
-## 健康检测与 Agent 辅助修复
+## 健康检测与 Agent 策略任务
 
-当爬虫失败时，Python 只做健康检测、诊断和证据生成；Agent 负责分析和修复决策：
+当爬虫失败时，Python 只做健康检测、诊断和证据生成；Agent 负责分析和策略固化：
 
-1. **健康检测** (`health_monitor.py`) - 诊断失败原因
+1. **策略巡检** (`health_monitor.py`) - 检查链接、fingerprint、登录/验证码/反爬信号
 2. **证据采集** (`crawler_evidence.py`) - 记录页面、XHR/fetch、候选 data_path 和字段样例
 3. **Agent 分析** - 判断 URL、API pattern、data_path、field mapping、登录/反爬或无岗位问题
-4. **用户通知** (`notifier.py`) - 通知修复结果
+4. **用户通知** (`notifier.py`) - 通知策略任务和阻塞原因
 
 ### 失败类型处理
 
-| 类型 | Python 自动修复 | Agent 处理方式 |
+| 类型 | Python 自动处理 | Agent 处理方式 |
 |------|:--------:|----------|
 | 网络错误 | ❌ | 稍后重试 |
 | API变化 | ❌ | 读取证据后修改 API pattern / data_path / field_mappings |
@@ -168,6 +207,22 @@ python -m src.health_monitor --check-all          # 检测所有爬虫
 
 每日扫描结果可推送到飞书 Wiki / 多维表格。
 
+飞书推送链路在 `src.cli.JobHunter.run_profile()` 内部：
+
+1. `generate_report()` 写入 `output/{profile_id}_{YYYYMMDD_HHMM}.md`。
+2. `src.feishu_push.push_to_feishu()` 读取 `config/agent.yaml`，在 `feishu.enabled: true` 且存在 `wiki_node_token` 时推送 Wiki。
+3. `src.feishu_bitable.add_jobs_to_bitable()` 在存在 `bitable_token` 和 `bitable_table_id` 时写入多维表格。
+
+这和 `src.scheduler --push` 不是一回事。`--push` 指 Git commit/push 到远程仓库，默认关闭；飞书推送由 `config/agent.yaml` 的 `feishu.enabled` 控制。
+
+飞书推送开关命令：
+
+```powershell
+python -m src.scheduler --feishu-push status  # 查看状态
+python -m src.scheduler --feishu-push on      # 开启每日巡检后推送飞书
+python -m src.scheduler --feishu-push off     # 关闭每日巡检后推送飞书
+```
+
 Git 只提交示例配置 `config/agent.sample.yaml`；真实配置必须复制到本地 `config/agent.yaml`，该文件已被 `.gitignore` 忽略，禁止提交到 GitHub。
 
 ```powershell
@@ -186,7 +241,7 @@ feishu:
   enabled: true               # 是否启用推送
 ```
 
-**报告命名格式**：`{简历标识}_{YYYYMMDD_HHMM}.md`
+**报告命名格式**：`{profile_id}_{YYYYMMDD_HHMM}.md`。`profile_id` 来自 profile 文件名，所以同名 profile 也会作为不同巡检任务输出不同报告。
 
 **多维表格字段**：
 - 岗位标题、公司、岗位链接

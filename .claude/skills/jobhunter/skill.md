@@ -19,7 +19,7 @@ user_invocable: true
 ## 状态机流程
 
 ```
-INIT → LOADED → CRAWLED → FILTERED → EVALUATED → REPORTED → DONE
+INIT → LOADED → STRATEGY_INSPECTED → CRAWLED → FILTERED → EVALUATED → REPORTED → DONE
 ```
 
 ---
@@ -30,7 +30,7 @@ INIT → LOADED → CRAWLED → FILTERED → EVALUATED → REPORTED → DONE
 
 **执行动作**:
 1. 调用 `load_config` 工具
-2. 读取 `profiles/{profile_name}.md` 获取求职意向
+2. 读取 `profiles/*.md` 获取求职意向；每个文件的 `_profile_id` 是独立巡检任务 ID
 3. 读取 `resumes/{resume_file}` 获取简历内容
 4. 读取 `config/companies.yaml` 获取公司列表
 5. 读取 `config/agent.yaml` 获取 Agent 配置
@@ -52,11 +52,36 @@ agent_config = {decision_level, model_strategy, ...}
 
 ### LOADED
 
+**目标**: 每日策略巡检，确认公司链接和抓取策略是否可用
+
+**执行动作**:
+1. 运行 `python -m src.health_monitor --inspect-strategies --keyword "<关键词>" --job-type <social|campus|internship>`。
+2. 对 `collect_evidence` 或 `blocked` 结果，读取 `logs/strategy_tasks/.../task.json`。
+3. 如果有 evidence 目录，读取 `evidence.json`、`network.json`、`page.html/page.txt`、`page.png`。
+4. 当前 Agent 判断策略类型并修改 `config/companies.yaml` 或 `src/site_strategies/*.py`。
+5. 修改后运行单公司验证：`python tests/test_all_crawlers.py --company <id> --keyword "<关键词>" --max-jobs 3`。
+6. 当前公司无法处理时跳过，继续其他公司，最终汇总原因。
+
+**策略类型**:
+`config_intercept`、`config_dom`、`legacy_python`、`custom_python`、`browser_operation`、`unsupported`。
+
+**职责边界**:
+- Python 负责采集证据、生成 task、执行已固化策略。
+- 当前 Claude/Codex Agent 负责分析证据和修改配置/代码。
+- Python 不调用外部大模型 API。
+
+**状态转换**: → STRATEGY_INSPECTED
+
+---
+
+### STRATEGY_INSPECTED
+
 **目标**: 抓取岗位数据
 
 **执行动作**:
-1. 调用 `crawl` 工具，传入 companies 和 job_type
-2. 等待爬虫完成，获取岗位列表
+1. 调用 `crawl` 工具，传入 companies、job_type 和已确认可用的 strategy。
+2. 对策略未就绪、登录、验证码、反爬的网站跳过，不阻塞其他公司。
+3. 等待爬虫完成，获取岗位列表。
 
 **输入变量**: companies, job_type
 
@@ -134,7 +159,7 @@ matched_jobs = [
 **执行动作**:
 1. 按评分从高到低排序 evaluations
 2. 执行报告生成 (使用 report prompt)
-3. 保存到 `output/{date}_{profile_name}.md`
+3. 保存到 `output/{profile_id}_{YYYYMMDD_HHMM}.md`
 
 **状态转换**: → REPORTED
 

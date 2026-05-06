@@ -351,6 +351,53 @@ def _title_has_product_role(job: Dict[str, Any]) -> bool:
     return bool(_hits(title, TERM_GROUPS["product"]))
 
 
+def _is_strong_role_term(term: str) -> bool:
+    normalized = _normalize(term)
+    strong_markers = [
+        "经理",
+        "负责人",
+        "专家",
+        "总监",
+        "工程师",
+        "分析师",
+        "设计师",
+        "顾问",
+        "架构师",
+        "manager",
+        "owner",
+        "engineer",
+        "analyst",
+        "designer",
+        "consultant",
+    ]
+    return any(marker in normalized for marker in strong_markers)
+
+
+def _profile_targets_negative_role(profile_terms: Dict[str, List[str]], negative_hit: str) -> bool:
+    return any(negative_hit in _normalize(term) for term in profile_terms["target_roles"])
+
+
+def _title_negative_role_conflict(job: Dict[str, Any], profile_terms: Dict[str, List[str]]) -> List[str]:
+    """Detect titles that are likely a different role family despite broad target terms."""
+    title = _normalize(job.get("title", ""))
+    title_negative_hits = _unique_hits(title, NEGATIVE_ROLE_TERMS)
+    if not title_negative_hits:
+        return []
+
+    conflicts = []
+    strong_target_hits = [
+        term for term in profile_terms["target_roles"]
+        if _normalize(term) in title and _is_strong_role_term(term)
+    ]
+    for hit in title_negative_hits:
+        if _profile_targets_negative_role(profile_terms, hit):
+            continue
+        if strong_target_hits:
+            continue
+        conflicts.append(hit)
+    return conflicts
+
+
 def _profile_exclude_hits(job: Dict[str, Any], profile: Dict[str, Any]) -> Dict[str, Any]:
     profile_terms = _profile_target_terms(profile)
     terms = profile_terms["avoid"]
@@ -503,10 +550,22 @@ def match_job_intent(
                 f"岗位内容命中排除词，需人工复核: {', '.join(exclude_result['hits'][:3])}"
             )
 
+    title_negative_conflicts = _title_negative_role_conflict(job, profile_terms)
+    if title_negative_conflicts:
+        evidence["negative_role"] = _dedupe(
+            evidence.get("negative_role", []) + title_negative_conflicts
+        )[:5]
+        score -= 0.38
+        concerns.append(
+            f"岗位标题更像非目标角色: {', '.join(title_negative_conflicts[:3])}"
+        )
+
     negative_hits = _hits(job_text, NEGATIVE_ROLE_TERMS)
     if negative_hits and not role_evidence["hits"]:
         score -= 0.25
-        evidence["negative_role"] = negative_hits[:4]
+        evidence["negative_role"] = _dedupe(
+            evidence.get("negative_role", []) + negative_hits[:4]
+        )[:5]
         concerns.append(f"表面关键词可能是噪声，岗位更像: {', '.join(negative_hits[:3])}")
 
     score = max(0.0, min(1.0, score))
@@ -820,6 +879,14 @@ def evaluate_job_fit(
             "requirement": "核心岗位职责",
             "gap_type": "keyword_noise",
             "suggestion": "岗位关键词可能误导，建议跳过或人工复核",
+        })
+
+    if any("非目标角色" in concern for concern in intent_result["concerns"]):
+        risk_penalty += 12
+        gaps.append({
+            "requirement": "岗位角色",
+            "gap_type": "role_family_conflict",
+            "suggestion": "岗位标题更像运营、销售、客服、标注等非目标角色，建议跳过",
         })
 
     for concern in intent_result["concerns"]:

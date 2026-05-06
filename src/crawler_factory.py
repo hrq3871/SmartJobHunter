@@ -7,16 +7,19 @@ SmartJobHunter 爬虫工厂
 功能：
 1. 创建爬虫实例
 2. 执行爬取任务
-3. 自愈逻辑：失败时自动检测和修复
+3. 失败时生成 strategy task，交给当前 Agent 分析和固化策略
 """
 
 import sys
+import os
 import yaml
+import importlib
 from pathlib import Path
 from typing import Optional, List, Dict
 
 from .config_crawler import ConfigCrawler, create_crawler_from_config
 from .exceptions import CompanyNotFoundError, CrawlerError
+from .company_registry import normalize_company
 
 
 # 加载公司配置
@@ -95,19 +98,44 @@ def get_enabled_companies(job_type: str = None) -> List[dict]:
     config = get_companies_config()
     companies = []
 
+    skip_ids = {
+        item.strip()
+        for item in os.environ.get("SMARTHUNTER_SKIP_COMPANIES", "").split(",")
+        if item.strip()
+    }
+
     for company in config.get('companies', []):
         if not company.get('enabled', False):
             continue
 
+        normalized = normalize_company(company)
+        if normalized.get("id") in skip_ids:
+            continue
+
         # 如果指定了岗位类型，检查公司是否支持
         if job_type:
-            urls = company.get('urls', {})
-            if job_type not in urls:
+            links = normalized.get('links', {})
+            if job_type not in links and 'career_home' not in links:
                 continue
 
-        companies.append(company)
+        companies.append(normalized)
 
     return companies
+
+
+def select_strategy_type(company_config: dict) -> str:
+    """Select the runtime crawler strategy for a company."""
+    company = normalize_company(company_config)
+    strategy_type = (company.get("strategy") or {}).get("type", "unknown")
+    api_type = (company.get("api") or {}).get("type") or (company.get("api") or {}).get("method")
+
+    if strategy_type in {"config_intercept", "config_dom", "legacy_config"}:
+        return "config"
+    if strategy_type in {"legacy_python", "custom_python", "browser_operation", "unsupported"}:
+        return strategy_type
+    if api_type in {"intercept", "dom"} and company.get("field_mappings"):
+        return "config"
+    return "unknown"
 
 
 def create_crawler(company_id: str) -> Optional[ConfigCrawler]:
@@ -125,9 +153,17 @@ def create_crawler(company_id: str) -> Optional[ConfigCrawler]:
     config = get_company_config(company_id)
     if not config:
         raise CompanyNotFoundError(f"Company not found: {company_id}")
+    config = normalize_company(config)
 
     if not config.get('enabled', False):
         print(f"[Warn] Company disabled: {config.get('name', company_id)}", file=sys.stderr)
+        return None
+
+    if select_strategy_type(config) != "config":
+        print(
+            f"[Warn] Company {company_id} is not config-driven: {select_strategy_type(config)}",
+            file=sys.stderr,
+        )
         return None
 
     # 使用配置驱动爬虫
@@ -148,7 +184,7 @@ def crawl_company(
     headless: bool = True,
     auto_repair: bool = True,
 ) -> List[dict]:
-    """爬取单个公司的岗位（带自愈逻辑）
+    """爬取单个公司的岗位。
 
     Args:
         company_id: 公司ID
@@ -156,34 +192,31 @@ def crawl_company(
         max_jobs: 最大岗位数
         job_type: 岗位类型
         headless: 是否无头模式
-        auto_repair: 是否启用自愈
+        auto_repair: 兼容旧参数。True 时失败会生成 strategy task，不会在 Python 内调用 AI。
 
     Returns:
         岗位列表
     """
+    company_config = get_company_config(company_id)
+    if not company_config:
+        return []
+    company_config = normalize_company(company_config)
+    strategy_type = select_strategy_type(company_config)
+
+    if strategy_type == "legacy_python":
+        return _crawl_legacy_python(company_id, keyword, max_jobs, job_type, headless)
+
+    if strategy_type == "custom_python":
+        return _crawl_custom_python(company_config, keyword, max_jobs, job_type, headless)
+
+    if strategy_type in {"browser_operation", "unsupported", "unknown"}:
+        _write_strategy_needed_task(company_config, keyword, job_type, f"strategy_{strategy_type}")
+        return []
+
     crawler = create_crawler(company_id)
     if not crawler:
-        # 尝试自动分析新公司
-        if auto_repair:
-            from .auto_analyzer import AutoAnalyzer
-            from .notifier import notify_new_company_added
-
-            analyzer = AutoAnalyzer()
-            company_config = get_company_config(company_id)
-
-            if company_config:
-                company_name = company_config.get('name', company_id)
-                print(f"[AutoRepair] Attempting to analyze {company_name}...", file=sys.stderr)
-
-                new_config = analyzer.analyze_new_company(company_name)
-                if new_config:
-                    analyzer.save_config(new_config)
-                    notify_new_company_added(company_name, company_id)
-                    reload_config()
-                    crawler = create_crawler(company_id)
-
-        if not crawler:
-            return []
+        _write_strategy_needed_task(company_config, keyword, job_type, "missing_config_crawler")
+        return []
 
     try:
         return crawler.crawl(
@@ -195,7 +228,7 @@ def crawl_company(
     except Exception as e:
         print(f"[Error] Crawl failed for {company_id}: {e}", file=sys.stderr)
 
-        # 触发自愈
+        # 生成策略分析任务，跳过该公司，继续其他公司
         if auto_repair:
             return _attempt_repair(company_id, e, keyword, max_jobs, job_type, headless)
 
@@ -210,7 +243,7 @@ def _attempt_repair(
     job_type: str,
     headless: bool,
 ) -> List[dict]:
-    """尝试自动修复
+    """Create an agent strategy task after a crawl failure.
 
     Args:
         company_id: 公司ID
@@ -224,7 +257,7 @@ def _attempt_repair(
         岗位列表
     """
     from .health_monitor import HealthMonitor
-    from .notifier import notify_repair_failed, notify_repair_success, notify_login_required
+    from .notifier import notify_repair_failed, notify_login_required
 
     monitor = HealthMonitor()
     diagnosis = monitor.diagnose_failure(company_id, error)
@@ -238,30 +271,62 @@ def _attempt_repair(
         notify_login_required(company_id, url)
         return []
 
-    # 尝试自动修复
-    if diagnosis.can_auto_repair:
-        print(f"[AutoRepair] Attempting: {diagnosis.repair_action}", file=sys.stderr)
-
-        if monitor.auto_repair(company_id, diagnosis):
-            notify_repair_success(company_id, diagnosis.repair_action)
-            reload_config()
-
-            # 重试爬取
-            crawler = create_crawler(company_id)
-            if crawler:
-                try:
-                    return crawler.crawl(
-                        keyword=keyword,
-                        max_jobs=max_jobs,
-                        job_type=job_type,
-                        headless=headless,
-                    )
-                except Exception as retry_error:
-                    print(f"[AutoRepair] Retry failed: {retry_error}", file=sys.stderr)
-
-    # 修复失败
-    notify_repair_failed(company_id, diagnosis.reason, [diagnosis.repair_action] if diagnosis.repair_action else None)
+    company_config = get_company_config(company_id) or {"id": company_id, "name": company_id}
+    task_path = _write_strategy_needed_task(company_config, keyword, job_type, diagnosis.reason)
+    notify_repair_failed(
+        company_id,
+        diagnosis.reason,
+        [
+            diagnosis.repair_action,
+            f"strategy task: {task_path}",
+            f'python -m src.crawler_evidence --company {company_id} --keyword "{keyword}" --job-type {job_type}',
+        ] if diagnosis.repair_action else [f"strategy task: {task_path}"],
+    )
     return []
+
+
+def _crawl_legacy_python(company_id: str, keyword: str, max_jobs: int, job_type: str, headless: bool) -> List[dict]:
+    """Run old hand-written crawlers without deleting prior solidified logic."""
+    from . import crawler as legacy_crawler
+
+    return legacy_crawler.crawl_company(
+        company_id=company_id,
+        keyword=keyword,
+        headless=headless,
+        max_jobs=max_jobs,
+        job_type=job_type,
+    )
+
+
+def _crawl_custom_python(company_config: dict, keyword: str, max_jobs: int, job_type: str, headless: bool) -> List[dict]:
+    """Run a registered custom strategy module."""
+    strategy = company_config.get("strategy") or {}
+    module_name = strategy.get("module")
+    if not module_name:
+        _write_strategy_needed_task(company_config, keyword, job_type, "custom_python_missing_module")
+        return []
+    module = importlib.import_module(f"src.site_strategies.{module_name}")
+    strategy_class = getattr(module, "Strategy")
+    strategy_instance = strategy_class(company_config)
+    return strategy_instance.crawl(keyword=keyword, max_jobs=max_jobs, job_type=job_type, headless=headless)
+
+
+def _write_strategy_needed_task(company_config: dict, keyword: str, job_type: str, reason: str) -> str:
+    """Write a strategy task when a company cannot be crawled with current strategy."""
+    from .strategy_planner import write_strategy_task
+
+    company = normalize_company(company_config)
+    decision = {
+        "action": "collect_evidence",
+        "reason": reason,
+        "requires_agent": True,
+        "next_commands": [
+            f'python -m src.crawler_evidence --company {company.get("id")} --keyword "{keyword}" --job-type {job_type}'
+        ],
+    }
+    task_path = write_strategy_task(company, decision)
+    print(f"[Strategy] Task created: {task_path}", file=sys.stderr)
+    return str(task_path)
 
 
 def crawl_all(

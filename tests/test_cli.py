@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.cli import JobHunter
+from src.cli import JobHunter, _parse_profile_md
 
 
 def test_rank_and_filter_results_applies_threshold_sorting_and_report_limit():
@@ -68,3 +68,122 @@ def test_filter_jobs_runs_semantic_match_for_new_profile_fields():
 
     assert [job["hash"] for job in filtered] == ["data-job"]
     assert filtered[0]["semantic_match"]["fallback_quality"] == "coarse"
+
+
+def test_parse_profile_adds_file_level_task_id(tmp_path):
+    profile_path = tmp_path / "ai_pm_task.md"
+    profile_path.write_text(
+        """---
+name: AI产品经理
+enabled: true
+target_roles:
+  - AI产品经理
+---
+
+# 求职意向
+""",
+        encoding="utf-8",
+    )
+
+    profile = _parse_profile_md(str(profile_path))
+
+    assert profile["name"] == "AI产品经理"
+    assert profile["_profile_id"] == "ai_pm_task"
+    assert profile["_profile_path"] == str(profile_path)
+
+
+def test_generate_report_uses_profile_id_to_avoid_same_name_overwrite(tmp_path):
+    hunter = JobHunter()
+    hunter.output_dir = tmp_path
+
+    report_path = hunter.generate_report(
+        jobs=[],
+        profile={
+            "name": "AI产品经理",
+            "_profile_id": "ai_pm_task",
+            "_profile_path": "profiles/ai_pm_task.md",
+        },
+        evaluations=[],
+    )
+
+    path = Path(report_path)
+    assert path.name.startswith("ai_pm_task_")
+    report = path.read_text(encoding="utf-8")
+    assert "**Profile ID**: ai_pm_task" in report
+    assert "**Profile File**: profiles/ai_pm_task.md" in report
+
+
+def test_run_profile_uses_profile_id_for_feishu_and_bitable(monkeypatch, tmp_path):
+    hunter = JobHunter()
+    hunter.memory_dir = tmp_path
+    hunter.config = {
+        "global": {"time_filter_days": 30, "threshold_score": 0},
+        "output": {},
+    }
+    hunter.seen_hashes = set()
+
+    job = {
+        "title": "AI解决方案产品经理",
+        "company": "Example",
+        "location": "北京",
+        "category": "产品",
+        "duty": "负责 AI 解决方案产品规划、需求分析和落地。",
+        "requirement": "需要 AI 产品经验。",
+        "url": "https://example.com/job/1",
+        "hash": "job-1",
+    }
+    feishu_calls = []
+    bitable_calls = []
+
+    monkeypatch.setattr(hunter, "crawl_jobs", lambda *args, **kwargs: [job])
+    monkeypatch.setattr(hunter, "filter_jobs", lambda jobs, profile: jobs)
+    monkeypatch.setattr(hunter, "evaluate_job", lambda job, profile: {
+        "score": 88,
+        "recommendation": "apply",
+        "match_reasons": ["目标岗位匹配"],
+    })
+    monkeypatch.setattr(hunter, "generate_report", lambda jobs, profile, evaluations: "output/report.md")
+
+    import src.feishu_push as feishu_push
+    import src.feishu_bitable as feishu_bitable
+
+    monkeypatch.setattr(feishu_push, "push_to_feishu", lambda report_path, profile_name: (
+        feishu_calls.append((report_path, profile_name)) or {"url": "https://feishu.example/report"}
+    ))
+    monkeypatch.setattr(feishu_bitable, "add_jobs_to_bitable", lambda jobs, profile_name, report_url: (
+        bitable_calls.append((jobs, profile_name, report_url)) or 1
+    ))
+
+    result = hunter.run_profile({
+        "name": "AI产品经理",
+        "_profile_id": "ai_pm_task",
+        "keywords": ["AI产品经理"],
+        "target_roles": ["AI产品经理"],
+    })
+
+    assert result
+    assert feishu_calls == [("output/report.md", "ai_pm_task")]
+    assert bitable_calls[0][1] == "ai_pm_task"
+    assert bitable_calls[0][2] == "https://feishu.example/report"
+
+
+def test_run_profile_skips_when_configured_resume_is_missing(monkeypatch):
+    hunter = JobHunter()
+    hunter.config = {"global": {}, "output": {}}
+    called = {"crawl": False}
+
+    def fake_crawl(*args, **kwargs):
+        called["crawl"] = True
+        return []
+
+    monkeypatch.setattr(hunter, "crawl_jobs", fake_crawl)
+
+    result = hunter.run_profile({
+        "name": "AI产品经理",
+        "_profile_id": "ai_pm_task",
+        "resume": "resumes/not_exists.md",
+        "keywords": ["AI产品经理"],
+    })
+
+    assert result == []
+    assert called["crawl"] is False

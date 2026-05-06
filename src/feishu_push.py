@@ -24,6 +24,49 @@ def load_feishu_config() -> Dict:
     return {}
 
 
+def _agent_config_path(config_path: str | Path = None) -> Path:
+    return Path(config_path) if config_path else Path(__file__).parent.parent / "config" / "agent.yaml"
+
+
+def get_feishu_push_status(config_path: str | Path = None) -> Dict:
+    """Return Feishu push switch status and required config presence."""
+    path = _agent_config_path(config_path)
+    if path.exists():
+        with open(path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f) or {}
+    else:
+        config = {}
+
+    feishu = config.get('feishu', {}) or {}
+    return {
+        "config_path": str(path),
+        "enabled": bool(feishu.get('enabled', False)),
+        "has_wiki_node_token": bool(feishu.get('wiki_node_token')),
+        "has_bitable_token": bool(feishu.get('bitable_token')),
+        "has_bitable_table_id": bool(feishu.get('bitable_table_id')),
+    }
+
+
+def set_feishu_push_enabled(enabled: bool, config_path: str | Path = None) -> Dict:
+    """Enable or disable Feishu push in config/agent.yaml."""
+    path = _agent_config_path(config_path)
+    if path.exists():
+        with open(path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f) or {}
+    else:
+        config = {}
+
+    feishu = config.get('feishu') or {}
+    feishu['enabled'] = bool(enabled)
+    config['feishu'] = feishu
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        yaml.safe_dump(config, f, allow_unicode=True, sort_keys=False)
+
+    return get_feishu_push_status(path)
+
+
 def push_to_feishu(report_path: str, profile_name: str) -> Optional[Dict]:
     """推送报告到飞书 Wiki（使用 lark-cli）
 
@@ -132,3 +175,31 @@ def push_markdown_to_feishu(title: str, content: str, wiki_node_token: str = Non
     except Exception as e:
         print(f"[Feishu] 推送异常: {e}")
         return None
+
+
+def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="SmartJobHunter 飞书推送开关")
+    parser.add_argument(
+        "--push",
+        choices=["on", "off", "status"],
+        default="status",
+        help="开启/关闭/查看每日巡检后的飞书 Wiki 和多维表格推送",
+    )
+    parser.add_argument("--config", help="agent.yaml 路径，默认 config/agent.yaml")
+    args = parser.parse_args()
+
+    if args.push == "on":
+        status = set_feishu_push_enabled(True, args.config)
+    elif args.push == "off":
+        status = set_feishu_push_enabled(False, args.config)
+    else:
+        status = get_feishu_push_status(args.config)
+
+    print(json.dumps(status, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

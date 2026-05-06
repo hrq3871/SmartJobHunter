@@ -4,7 +4,7 @@
 SmartJobHunter 用户通知器
 
 功能：
-1. 通知用户爬虫修复失败
+1. 通知用户爬虫策略任务或错误
 2. 写入日志
 3. 可选：发送到飞书/邮件
 """
@@ -29,7 +29,7 @@ class Notifier:
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
     def notify_repair_failed(self, company_id: str, reason: str, suggestions: List[str] = None):
-        """通知用户修复失败
+        """通知用户需要 Agent 处理策略任务
 
         Args:
             company_id: 公司ID
@@ -38,12 +38,12 @@ class Notifier:
         """
         suggestions = suggestions or [
             "检查招聘网站是否变更",
-            "手动更新配置文件",
-            "联系开发者",
+            "读取 strategy task 和 crawler evidence",
+            "由当前 Agent 更新配置或 Python strategy",
         ]
 
         message = f"""
-⚠️ 爬虫自愈失败
+⚠️ 爬虫策略需要 Agent 分析
 
 公司: {company_id}
 原因: {reason}
@@ -63,13 +63,13 @@ class Notifier:
         self._write_detail_log(company_id, reason, suggestions)
 
     def notify_repair_success(self, company_id: str, action: str):
-        """通知用户修复成功
+        """通知用户策略更新成功
 
         Args:
             company_id: 公司ID
             action: 修复动作
         """
-        message = f"✅ 爬虫自愈成功: {company_id} - {action}"
+        message = f"✅ 爬虫策略已更新: {company_id} - {action}"
         print(message, file=sys.stderr)
         self.write_log(f"[REPAIR SUCCESS] {company_id}: {action}")
 

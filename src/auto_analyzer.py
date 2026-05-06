@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-SmartJobHunter 新公司自动分析器
+Legacy recruitment-system template analyzer.
 
-功能：
-1. 搜索公司招聘官网
-2. 访问并分析 API
-3. 识别招聘系统类型
-4. 生成配置
+This module does not call an external LLM and does not perform agent-side
+reasoning. It only recognizes known recruitment-system URL/API patterns and can
+generate a draft config when the caller already provides enough evidence.
+
+For the current daily workflow, use:
+1. `python -m src.health_monitor --inspect-strategies`
+2. `python -m src.crawler_evidence --company <id> ...`
+3. current Claude/Codex agent reads the evidence and patches config/code.
 """
 
 import sys
@@ -33,7 +36,7 @@ class CompanyConfig:
 
 
 class AutoAnalyzer:
-    """新公司自动分析器"""
+    """Legacy template matcher for known recruitment systems."""
 
     # 系统识别规则
     SYSTEM_RULES = {
@@ -142,9 +145,9 @@ class AutoAnalyzer:
         Returns:
             招聘官网 URL
         """
-        # 这里需要调用 web-access skill 或搜索引擎
-        # 由于是 Python 模块，我们提供一个接口
-        # 实际使用时由调用方传入 URL 或通过其他方式搜索
+        # Python cannot invoke the current agent platform's search judgment from
+        # here. The agent should search/verify the official URL and then pass it
+        # to analyze_url(), or patch config/companies.yaml directly.
 
         # 常见招聘 URL 模式
         patterns = [
@@ -155,7 +158,7 @@ class AutoAnalyzer:
             f"https://careers.{company_name.lower()}.com",
         ]
 
-        # 返回 None，需要外部搜索
+        # 返回 None，需要当前 Agent 外部搜索/验证。
         return None
 
     def _capture_api_requests(self, url: str) -> List[dict]:
@@ -167,8 +170,8 @@ class AutoAnalyzer:
         Returns:
             API 请求列表
         """
-        # 这里需要使用 CDP 或 Playwright
-        # 实际实现由调用方提供
+        # Evidence collection now lives in src.crawler_evidence. Keep this hook
+        # empty for backward compatibility with old callers.
         return []
 
     def identify_system(self, url: str, apis: List[dict] = None) -> str:
@@ -444,7 +447,7 @@ class AutoAnalyzer:
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser(description='SmartJobHunter 自动分析器')
+    parser = argparse.ArgumentParser(description='SmartJobHunter legacy 模板分析器')
     parser.add_argument('--analyze', type=str, help='分析指定公司')
     parser.add_argument('--url', type=str, help='分析指定 URL')
     parser.add_argument('--save', action='store_true', help='保存配置')

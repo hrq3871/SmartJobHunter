@@ -109,7 +109,10 @@ def load_config(profile_name: str = None) -> Dict:
                 profiles.append(profile)
 
     if profile_name:
-        profiles = [p for p in profiles if p.get('name') == profile_name]
+        profiles = [
+            p for p in profiles
+            if p.get('name') == profile_name or p.get('_profile_id') == profile_name
+        ]
     else:
         profiles = [p for p in profiles if p.get('enabled', True)]
 
@@ -145,7 +148,9 @@ def _parse_profile_md(file_path: str) -> Dict:
     content = path.read_text(encoding='utf-8')
     profile = {
         'name': path.stem,
-        'enabled': True
+        'enabled': True,
+        '_profile_id': path.stem,
+        '_profile_path': str(path),
     }
 
     # 解析 YAML frontmatter (--- ... ---)
@@ -156,6 +161,8 @@ def _parse_profile_md(file_path: str) -> Dict:
                 fm_data = yaml.safe_load(parts[1].strip())
                 if fm_data:
                     profile.update(fm_data)
+                    profile['_profile_id'] = path.stem
+                    profile['_profile_path'] = str(path)
             except Exception:
                 pass
 
@@ -399,15 +406,18 @@ class JobHunter:
             输出文件路径
         """
         profile_name = profile.get('name', 'unknown')
+        profile_id = profile.get('_profile_id') or profile_name
         # 新格式：{简历标识}_{YYYYMMDD_HHMM}.md
         timestamp = datetime.now().strftime('%Y%m%d_%H%M')
-        output_filename = f"{profile_name}_{timestamp}.md"
+        output_filename = f"{profile_id}_{timestamp}.md"
         output_path = self.output_dir / output_filename
 
         report = f"""# Job Hunting Report
 
 ## Basic Info
 - **Profile**: {profile_name}
+- **Profile ID**: {profile_id}
+- **Profile File**: {profile.get('_profile_path', 'N/A')}
 - **Job Type**: {profile.get('job_type', 'All')}
 - **Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M')}
 - **Jobs Found**: {len(jobs)}
@@ -506,10 +516,11 @@ class JobHunter:
             resume_result = resume_parser.parse_resume(resume_path)
             if resume_result.get('content', '').startswith("[错误]"):
                 print(f"   {resume_result['content']}")
-            else:
-                print(f"   Resume loaded ({resume_result['length']} chars)")
-                profile['_resume_content'] = resume_result.get('content', '')
-                profile['_ability_profile'] = matching.summarize_resume_ability(profile['_resume_content'])
+                print("   [Profile] Configured resume is unavailable; skip this profile to avoid low-confidence recommendations")
+                return []
+            print(f"   Resume loaded ({resume_result['length']} chars)")
+            profile['_resume_content'] = resume_result.get('content', '')
+            profile['_ability_profile'] = matching.summarize_resume_ability(profile['_resume_content'])
 
         # 获取全局配置
         global_config = self.config.get('global', {}) if self.config else {}
@@ -559,9 +570,10 @@ class JobHunter:
 
         # Step 6: 推送到飞书
         print("\n[Step 6] Pushing to Feishu...")
+        profile_export_name = profile.get('_profile_id') or profile_name
         try:
             from .feishu_push import push_to_feishu
-            feishu_result = push_to_feishu(report_path, profile_name)
+            feishu_result = push_to_feishu(report_path, profile_export_name)
             report_url = feishu_result.get('url') if feishu_result else None
         except ImportError:
             print("[Feishu] 模块未安装，跳过推送")
@@ -576,7 +588,7 @@ class JobHunter:
                 if i < len(report_evaluations):
                     job['score'] = report_evaluations[i].get('score', 0)
                 job['job_type'] = job_type or profile.get('job_type', '社招')
-            add_jobs_to_bitable(report_jobs, profile_name, report_url)
+            add_jobs_to_bitable(report_jobs, profile_export_name, report_url)
         except ImportError:
             print("[Bitable] 模块未安装，跳过添加")
 
@@ -605,6 +617,11 @@ class JobHunter:
         self.load_config()
 
         profiles = self.config.get('profiles', []) if self.config else []
+        if profile_name:
+            profiles = [
+                p for p in profiles
+                if p.get('name') == profile_name or p.get('_profile_id') == profile_name
+            ]
 
         if not profiles:
             print("[Warn] No profiles found")
@@ -612,7 +629,8 @@ class JobHunter:
 
         print(f"\nFound {len(profiles)} profiles to process:")
         for p in profiles:
-            print(f"  - {p.get('name')} ({p.get('job_type', 'All')})")
+            profile_id = p.get('_profile_id') or p.get('name')
+            print(f"  - {p.get('name')} [{profile_id}] ({p.get('job_type', 'All')})")
 
         all_jobs = []
         for profile in profiles:
@@ -677,7 +695,9 @@ def main():
         print("Available profiles:")
         for profile in config.get('profiles', []):
             job_type = profile.get('job_type', 'All')
-            print(f"  - {profile.get('name', 'Unnamed')} [{job_type}]")
+            profile_id = profile.get('_profile_id') or profile.get('name', 'Unnamed')
+            profile_path = profile.get('_profile_path', '')
+            print(f"  - {profile.get('name', 'Unnamed')} [{profile_id}] [{job_type}] {profile_path}")
         print("\nAvailable job types:")
         for type_key, type_config in config.get('job_types', {}).items():
             print(f"  - {type_key}: {type_config.get('name', '')}")

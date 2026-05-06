@@ -4,6 +4,7 @@
 
 ## 求职意向
 - 名称: {profile_name}
+- 任务ID: {profile_id}
 - 类型: {job_type}
 - 描述: {intent}
 
@@ -32,6 +33,7 @@
 
 > 生成时间: {datetime}
 > 求职意向: {profile_name}
+> 任务ID: {profile_id}
 > 岗位类型: {job_type}
 
 ## 📊 本次巡检统计
