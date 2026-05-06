@@ -81,7 +81,16 @@ python tests/test_all_crawlers.py --company <company_id> --keyword "产品经理
 Python CLI 模式下，`src.matching.evaluate_job_fit()` 作为可测试 fallback，避免退回粗暴关键词评分。
 
 ### Step 7: 生成报告
-Agent 模式优先使用 `report` prompt 生成 Markdown 报告；CLI 模式使用 Python 模板渲染同样的评分和风险字段，保存到 `output/` 目录。
+Agent 模式优先使用 `report` prompt 生成 Markdown 报告；CLI 模式使用 Python 模板渲染同样的评分和风险字段，保存到 `output/{YYYY-MM-DD}/` 目录。
+
+生成前必须校验岗位详情 URL：
+- 空链接、404、不可访问链接不要进入最终报告。
+- 如果链接校验后没有岗位，停止报告生成并说明原因。
+
+生成报告时同时生成 Top 3 一键投递包：
+- 路径：`output/{YYYY-MM-DD}/application_packages/{profile_id}_{YYYYMMDD_HHMM}/`
+- 内容：`index.md` 和 3 封 `cover_letter_*.md`
+- Cover Letter 必须结合公司、岗位、JD 证据、简历证据和风险点，不要使用通用空话。
 
 CLI 生成报告后会自动尝试飞书输出：
 - `src.feishu_push.push_to_feishu()` 推送到飞书 Wiki。

@@ -111,11 +111,88 @@ def test_generate_report_uses_profile_id_to_avoid_same_name_overwrite(tmp_path):
     report = path.read_text(encoding="utf-8")
     assert "**Profile ID**: ai_pm_task" in report
     assert "**Profile File**: profiles/ai_pm_task.md" in report
+    assert path.parent.name.count("-") == 2
+
+
+def test_validate_report_urls_drops_unavailable_links(monkeypatch):
+    hunter = JobHunter()
+    jobs = [
+        {"title": "valid", "url": "https://example.com/ok"},
+        {"title": "missing", "url": "https://example.com/404"},
+        {"title": "empty", "url": ""},
+    ]
+    evaluations = [{"score": 90}, {"score": 88}, {"score": 80}]
+
+    monkeypatch.setattr(hunter, "_url_is_available", lambda url: "ok" in url)
+
+    valid_jobs, valid_evaluations = hunter._filter_live_urls(jobs, evaluations)
+
+    assert [job["title"] for job in valid_jobs] == ["valid"]
+    assert valid_evaluations == [{"score": 90}]
+
+
+def test_generate_application_package_writes_top3_cover_letters(tmp_path):
+    hunter = JobHunter()
+    hunter.output_dir = tmp_path
+    jobs = [
+        {
+            "title": "AI产品经理",
+            "company": "A公司",
+            "duty": "负责 AI 产品规划和需求分析。",
+            "requirement": "需要 ToB 产品经验。",
+            "url": "https://example.com/a",
+        },
+        {
+            "title": "AI解决方案产品经理",
+            "company": "B公司",
+            "duty": "负责客户场景方案设计。",
+            "requirement": "熟悉大模型应用。",
+            "url": "https://example.com/b",
+        },
+        {
+            "title": "Agent产品经理",
+            "company": "C公司",
+            "duty": "负责 Agent 工作流产品。",
+            "requirement": "有产品落地经验。",
+            "url": "https://example.com/c",
+        },
+        {
+            "title": "普通产品经理",
+            "company": "D公司",
+            "duty": "负责通用产品。",
+            "requirement": "沟通能力强。",
+            "url": "https://example.com/d",
+        },
+    ]
+    evaluations = [
+        {"score": 95, "match_reasons": ["AI 产品方向匹配"], "risk_warning": None},
+        {"score": 92, "match_reasons": ["解决方案经验匹配"], "risk_warning": None},
+        {"score": 88, "match_reasons": ["Agent 方向匹配"], "risk_warning": None},
+        {"score": 70, "match_reasons": ["一般匹配"], "risk_warning": None},
+    ]
+    profile = {
+        "name": "AI产品经理",
+        "_profile_id": "ai_pm_task",
+        "_resume_content": "5年 ToB SaaS 产品经验，主导 AI 助手从0到1上线，负责需求分析和产品规划。",
+    }
+
+    package_dir = hunter.generate_application_package(jobs, profile, evaluations)
+
+    path = Path(package_dir)
+    assert path.exists()
+    assert (path / "index.md").exists()
+    cover_letters = sorted(path.glob("cover_letter_*.md"))
+    assert len(cover_letters) == 3
+    first_letter = cover_letters[0].read_text(encoding="utf-8")
+    assert "A公司" in first_letter
+    assert "AI产品经理" in first_letter
+    assert "ToB SaaS" in first_letter
 
 
 def test_run_profile_uses_profile_id_for_feishu_and_bitable(monkeypatch, tmp_path):
     hunter = JobHunter()
     hunter.memory_dir = tmp_path
+    hunter.output_dir = tmp_path
     hunter.config = {
         "global": {"time_filter_days": 30, "threshold_score": 0},
         "output": {},
@@ -143,6 +220,7 @@ def test_run_profile_uses_profile_id_for_feishu_and_bitable(monkeypatch, tmp_pat
         "match_reasons": ["目标岗位匹配"],
     })
     monkeypatch.setattr(hunter, "generate_report", lambda jobs, profile, evaluations: "output/report.md")
+    monkeypatch.setattr(hunter, "_url_is_available", lambda url: True)
 
     import src.feishu_push as feishu_push
     import src.feishu_bitable as feishu_bitable

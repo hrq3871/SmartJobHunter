@@ -46,13 +46,17 @@ Python-only Windows 定时任务只能生成证据、任务和抓取可用公司
 4. `matching.match_job_intent`：根据 profile 做 fallback 意向过滤。
 5. `matching.evaluate_job_fit`：根据 profile、JD、简历文本做 fallback 粗评分。
 6. `_rank_and_filter_results`：按 `threshold_score` 和 `max_jobs_per_report` 控制报告输出。
-7. `filters.update_memory`：记录已处理岗位，避免重复报告。
+7. 报告前强制校验岗位 URL，只保留可访问的真实链接，避免 AI 或网页数据带来 404 链接。
+8. `generate_application_package`：为 Top 3 岗位生成一键投递包和定制 Cover Letter。
+9. `filters.update_memory`：记录已处理岗位，避免重复报告。
 
 Agent 的作用不是替换这些步骤，而是把它们纳入判断闭环：
 
 - 运行前：从简历和求职目标补全 profile，确认 `target_roles`、`target_domains`、`must_have`、`nice_to_have`、`avoid` 是否覆盖真实方向。
 - 抓取时：根据 profile 选择搜索关键词。目标较宽时，不要只依赖单个关键词；可用 `python -m src.crawler_factory --crawl <company_id> --keyword "<关键词>" --max-jobs 10` 对多个代表关键词抽样。
 - 过滤后：不要把 Python fallback 分数当成最终结论。Agent 必须检查报告岗位是否有 JD 证据、简历证据和 profile 目标三者闭环。
+- 生成结果前：必须确认岗位详情链接不是 404 或空链接，只把可访问链接写入报告和飞书。
+- 报告后：为 Top 3 匹配岗位生成一键投递包，每封 Cover Letter 必须结合公司、岗位、JD 证据和简历证据，不要写通用模板。
 - 结果异常时：如果出现“没有岗位”“岗位很机械”“明显不匹配岗位进入报告”，先用原始抓取样本对比过滤结果，判断问题出在关键词、profile、过滤阈值、字段映射还是 JD 质量。
 - 收尾前：至少用 3 家公司做真实官网验证，并人工评估抽样岗位是否符合目标。
 
@@ -100,7 +104,8 @@ python -m src.crawler_factory --crawl <company_id> --keyword "关键词"
 ### Step 6: 生成报告
 ```
 将评估结果写入 output/ 目录的 Markdown 文件
-格式：{日期}_{意向名称}.md
+格式：output/{YYYY-MM-DD}/{profile_id}_{YYYYMMDD_HHMM}.md
+同时生成 Top 3 投递包：output/{YYYY-MM-DD}/application_packages/{profile_id}_{YYYYMMDD_HHMM}/
 ```
 
 ### Step 7: 更新去重数据库
