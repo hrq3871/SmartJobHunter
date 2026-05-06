@@ -6,11 +6,13 @@ user_invocable: true
 
 # SmartJobHunter Agent
 
-基于 LLM 的智能求职巡检系统，自动抓取、过滤、评估岗位并生成报告。
+基于 Agent 平台的智能求职巡检系统。Python 负责抓取、清洗、fallback 粗筛和报告落盘；候选人画像、岗位画像、语义过滤和最终匹配判断由当前 Claude/Codex agent 执行。
 
 ## 快速开始
 
 用户说"运行巡检"、"找工作"或"帮我看看有什么岗位"时，按以下流程执行：
+
+如果用户说"分析简历"、"这个岗位适合我吗"、"评估岗位"，先走 `profile.md` 和 `match.md`，不要直接套用产品经理示例。
 
 ---
 
@@ -35,9 +37,10 @@ INIT → LOADED → CRAWLED → FILTERED → EVALUATED → REPORTED → DONE
 
 **输出变量**:
 ```
-profile = {name, intent, keywords, job_type, resume_path}
+profile = {name, target_roles, must_have, nice_to_have, avoid, intent, resume_path}
 resume = "简历文本内容"
 companies = ["腾讯", "字节跳动"]
+candidate_profile = {role_experience, skills, project_evidence, constraints}
 agent_config = {decision_level, model_strategy, ...}
 ```
 

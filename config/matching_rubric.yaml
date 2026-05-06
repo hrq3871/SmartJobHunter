@@ -1,0 +1,22 @@
+# 通用 fallback 评分配置。Agent prompt 使用更完整的语义判断；
+# 这里仅记录 Python fallback 的工程口径，避免职业方向硬编码在代码里。
+
+scoring:
+  target_role_fit: 25
+  domain_fit: 20
+  resume_evidence: 25
+  preference_fit: 10
+  evidence_quality: 10
+  core_responsibility_fit: 10
+  risk_penalty_max: 20
+
+decisions:
+  strong_apply: 85
+  apply: 70
+  consider: 55
+
+principles:
+  - "目标岗位方向来自 profile.target_roles，不来自系统默认职业。"
+  - "关键词只作为辅助证据，不能替代 JD 核心职责判断。"
+  - "简历证据必须能回到原文片段。"
+  - "信息不足时标记 needs_review 或降低分数。"

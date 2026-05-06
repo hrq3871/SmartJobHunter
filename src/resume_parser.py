@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-SmartJobHunter 简历解析模块
-支持多种格式：txt, md, docx, pdf, 图片格式
+SmartJobHunter 简历文本抽取模块。
+
+本模块只负责从 txt、md、docx、pdf、图片文件中提取原始文本或可交给
+Agent 处理的占位信息。结构化候选人画像由当前 Claude/Codex agent 根据
+prompts/build_candidate_profile.md 生成，不由 Python 假装完成。
 """
 
 import os
@@ -116,10 +119,7 @@ def _parse_pdf(file_path: str) -> str:
 
 
 def _parse_image(file_path: str) -> str:
-    """使用 Claude Vision 解析图片简历
-
-    注意：此函数返回提示信息，实际解析需要 Agent 调用
-    """
+    """返回图片占位符，实际视觉解析由当前 Agent 平台完成。"""
     try:
         # 读取图片文件并编码
         import base64

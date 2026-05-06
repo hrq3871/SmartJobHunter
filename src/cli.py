@@ -40,10 +40,23 @@ def validate_profile(profile: dict) -> bool:
         if not profile.get(field):
             raise ConfigError(f"Profile missing required field: {field}")
 
-    # 检查 keywords 是否为列表
-    keywords = profile.get('keywords')
-    if keywords and not isinstance(keywords, list):
-        raise ConfigError(f"Profile '{profile.get('name')}' keywords must be a list")
+    # 检查列表型字段。旧字段 keywords/exclude_keywords 继续兼容。
+    list_fields = [
+        'keywords',
+        'exclude_keywords',
+        'target_roles',
+        'target_domains',
+        'employment_types',
+        'must_have',
+        'nice_to_have',
+        'avoid',
+        'dealbreakers',
+        'locations',
+    ]
+    for field in list_fields:
+        value = profile.get(field)
+        if value and not isinstance(value, list):
+            raise ConfigError(f"Profile '{profile.get('name')}' {field} must be a list")
 
     return True
 
@@ -299,8 +312,20 @@ class JobHunter:
         print("\n[Filter] Cleaning data...")
         jobs = filters.clean_data(jobs, truncate_length)
 
-        # 语义过滤：Python fallback 按 Agent 评分规则判断，不再只做关键词包含
-        if profile.get('keywords') or profile.get('intent'):
+        # 语义过滤：Python fallback 按 Agent 评分规则判断，不再只做关键词包含。
+        # 新版 profile 由 target_roles/must_have/avoid 等字段驱动，旧版 keywords/intent 继续兼容。
+        semantic_fields = [
+            'keywords',
+            'intent',
+            'target_roles',
+            'target_domains',
+            'must_have',
+            'nice_to_have',
+            'avoid',
+            'dealbreakers',
+            'exclude_keywords',
+        ]
+        if any(profile.get(field) for field in semantic_fields):
             decision_level = global_config.get('decision_level', 'moderate')
             semantic_thresholds = global_config.get('semantic_filter', {})
             print(f"\n[Filter] Semantic intent match ({decision_level})...")

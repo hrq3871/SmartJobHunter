@@ -19,19 +19,24 @@ user_invocable: true
 ### Step 2: 抓取岗位
 调用 `crawl` 工具，从启用的公司抓取岗位数据。
 
-### Step 3: 确定性过滤
+### Step 3: 构建候选人画像
+使用 `profile.md` / `prompts/build_candidate_profile.md` 从简历生成 candidate profile。
+
+注意：不要默认用户是产品经理。目标岗位来自 `profiles/*.md` 的 `target_roles`。
+
+### Step 4: 确定性过滤
 调用 `filter_by_time` → `dedup` 工具：
 - 时间过滤：只保留最近 3 天的岗位
 - 去重：排除 memory/seen_jobs.md 中已处理的岗位
 
-### Step 4: 语义过滤（AI 主判，Python fallback）
-对每个岗位，使用 `semantic_filter` prompt 进行 LLM 判断：
+### Step 5: 岗位画像与语义过滤（Agent 主判，Python fallback）
+对每个岗位，先使用 `prompts/analyze_job.md` 生成 job profile，再使用 `match.md` / `prompts/match_candidate_job.md` 判断：
 
 ```
 判断岗位是否符合求职意向：
-- 求职意向：{从 profile 读取}
-- 岗位标题：{title}
-- 岗位描述：{duty}
+- candidate_profile：{从简历读取}
+- profile：{target_roles, must_have, avoid, preferences}
+- job_profile：{role_family, core_responsibilities, must_have_requirements}
 
 输出：{match_score, should_keep, match_reason, match_reasons, concerns, evidence}
 ```
@@ -42,9 +47,9 @@ user_invocable: true
 - 信息不足时保留 concerns，不要编造候选人能力或岗位内容。
 - 只保留 `should_keep: true` 的岗位。
 
-在非 Agent CLI 模式下，`src.matching.match_job_intent()` 提供同一套规则的 Python fallback。
+在非 Agent CLI 模式下，`src.matching.match_job_intent()` 提供保守 Python fallback。fallback 质量不等同于 Agent 语义判断。
 
-### Step 5: 深度评估（AI 主评，Python fallback）
+### Step 6: 深度评估（Agent 主评，Python fallback）
 对通过过滤的岗位，使用 `evaluate` prompt 进行深度评估：
 
 ```
@@ -57,10 +62,10 @@ user_invocable: true
 
 Python CLI 模式下，`src.matching.evaluate_job_fit()` 作为可测试 fallback，避免退回粗暴关键词评分。
 
-### Step 6: 生成报告
+### Step 7: 生成报告
 Agent 模式优先使用 `report` prompt 生成 Markdown 报告；CLI 模式使用 Python 模板渲染同样的评分和风险字段，保存到 `output/` 目录。
 
-### Step 7: 更新 Memory
+### Step 8: 更新 Memory
 调用 `update_memory` 工具，将处理过的岗位写入 `memory/seen_jobs.md`。
 
 ## 输出格式

@@ -2,6 +2,10 @@
 
 ## Agent 工作流程
 
+SmartJobHunter 是 agent-platform 项目。Python 只负责抓取、文本抽取、确定性过滤、fallback 粗评分和报告落盘；简历画像、岗位画像、语义过滤、最终匹配判断和修复分析由当前 Claude/Codex Agent 执行。
+
+项目不只面向产品经理。产品经理只是示例 profile。真实目标岗位必须从 `profiles/*.md` 的 `target_roles`、`must_have`、`avoid` 等字段读取。
+
 当用户请求运行求职巡检时，Agent 应按以下步骤执行：
 
 ### Step 1: 读取配置
@@ -18,29 +22,36 @@
 python -m src.crawler_factory --crawl <company_id> --keyword "关键词"
 ```
 
-### Step 3: 三层过滤
+### Step 3: 候选人画像
+```
+1. 读取简历原文
+2. 使用 .claude/skills/jobhunter/prompts/build_candidate_profile.md 生成 candidate_profile
+3. 每个能力点必须有简历证据；信息不足写入 missing_or_unclear
+```
+
+### Step 4: 三层过滤
 ```
 第一层 - 时间过滤：只保留最近N天的岗位（默认3天）
 第二层 - 去重过滤：排除 seen_jobs.md 中已有的岗位
-第三层 - 关键词过滤：匹配标题/职责中的关键词
+第三层 - 语义意向匹配：结合 target_roles、must_have、avoid、候选人画像、岗位职责/要求和风险信号判断是否保留
 ```
 
-### Step 4: AI 评估
+### Step 5: 岗位画像与 AI 评估
 ```
 对每个通过过滤的岗位，Agent 进行深度评估：
-1. 匹配度评分 (0-100)
-2. 匹配理由
-3. 缺失技能/风险
+1. 使用 .claude/skills/jobhunter/prompts/analyze_job.md 生成 job_profile
+2. 使用 .claude/skills/jobhunter/prompts/match_candidate_job.md 评估匹配度 (0-100)
+3. 输出 JD 证据、简历证据、缺失技能/风险
 4. 公司背调（可选）
 ```
 
-### Step 5: 生成报告
+### Step 6: 生成报告
 ```
 将评估结果写入 output/ 目录的 Markdown 文件
 格式：{日期}_{意向名称}.md
 ```
 
-### Step 6: 更新去重数据库
+### Step 7: 更新去重数据库
 ```
 将处理过的岗位追加到 memory/seen_jobs.md
 ```
@@ -65,21 +76,22 @@ python -m src.health_monitor --check <id>         # 检测单个爬虫
 python -m src.health_monitor --check-all          # 检测所有爬虫
 ```
 
-## 自愈系统
+## 健康检测与 Agent 辅助修复
 
-当爬虫失败时，系统自动执行：
+当爬虫失败时，Python 只做健康检测、诊断和证据生成；Agent 负责分析和修复决策：
 
 1. **健康检测** (`health_monitor.py`) - 诊断失败原因
-2. **自动分析** (`auto_analyzer.py`) - 分析新公司/修复API
-3. **用户通知** (`notifier.py`) - 通知修复结果
+2. **证据采集** (`crawler_evidence.py`) - 记录页面、XHR/fetch、候选 data_path 和字段样例
+3. **Agent 分析** - 判断 URL、API pattern、data_path、field mapping、登录/反爬或无岗位问题
+4. **用户通知** (`notifier.py`) - 通知修复结果
 
 ### 失败类型处理
 
-| 类型 | 自动修复 | 处理方式 |
+| 类型 | Python 自动修复 | Agent 处理方式 |
 |------|:--------:|----------|
 | 网络错误 | ❌ | 稍后重试 |
-| API变化 | ✅ | 重新分析API |
-| URL失效 | ✅ | 搜索新URL |
+| API变化 | ❌ | 读取证据后修改 API pattern / data_path / field_mappings |
+| URL失效 | ❌ | 搜索新 URL 并验证 |
 | 需要登录 | ❌ | 通知用户 |
 | 反爬拦截 | ❌ | 调整频率 |
 
@@ -101,9 +113,44 @@ python -m src.health_monitor --check-all          # 检测所有爬虫
 
 ## 文件管理规范
 
+### 项目优化记录
+
+功能优化过程记录在本地私有文档 `docs/optimization-log.md`，该文件不提交到 GitHub。
+
+只有在功能优化的开发计划已经讨论并确认后，才更新该文档；只是提出想法、整理 roadmap、讨论可能方向时不更新。
+
+当改动属于已确认要执行的功能优化时，需要同步记录：
+
+1. **问题** - 发现了什么具体问题
+2. **方案** - 采用了什么策略或实现
+3. **效果** - 行为变化、验证方式和结果
+4. **后续** - 还需要观察或继续优化的点
+
+需要更新优化记录的情况：
+
+- 调整岗位筛选、语义匹配、评分、排序、报告生成、投递建议等核心产品行为
+- 新增或重构会改变用户使用方式的功能
+- 对现有功能做策略优化，并改变结果质量、覆盖范围、误判率或使用体验
+
+不需要更新优化记录的情况：
+
+- 只是提出想法、讨论方向，或还没有确认开发计划
+- 只修 bug，且没有改变产品策略
+- 只更新 README、注释、格式或普通文案
+- 只做配置安全、Git 历史、依赖、测试环境等工程卫生清理
+- 只补测试，且不改变功能行为
+
 ### 飞书推送配置
 
-每日扫描结果自动推送到飞书 Wiki，配置位于 `config/agent.yaml`：
+每日扫描结果可推送到飞书 Wiki / 多维表格。
+
+Git 只提交示例配置 `config/agent.sample.yaml`；真实配置必须复制到本地 `config/agent.yaml`，该文件已被 `.gitignore` 忽略，禁止提交到 GitHub。
+
+```powershell
+Copy-Item config\agent.sample.yaml config\agent.yaml
+```
+
+本地 `config/agent.yaml` 示例：
 
 ```yaml
 feishu:
@@ -137,7 +184,7 @@ feishu:
 **删除方式：**
 ```bash
 # 使用 PowerShell 进回收站（可恢复）
-powershell -Command "Remove-Item -Path '文件路径' -Force"
+powershell -Command "Remove-Item -LiteralPath '文件路径' -Force"
 ```
 
 **禁止使用 `rm` 命令**（永久删除，不可恢复）
@@ -154,7 +201,7 @@ SmartJobHunter/
 ├── output/           # 输出报告（自动生成）
 ├── logs/             # 日志文件（自动生成）
 ├── tests/            # 测试文件（长期保留）
-└── docs/             # 文档（长期保留）
+└── docs/             # 文档（长期保留，含 optimization-log.md）
 ```
 
 ## Bug修复流程
@@ -165,3 +212,5 @@ SmartJobHunter/
 2. **Review** - 检查方案合理性
 3. **执行测试** - 验证修复效果
 4. **清理临时文件** - 删除一次性脚本和输出
+
+如果只是修 bug，不需要更新 `docs/optimization-log.md`；只有当修复同时改变了筛选、评分、推荐或用户工作流等功能策略时，才需要补充优化记录。

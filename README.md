@@ -66,7 +66,8 @@ The system can analyze:
 
 - Monitor roles across multiple company career sites
 - Filter duplicate and low-relevance openings
-- Score job fit based on resume evidence
+- Support different resumes and target roles, not only product-manager profiles
+- Score job fit based on resume evidence, target profile, and JD evidence
 - Output match reasons, supporting evidence, and risk warnings
 - Generate structured job reports for faster application decisions
 
@@ -98,16 +99,17 @@ The system can analyze:
 
 | Feature | Description |
 |:---:|:---|
-| 🤖 **Agent-Driven** | LLM-powered intelligent job matching and evaluation |
+| 🤖 **Agent-Driven** | The current Claude/Codex agent builds candidate profiles, job profiles, fit judgments, and explanations |
+| 🎯 **General Profiles** | Supports product, data, engineering, and other target roles; product manager is only an example profile |
 | 🎯 **Multi-Profile** | Support multiple job directions with independent resume inspection |
 | 📄 **Multi-Format Resume** | Support txt, md, docx, pdf, png, jpg formats |
 | 🔍 **Smart Filtering** | Three-layer funnel: Time → Dedup → semantic intent match |
-| 📊 **AI Evaluation** | Rule-guided scoring (0-100) + evidence-based match reasons |
+| 📊 **AI Evaluation** | Agent judgment + Python fallback coarse scoring (0-100) + evidence-based match reasons |
 | 📊 **Job Classification** | Distinguish internship/campus/social recruitment |
 | ⏰ **Scheduled Execution** | Daily automatic inspection at 20:00 |
-| 🔧 **Self-Healing** | Automatic crawler health monitoring and repair |
-| 🏢 **56 Companies** | 42 enabled crawlers with verified API patterns |
-| ⚙️ **Config-Driven** | Add new companies without writing code |
+| 🔧 **Health Repair** | Crawler health monitoring with Agent-assisted repair |
+| 🏢 **Company Sites** | Enabled company configs are validated by current test results |
+| ⚙️ **Config-Driven** | Prefer config-driven company support; special sites may still need code adapters |
 
 ## 🚀 Quick Start
 
