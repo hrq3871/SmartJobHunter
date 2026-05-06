@@ -6,6 +6,28 @@ SmartJobHunter 是 agent-platform 项目。Python 只负责抓取、文本抽取
 
 项目不只面向产品经理。产品经理只是示例 profile。真实目标岗位必须从 `profiles/*.md` 的 `target_roles`、`must_have`、`avoid` 等字段读取。
 
+`CLAUDE.md` 和 `AGENTS.md` 面向不同 AI 平台，但必须表达同一套规则。更新其中一个文件时，要同步另一个文件，避免 Claude、Codex 或其他 agent 读到不同工作流。
+
+## Python 过滤与 Agent 判断的关系
+
+不要废掉原有“已爬取岗位过滤”设计。它是工具链的一部分，用来把官网岗位变成可处理的候选集：
+
+1. `filters.filter_by_time`：按 `time_filter_days` 做时间过滤。
+2. `filters.dedup`：按 `memory/seen_jobs.md` 去重。
+3. `filters.clean_data`：清洗和截断 JD。
+4. `matching.match_job_intent`：根据 profile 做 fallback 意向过滤。
+5. `matching.evaluate_job_fit`：根据 profile、JD、简历文本做 fallback 粗评分。
+6. `_rank_and_filter_results`：按 `threshold_score` 和 `max_jobs_per_report` 控制报告输出。
+7. `filters.update_memory`：记录已处理岗位，避免重复报告。
+
+Agent 的作用不是替换这些步骤，而是把它们纳入判断闭环：
+
+- 运行前：从简历和求职目标补全 profile，确认 `target_roles`、`target_domains`、`must_have`、`nice_to_have`、`avoid` 是否覆盖真实方向。
+- 抓取时：根据 profile 选择搜索关键词。目标较宽时，不要只依赖单个关键词；可用 `python -m src.crawler_factory --crawl <company_id> --keyword "<关键词>" --max-jobs 10` 对多个代表关键词抽样。
+- 过滤后：不要把 Python fallback 分数当成最终结论。Agent 必须检查报告岗位是否有 JD 证据、简历证据和 profile 目标三者闭环。
+- 结果异常时：如果出现“没有岗位”“岗位很机械”“明显不匹配岗位进入报告”，先用原始抓取样本对比过滤结果，判断问题出在关键词、profile、过滤阈值、字段映射还是 JD 质量。
+- 收尾前：至少用 3 家公司做真实官网验证，并人工评估抽样岗位是否符合目标。
+
 当用户请求运行求职巡检时，Agent 应按以下步骤执行：
 
 ### Step 1: 读取配置
@@ -35,6 +57,8 @@ python -m src.crawler_factory --crawl <company_id> --keyword "关键词"
 第二层 - 去重过滤：排除 seen_jobs.md 中已有的岗位
 第三层 - 语义意向匹配：结合 target_roles、must_have、avoid、候选人画像、岗位职责/要求和风险信号判断是否保留
 ```
+
+第三层目前由 Python fallback 先执行，Agent 需要复核结果质量。不要因为 CLI 输出为空就直接判断“没有合适岗位”；应抽查同一公司、同一关键词下的原始抓取结果，确认是否是搜索词、profile 或过滤阈值导致的漏召回。
 
 ### Step 5: 岗位画像与 AI 评估
 ```
