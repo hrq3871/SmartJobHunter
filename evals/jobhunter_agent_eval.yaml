@@ -1,0 +1,296 @@
+version: 1
+name: SmartJobHunter Agent Evaluation
+description: >
+  Offline regression dataset for the SmartJobHunter agent workflow.
+  It covers crawler strategy routing, job intent filtering, resume fit scoring,
+  URL/output quality, application package generation, and agent instruction drift.
+
+cases:
+  - id: match_ai_solution_pm_should_keep
+    type: matching_intent
+    attribution: matching_filtering
+    profile:
+      target_roles: ["AI产品经理", "AI应用产品", "AI解决方案产品经理"]
+      target_domains: ["大模型应用", "Agent", "AI解决方案"]
+      must_have: ["产品规划", "需求分析", "AI产品"]
+      avoid: ["运营", "销售", "客服", "标注"]
+      locations: ["北京", "上海", "深圳"]
+    job:
+      title: "AI解决方案产品经理"
+      company: "Example"
+      location: "北京"
+      category: "产品"
+      duty: "负责面向企业客户的大模型应用产品规划、需求分析、方案设计和落地交付。"
+      requirement: "需要 AI 产品经验，理解客户业务场景、Agent 工作流和跨团队协作。"
+    expected:
+      should_keep: true
+      min_match_score: 0.6
+
+  - id: match_ai_product_ops_should_reject
+    type: matching_intent
+    attribution: matching_filtering
+    profile:
+      target_roles: ["AI产品经理", "AI应用产品", "AI解决方案产品经理"]
+      target_domains: ["大模型应用", "Agent", "AI解决方案"]
+      must_have: ["产品规划", "需求分析", "AI产品"]
+      avoid: ["运营", "销售", "客服", "标注"]
+    job:
+      title: "AI产品运营"
+      company: "Example"
+      location: "北京"
+      category: "运营"
+      duty: "负责 AI 产品用户运营、活动运营、内容配置和数据看板跟进。"
+      requirement: "有运营经验，能推动用户增长和活动转化。"
+    expected:
+      should_keep: false
+      max_match_score: 0.59
+
+  - id: match_engineering_noise_should_reject_product_profile
+    type: matching_intent
+    attribution: matching_filtering
+    profile:
+      intent: "寻找 AI 产品经理岗位，偏好大模型应用和 ToB SaaS。"
+      keywords: ["产品经理", "AI产品", "B端"]
+      exclude_keywords: ["工程师", "算法", "开发", "架构师", "研发", "测试"]
+    job:
+      title: "AI数据工程师"
+      company: "Example"
+      location: "北京"
+      category: "技术"
+      duty: "负责大模型数据平台建设，参与业务需求分析和数据治理，支持 B端 AI 产品落地。"
+      requirement: "需要 Python、SQL、数据仓库和模型训练经验，有研发背景优先。"
+    expected:
+      should_keep: false
+      max_match_score: 0.59
+
+  - id: match_data_analyst_general_profile_should_keep
+    type: matching_intent
+    attribution: matching_filtering
+    profile:
+      name: "数据分析"
+      target_roles: ["数据分析师"]
+      must_have: ["SQL", "Python", "指标分析"]
+      avoid: ["销售", "电话销售"]
+    job:
+      title: "数据分析实习生"
+      company: "Example"
+      location: "上海"
+      category: "数据"
+      duty: "负责 SQL 取数、指标分析和看板建设。"
+      requirement: "熟悉 Python 和数据分析项目。"
+    expected:
+      should_keep: true
+      min_match_score: 0.6
+
+  - id: fit_ai_agent_pm_resume_should_apply
+    type: job_fit
+    attribution: recommendation_quality
+    profile:
+      intent: "寻找 AI Agent 和大模型应用方向的产品经理岗位，偏好 ToB SaaS。"
+      keywords: ["AI产品", "大模型", "Agent", "ToB"]
+    resume: |
+      5年 ToB SaaS 产品经验，主导企业知识库 AI 助手从0到1上线。
+      负责需求分析、PRD、跨部门推进和客户访谈，搭建数据看板优化转化率。
+      熟悉 LLM 应用、RAG、Agent 工作流和产品指标体系。
+    job:
+      title: "大模型 Agent 产品经理"
+      company: "Example"
+      location: "北京"
+      category: "产品"
+      duty: "负责大模型 Agent 产品规划、需求分析和商业化落地。"
+      requirement: "需要 ToB 产品经验、LLM 应用理解、数据分析和跨团队推动能力。"
+    expected:
+      min_score: 80
+      recommendation_in: ["strong_apply", "apply"]
+
+  - id: fit_title_only_ai_should_not_be_strong_apply
+    type: job_fit
+    attribution: recommendation_quality
+    profile:
+      intent: "寻找 AI 产品经理岗位，偏好大模型应用和 Agent 方向。"
+      keywords: ["AI", "大模型", "Agent"]
+    resume: |
+      4年产品经理经验，负责需求分析、PRD和跨团队上线。
+      主导过企业知识库 AI 助手，熟悉 LLM、RAG、Agent 工作流和产品指标。
+    job:
+      title: "AI 产品经理"
+      company: "Example"
+      location: "北京"
+      category: "产品"
+      duty: "负责内部工具的需求收集、PRD撰写、版本排期和用户反馈跟进。"
+      requirement: "需要产品经理经验，具备沟通协调能力和项目推动经验。"
+    expected:
+      max_score: 79
+      recommendation_not_in: ["strong_apply"]
+
+  - id: strategy_verified_unchanged_should_crawl
+    type: strategy_action
+    attribution: crawler_strategy
+    company:
+      id: "verified_company"
+      name: "Verified Company"
+      strategy:
+        status: "verified"
+        type: "config_intercept"
+        fingerprint: "abc"
+    inspection:
+      ok: true
+      signals: []
+      fingerprint: "abc"
+    expected:
+      action: "crawl"
+      requires_agent: false
+
+  - id: strategy_unknown_should_collect_evidence
+    type: strategy_action
+    attribution: crawler_strategy
+    company:
+      id: "unknown_company"
+      name: "Unknown Company"
+      strategy:
+        status: "unknown"
+    inspection:
+      ok: true
+      signals: []
+      fingerprint: "new"
+    expected:
+      action: "collect_evidence"
+      requires_agent: true
+
+  - id: strategy_fingerprint_change_should_collect_evidence
+    type: strategy_action
+    attribution: crawler_strategy
+    company:
+      id: "changed_company"
+      name: "Changed Company"
+      strategy:
+        status: "verified"
+        type: "config_intercept"
+        fingerprint: "old"
+    inspection:
+      ok: true
+      signals: []
+      fingerprint: "new"
+    expected:
+      action: "collect_evidence"
+      requires_agent: true
+      reason_contains: "fingerprint_changed"
+
+  - id: strategy_login_required_should_block
+    type: strategy_action
+    attribution: crawler_strategy
+    company:
+      id: "login_company"
+      name: "Login Company"
+      strategy:
+        status: "unknown"
+    html: "<html>请登录后查看职位</html>"
+    inspection:
+      ok: true
+      fingerprint: "login"
+    expected:
+      action: "blocked"
+      requires_agent: false
+      block_type: "login_required"
+
+  - id: strategy_generic_login_button_should_not_block
+    type: strategy_action
+    attribution: crawler_strategy
+    company:
+      id: "public_jobs_company"
+      name: "Public Jobs Company"
+      strategy:
+        status: "unknown"
+    html: "<html><button class='loginBtn'>登录</button><div>职位列表</div></html>"
+    text: "登录\n社会招聘\nAI产品经理 岗位 职位列表"
+    inspection:
+      ok: true
+      fingerprint: "public"
+    expected:
+      action: "collect_evidence"
+      requires_agent: true
+      signal_absent: "login_required"
+
+  - id: url_filter_should_drop_empty_and_unavailable
+    type: url_filter
+    attribution: output_quality
+    jobs:
+      - title: "valid"
+        company: "A"
+        url: "https://example.com/ok"
+        mock_available: true
+      - title: "missing"
+        company: "B"
+        url: "https://example.com/404"
+        mock_available: false
+      - title: "empty"
+        company: "C"
+        url: ""
+        mock_available: false
+    evaluations:
+      - score: 90
+      - score: 88
+      - score: 80
+    expected:
+      kept_titles: ["valid"]
+
+  - id: application_package_should_generate_top3_letters
+    type: application_package
+    attribution: output_quality
+    profile:
+      name: "AI产品经理"
+      _profile_id: "eval_ai_pm"
+      _resume_content: "5年 ToB SaaS 产品经验，主导 AI 助手从0到1上线，负责需求分析和产品规划。"
+    jobs:
+      - title: "AI产品经理"
+        company: "A公司"
+        duty: "负责 AI 产品规划和需求分析。"
+        requirement: "需要 ToB 产品经验。"
+        url: "https://example.com/a"
+      - title: "AI解决方案产品经理"
+        company: "B公司"
+        duty: "负责客户场景方案设计。"
+        requirement: "熟悉大模型应用。"
+        url: "https://example.com/b"
+      - title: "Agent产品经理"
+        company: "C公司"
+        duty: "负责 Agent 工作流产品。"
+        requirement: "有产品落地经验。"
+        url: "https://example.com/c"
+      - title: "普通产品经理"
+        company: "D公司"
+        duty: "负责通用产品。"
+        requirement: "沟通能力强。"
+        url: "https://example.com/d"
+    evaluations:
+      - score: 95
+        match_reasons: ["AI 产品方向匹配"]
+      - score: 92
+        match_reasons: ["解决方案经验匹配"]
+      - score: 88
+        match_reasons: ["Agent 方向匹配"]
+      - score: 70
+        match_reasons: ["一般匹配"]
+    expected:
+      cover_letter_count: 3
+      required_text: ["A公司", "AI产品经理", "ToB SaaS"]
+
+  - id: agent_docs_should_match_current_workflow
+    type: instruction_alignment
+    attribution: instruction_drift
+    files:
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - ".claude/skills/jobhunter/skill.md"
+    expected:
+      required_text:
+        - "STRATEGY_INSPECTED"
+        - "URL_VALIDATED"
+        - "PACKAGED"
+        - "python -m src.health_monitor --inspect-strategies"
+        - "python -m src.scheduler --feishu-push status"
+        - "output/{YYYY-MM-DD}/"
+      forbidden_text:
+        - "自动自愈系统"
+        - "output/{profile_id}_{YYYYMMDD_HHMM}.md"
+        - "output/20260410"

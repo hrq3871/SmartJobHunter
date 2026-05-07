@@ -14,6 +14,12 @@ SmartJobHunter 是 agent-platform 项目。Python 只负责抓取、文本抽取
 
 每日任务顺序必须是：
 
+核心状态机：
+
+```text
+INIT → LOADED → STRATEGY_INSPECTED → CRAWLED → FILTERED → EVALUATED → URL_VALIDATED → REPORTED → PACKAGED → DONE
+```
+
 1. 读取 `config/companies.yaml` 中用户维护的 `links`/旧版 `urls`。
 2. 运行策略巡检：
    ```powershell
@@ -49,6 +55,7 @@ Python-only Windows 定时任务只能生成证据、任务和抓取可用公司
 7. 报告前强制校验岗位 URL，只保留可访问的真实链接，避免 AI 或网页数据带来 404 链接。
 8. `generate_application_package`：为 Top 3 岗位生成一键投递包和定制 Cover Letter。
 9. `filters.update_memory`：记录已处理岗位，避免重复报告。
+10. `src.evaluation`：用固定评测集回归检查策略路由、岗位过滤、投递包、链接质量和 Agent 指令漂移。
 
 Agent 的作用不是替换这些步骤，而是把它们纳入判断闭环：
 
@@ -142,6 +149,10 @@ python -m src.scheduler --schedule --push   # 可选：巡检后执行 Git commi
 python -m src.scheduler --feishu-push status
 python -m src.scheduler --feishu-push on
 python -m src.scheduler --feishu-push off
+
+# Agent 评估
+python -m src.evaluation
+python -m src.evaluation --fail-under 0.9
 ```
 
 ## 健康检测与 Agent 策略任务
@@ -162,6 +173,24 @@ python -m src.scheduler --feishu-push off
 | URL失效 | ❌ | 搜索新 URL 并验证 |
 | 需要登录 | ❌ | 通知用户 |
 | 反爬拦截 | ❌ | 调整频率 |
+
+## Agent 评估体系
+
+每次改动抓取、过滤、评分、报告、投递包或 Agent 指令时，都要运行：
+
+```powershell
+python -m src.evaluation
+```
+
+评估体系按五类问题归因：
+
+1. **crawler_strategy**：新链接、链接变化、登录/验证码/反爬时，是否正确选择 crawl、collect_evidence 或 blocked。
+2. **matching_filtering**：岗位是否按 profile 语义保留或拒绝，不能只靠关键词。
+3. **recommendation_quality**：分数、推荐等级和简历证据是否合理。
+4. **output_quality**：报告前 URL 校验、一键投递包和 Cover Letter 是否完整。
+5. **instruction_drift**：`AGENTS.md`、`CLAUDE.md`、`.claude/skills/jobhunter/skill.md` 是否表达同一套流程。
+
+评估输出写入 `output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS}/`。这个目录是本地运行产物，不提交 Git。
 
 ## 支持的公司
 
@@ -214,7 +243,7 @@ python -m src.scheduler --feishu-push off
 
 飞书推送链路在 `src.cli.JobHunter.run_profile()` 内部：
 
-1. `generate_report()` 写入 `output/{profile_id}_{YYYYMMDD_HHMM}.md`。
+1. `generate_report()` 写入 `output/{YYYY-MM-DD}/{profile_id}_{YYYYMMDD_HHMM}.md`。
 2. `src.feishu_push.push_to_feishu()` 读取 `config/agent.yaml`，在 `feishu.enabled: true` 且存在 `wiki_node_token` 时推送 Wiki。
 3. `src.feishu_bitable.add_jobs_to_bitable()` 在存在 `bitable_token` 和 `bitable_table_id` 时写入多维表格。
 

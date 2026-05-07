@@ -19,7 +19,7 @@ user_invocable: true
 ## 状态机流程
 
 ```
-INIT → LOADED → STRATEGY_INSPECTED → CRAWLED → FILTERED → EVALUATED → REPORTED → DONE
+INIT → LOADED → STRATEGY_INSPECTED → CRAWLED → FILTERED → EVALUATED → URL_VALIDATED → REPORTED → PACKAGED → DONE
 ```
 
 ---
@@ -154,18 +154,46 @@ matched_jobs = [
 
 ### EVALUATED
 
-**目标**: 生成报告
+**目标**: 校验岗位详情链接
 
 **执行动作**:
-1. 按评分从高到低排序 evaluations
-2. 执行报告生成 (使用 report prompt)
-3. 保存到 `output/{profile_id}_{YYYYMMDD_HHMM}.md`
+1. 按评分从高到低排序 evaluations。
+2. 生成报告前校验岗位详情 URL。
+3. 空链接、404、不可访问链接不要进入最终报告或飞书。
+4. 如果链接校验后没有岗位，停止报告生成并说明原因。
+
+**状态转换**: → URL_VALIDATED
+
+---
+
+### URL_VALIDATED
+
+**目标**: 生成日期归档报告
+
+**执行动作**:
+1. 执行报告生成（使用 report prompt）。
+2. 保存到 `output/{YYYY-MM-DD}/{profile_id}_{YYYYMMDD_HHMM}.md`。
+3. 如果 `config/agent.yaml` 中 `feishu.enabled: true` 且 token 完整，可推送到飞书 Wiki/多维表格。
+4. 飞书推送开关命令：`python -m src.scheduler --feishu-push status`、`python -m src.scheduler --feishu-push on`、`python -m src.scheduler --feishu-push off`。
 
 **状态转换**: → REPORTED
 
 ---
 
 ### REPORTED
+
+**目标**: 生成 Top 3 投递包
+
+**执行动作**:
+1. 为评分最高的 3 个岗位生成 `index.md` 和 `cover_letter_*.md`。
+2. 路径为 `output/{YYYY-MM-DD}/application_packages/{profile_id}_{YYYYMMDD_HHMM}/`。
+3. Cover Letter 必须结合公司、岗位、JD 证据、简历证据和风险点，不要写通用模板。
+
+**状态转换**: → PACKAGED
+
+---
+
+### PACKAGED
 
 **目标**: 更新 Memory
 
@@ -182,7 +210,8 @@ matched_jobs = [
 **输出**:
 ```
 ✅ 巡检完成
-📄 报告: output/20260410_产品经理-TOB方向.md
+📄 报告: output/2026-05-07/pm_tob_20260507_2000.md
+📦 投递包: output/2026-05-07/application_packages/pm_tob_20260507_2000/
 📊 匹配岗位: 5 个
 🎯 最高分: 腾讯-AI产品经理 (89分)
 ```
@@ -197,9 +226,23 @@ matched_jobs = [
 [CRAWLED] ✓ 抓取完成 (50 个岗位)
 [FILTERED] ✓ 过滤完成 (时间:50 → 去重:45 → 语义:12)
 [EVALUATED] ✓ 评估完成 (12 个岗位)
-[REPORTED] ✓ 报告生成: output/20260410_产品经理-TOB方向.md
+[URL_VALIDATED] ✓ 链接校验完成 (12 → 10)
+[REPORTED] ✓ 报告生成: output/2026-05-07/pm_tob_20260507_2000.md
+[PACKAGED] ✓ 投递包生成: output/2026-05-07/application_packages/pm_tob_20260507_2000/
 [DONE] ✅ 巡检完成
 ```
+
+---
+
+## 评估命令
+
+每次修改抓取策略、岗位过滤、评分、报告、投递包或本 skill 文档后，运行：
+
+```powershell
+python -m src.evaluation
+```
+
+评估结果写入 `output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS}/`，用于检查策略路由、岗位匹配、输出质量和 Agent 指令漂移。
 
 ---
 

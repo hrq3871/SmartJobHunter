@@ -72,6 +72,7 @@
 - 为 Top 3 高匹配岗位生成一键投递包和定制 Cover Letter
 - 每日任务会主动巡检公司官网链接和抓取策略，为 Agent 修复提供证据
 - 可选把每日跑完结果推送到飞书 Wiki 和多维表格
+- 提供离线 Agent 评估集，回归检查策略路由、岗位匹配、输出质量和指令漂移
 
 ## 规划中的能力
 
@@ -114,6 +115,7 @@
 | ⚙️ **配置驱动** | 优先通过配置添加公司，特殊站点可能需要代码适配 |
 | 📦 **一键投递包** | 链接校验后为 Top 3 岗位生成定制 Cover Letter |
 | 🗂️ **日期归档** | 报告和投递包按运行日期保存 |
+| 🧪 **Agent 评估** | 用固定评测集衡量抓取策略、匹配过滤、输出质量和 Agent 指令一致性 |
 
 ## 🚀 快速开始
 
@@ -368,9 +370,15 @@ pytest -q -p no:cacheprovider -m "not integration"
 
 # 仅运行匹配/评分测试
 pytest -q -p no:cacheprovider tests/test_matching.py
+
+# Agent 工作流评估
+python -m src.evaluation
 ```
 
 集成爬虫测试需要浏览器和网络访问，并使用 `integration` 标记。
+
+Agent 评估使用 `evals/jobhunter_agent_eval.yaml`，本地报告写入 `output/evals/YYYY-MM-DD/`。
+它对应“三层评估体系”：覆盖核心场景的数据评测集、可量化指标、bad case 归因。详见 `docs/agent-evaluation-plan.md`。
 
 ### 爬虫命令
 

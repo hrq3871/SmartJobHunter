@@ -74,6 +74,7 @@ The system can analyze:
 - Generate a Top 3 application package with JD-specific Cover Letters
 - Run daily career-site strategy inspection and create evidence packages for Agent-side fixes
 - Optionally push finished daily results to Feishu Wiki and Bitable
+- Run an offline Agent evaluation suite for strategy routing, matching quality, output quality, and instruction drift
 
 ## Planned Capabilities
 
@@ -116,6 +117,7 @@ The system can analyze:
 | ⚙️ **Config-Driven** | Prefer config-driven company support; special sites may still need code adapters |
 | 📦 **Application Package** | Generate Top 3 JD-specific Cover Letters after link validation |
 | 🗂️ **Date Archives** | Reports and application packages are stored by run date |
+| 🧪 **Agent Evaluation** | Regression dataset and metrics for crawler strategy, matching, output quality, and Agent instructions |
 
 ## 🚀 Quick Start
 
@@ -370,9 +372,15 @@ pytest -q -p no:cacheprovider -m "not integration"
 
 # Matching/scoring tests only
 pytest -q -p no:cacheprovider tests/test_matching.py
+
+# Agent workflow evaluation
+python -m src.evaluation
 ```
 
 Integration crawler tests require browser/network access and are marked with `integration`.
+
+Agent evaluation uses `evals/jobhunter_agent_eval.yaml` and writes local reports to `output/evals/YYYY-MM-DD/`.
+It follows a three-layer evaluation model: coverage dataset, quantitative metrics, and bad-case attribution. See `docs/agent-evaluation-plan.md`.
 
 ### Crawler Commands
 
