@@ -1,411 +1,190 @@
-# SmartJobHunter Agent 操作指南
+# SmartJobHunter AI 操作规范
 
-## Agent 工作流程
+本文档是 Codex/Agent 在本项目中的项目级规则。完整系统设计见 `docs/smartjobhunter-agent-design.md`；具体求职巡检执行架构见 `.claude/skills/jobhunter/skill.md`；README 只保留对外介绍和常用入口。
 
-SmartJobHunter 是 agent-platform 项目。Python 只负责抓取、文本抽取、确定性过滤、fallback 粗评分和报告落盘；简历画像、岗位画像、语义过滤、最终匹配判断和修复分析由当前 Claude/Codex Agent 执行。
+`CLAUDE.md` 和 `AGENTS.md` 必须表达同一套规则。更新其中一个文件时，必须同步另一个文件，并运行 instruction alignment 相关评估。
 
-项目不只面向产品经理。产品经理只是示例 profile。真实目标岗位必须从 `profiles/*.md` 的 `target_roles`、`must_have`、`avoid` 等字段读取。
-
-`CLAUDE.md` 和 `AGENTS.md` 面向不同 AI 平台，但必须表达同一套规则。更新其中一个文件时，要同步另一个文件，避免 Claude、Codex 或其他 agent 读到不同工作流。
-
-## 每日官网链接巡检与策略固化
-
-这是项目原始设计的关键路径：用户只维护公司官网/招聘链接，Agent 负责在每日任务中主动发现新链接、失效链接、策略变化和需要登录/反爬的问题。Python 不调用外部 LLM API；当前 Claude/Codex Agent 根据证据包进行分析和代码/配置修改。
-
-每日任务顺序必须是：
-
-核心状态机：
+## 文档分层
 
 ```text
-INIT → LOADED → STRATEGY_INSPECTED → CRAWLED → FILTERED → EVALUATED → URL_VALIDATED → REPORTED → PACKAGED → DONE
++--------------------------------------+-----------------------------------------+
+| 文件                                 | 用途                                    |
++--------------------------------------+-----------------------------------------+
+| README.md / README_CN.md              | 对外介绍、快速开始、常用命令            |
+| docs/smartjobhunter-agent-design.md   | 内部完整设计和架构说明                  |
+| CLAUDE.md / AGENTS.md                 | AI 项目级规则和操作边界                 |
+| .claude/skills/jobhunter/skill.md     | JobHunter Agent 具体执行流程            |
+| .claude/skills/jobhunter/prompts/     | 候选人画像、岗位画像、匹配判断 prompts |
+| src/evaluation.py                     | 机器评估 harness                        |
++--------------------------------------+-----------------------------------------+
 ```
 
-1. 读取 `config/companies.yaml` 中用户维护的 `links`/旧版 `urls`。
-2. 运行策略巡检：
-   ```powershell
-   python -m src.health_monitor --inspect-strategies --keyword "产品经理" --job-type social
-   ```
-3. 对 `unknown/new/changed/failed` 策略，读取生成的 `logs/strategy_tasks/.../task.json` 和 `logs/crawler_evidence/...` 证据包。
-4. 当前 Agent 判断站点类型：
-   - `config_intercept`：稳定 XHR/fetch API，可写入 `api.pattern`、`api.data_path`、`field_mappings`。
-   - `config_dom`：无稳定 API，但 DOM selector 可复现。
-   - `legacy_python`：保留旧 `src.crawler` 中已经固化的手写逻辑。
-   - `custom_python`：新建或更新 `src/site_strategies/*.py`。
-   - `browser_operation`：只能通过可复现浏览器操作抓取，需记录步骤和限制。
-   - `unsupported`：登录、验证码、强反爬、信息不足或不可解析。
-5. Agent 可自动修改 `config/companies.yaml` 或 `src/site_strategies/*.py`，但修改后必须运行单公司验证：
-   ```powershell
-   python tests/test_all_crawlers.py --company <company_id> --keyword "产品经理" --max-jobs 3
-   ```
-6. 如果某家公司策略失败或被阻塞，跳过该公司，继续其他公司；最终汇总告诉用户哪些公司可抓、哪些生成了策略任务、哪些需要登录/验证码/人工处理。
-7. 只有策略可用的公司进入岗位抓取、过滤、匹配和报告。
+## Skill 使用规则
 
-Python-only Windows 定时任务只能生成证据、任务和抓取可用公司；如果要“AI 自动分析并修改策略”，必须由当前 Claude/Codex Agent 执行该任务，而不是只跑 `.bat`。
+当用户请求运行求职巡检、查找岗位、分析岗位是否适合、生成报告或投递包时，使用 `.claude/skills/jobhunter/skill.md` 作为具体流程说明。
 
-## Python 过滤与 Agent 判断的关系
+具体边界：
 
-不要废掉原有“已爬取岗位过滤”设计。它是工具链的一部分，用来把官网岗位变成可处理的候选集：
+- 完整巡检：按 jobhunter skill 的状态机执行。
+- 构建候选人画像：使用 `.claude/skills/jobhunter/prompts/build_candidate_profile.md`。
+- 分析岗位画像：使用 `.claude/skills/jobhunter/prompts/analyze_job.md`。
+- 判断候选人与岗位匹配：使用 `.claude/skills/jobhunter/prompts/match_candidate_job.md`。
+- 生成报告前：必须完成 `URL_VALIDATED`。
+- 生成投递包：必须进入 `PACKAGED`。
+- 修改抓取、过滤、评分、报告、投递包、Agent 文档或 prompt 后：必须运行评估。
 
-1. `filters.filter_by_time`：按 `time_filter_days` 做时间过滤。
-2. `filters.dedup`：按 `memory/seen_jobs.md` 去重。
-3. `filters.clean_data`：清洗和截断 JD。
-4. `matching.match_job_intent`：根据 profile 做 fallback 意向过滤。
-5. `matching.evaluate_job_fit`：根据 profile、JD、简历文本做 fallback 粗评分。
-6. `_rank_and_filter_results`：按 `threshold_score` 和 `max_jobs_per_report` 控制报告输出。
-7. 报告前强制校验岗位 URL，只保留可访问的真实链接，避免 AI 或网页数据带来 404 链接。
-8. `generate_application_package`：为 Top 3 岗位生成一键投递包和定制 Cover Letter。
-9. `filters.update_memory`：记录已处理岗位，避免重复报告。
-10. `src.evaluation`：用固定评测集回归检查策略路由、岗位过滤、投递包、链接质量和 Agent 指令漂移。
+## 职责边界
 
-Agent 的作用不是替换这些步骤，而是把它们纳入判断闭环：
+Python 负责：
 
-- 运行前：从简历和求职目标补全 profile，确认 `target_roles`、`target_domains`、`must_have`、`nice_to_have`、`avoid` 是否覆盖真实方向。
-- 抓取时：根据 profile 选择搜索关键词。目标较宽时，不要只依赖单个关键词；可用 `python -m src.crawler_factory --crawl <company_id> --keyword "<关键词>" --max-jobs 10` 对多个代表关键词抽样。
-- 过滤后：不要把 Python fallback 分数当成最终结论。Agent 必须检查报告岗位是否有 JD 证据、简历证据和 profile 目标三者闭环。
-- 生成结果前：必须确认岗位详情链接不是 404 或空链接，只把可访问链接写入报告和飞书。
-- 报告后：为 Top 3 匹配岗位生成一键投递包，每封 Cover Letter 必须结合公司、岗位、JD 证据和简历证据，不要写通用模板。
-- 结果异常时：如果出现“没有岗位”“岗位很机械”“明显不匹配岗位进入报告”，先用原始抓取样本对比过滤结果，判断问题出在关键词、profile、过滤阈值、字段映射还是 JD 质量。
-- 收尾前：至少用 3 家公司做真实官网验证，并人工评估抽样岗位是否符合目标。
+- 官网抓取、文本抽取、确定性过滤、fallback 粗评分。
+- URL 校验、报告落盘、投递包落盘、memory 更新。
+- 策略巡检、证据采集、评估 harness。
 
-当用户请求运行求职巡检时，Agent 应按以下步骤执行：
+当前 Claude/Codex Agent 负责：
 
-### Step 1: 读取配置
-```
-1. 读取 config/companies.yaml 获取公司配置
-2. 读取 profiles/ 目录下的求职意向配置
-3. 读取 resumes/ 目录下的简历文件
-4. 读取 memory/seen_jobs.md 获取已处理岗位
+- 从简历和求职目标构建候选人画像。
+- 分析岗位画像和语义匹配。
+- 复核 Python fallback 的高风险结果。
+- 根据证据包判断和固化抓取策略。
+- 修复代码、配置或文档后运行验证。
+
+Python 不调用外部 LLM API。需要 AI 判断的部分由当前 Claude/Codex Agent 在会话中执行。
+
+## 核心状态机
+
+完整状态机定义在 `.claude/skills/jobhunter/skill.md`。状态名必须保持一致：
+
+```text
+INIT -> LOADED -> STRATEGY_INSPECTED -> CRAWLED -> FILTERED -> EVALUATED -> URL_VALIDATED -> REPORTED -> PACKAGED -> DONE
 ```
 
-### Step 2: 抓取岗位数据
-```
-使用 crawler_factory 抓取岗位：
-python -m src.crawler_factory --crawl <company_id> --keyword "关键词"
-```
+## 必须运行评估的情况
 
-### Step 3: 候选人画像
-```
-1. 读取简历原文
-2. 使用 .claude/skills/jobhunter/prompts/build_candidate_profile.md 生成 candidate_profile
-3. 每个能力点必须有简历证据；信息不足写入 missing_or_unclear
-```
+修改以下内容后必须运行 regression eval。默认 regression 数据集是 `evals/regression/jobhunter_core.yaml`：
 
-### Step 4: 三层过滤
-```
-第一层 - 时间过滤：只保留最近N天的岗位（默认3天）
-第二层 - 去重过滤：排除 seen_jobs.md 中已有的岗位
-第三层 - 语义意向匹配：结合 target_roles、must_have、avoid、候选人画像、岗位职责/要求和风险信号判断是否保留
-```
+- 抓取策略
+- 岗位过滤
+- 匹配评分
+- 报告生成
+- Top 3 投递包
+- URL 校验
+- memory 更新
+- `CLAUDE.md`、`AGENTS.md`、`.claude/skills/jobhunter/skill.md`
+- `.claude/skills/jobhunter/prompts/*`
+- `src/evaluation.py`、`src/eval_graders.py`、`src/eval_transcript.py`
 
-第三层目前由 Python fallback 先执行，Agent 需要复核结果质量。不要因为 CLI 输出为空就直接判断“没有合适岗位”；应抽查同一公司、同一关键词下的原始抓取结果，确认是否是搜索词、profile 或过滤阈值导致的漏召回。
-
-### Step 5: 岗位画像与 AI 评估
-```
-对每个通过过滤的岗位，Agent 进行深度评估：
-1. 使用 .claude/skills/jobhunter/prompts/analyze_job.md 生成 job_profile
-2. 使用 .claude/skills/jobhunter/prompts/match_candidate_job.md 评估匹配度 (0-100)
-3. 输出 JD 证据、简历证据、缺失技能/风险
-4. 公司背调（可选）
-```
-
-### Step 6: 生成报告
-```
-将评估结果写入 output/ 目录的 Markdown 文件
-格式：output/{YYYY-MM-DD}/{profile_id}_{YYYYMMDD_HHMM}.md
-同时生成 Top 3 投递包：output/{YYYY-MM-DD}/application_packages/{profile_id}_{YYYYMMDD_HHMM}/
-```
-
-### Step 7: 更新去重数据库
-```
-将处理过的岗位追加到 memory/seen_jobs.md
-```
-
-## 常用命令
-
-```bash
-# 立即执行巡检
-python -m src.cli                    # 运行所有启用的意向
-python -m src.cli -t social          # 仅社招
-python -m src.cli -t internship      # 仅实习
-python -m src.cli -t campus          # 仅校招
-python -m src.cli -p "意向名称"       # 指定意向
-
-# 爬虫管理
-python -m src.crawler_factory --list              # 列出所有公司
-python -m src.crawler_factory --test <id>         # 测试爬虫
-python -m src.crawler_factory --crawl <id>        # 抓取指定公司
-
-# 健康检测
-python -m src.health_monitor --inspect-strategies # 每日策略巡检
-python -m src.health_monitor --inspect-company <id> --keyword "产品经理"
-python -m src.health_monitor --check <id>         # 检测单个爬虫
-python -m src.health_monitor --check-all          # 检测所有爬虫
-
-# 定时任务入口
-python -m src.scheduler --schedule
-python -m src.scheduler --schedule --push   # 可选：巡检后执行 Git commit/push 到远程仓库，不是飞书推送
-
-# 飞书推送开关（控制每日巡检报告是否写入飞书 Wiki / 多维表格）
-python -m src.scheduler --feishu-push status
-python -m src.scheduler --feishu-push on
-python -m src.scheduler --feishu-push off
-
-# Agent 评估
-python -m src.evaluation
-python -m src.evaluation --fail-under 0.9
-```
-
-## 健康检测与 Agent 策略任务
-
-当爬虫失败时，Python 只做健康检测、诊断和证据生成；Agent 负责分析和策略固化：
-
-1. **策略巡检** (`health_monitor.py`) - 检查链接、fingerprint、登录/验证码/反爬信号
-2. **证据采集** (`crawler_evidence.py`) - 记录页面、XHR/fetch、候选 data_path 和字段样例
-3. **Agent 分析** - 判断 URL、API pattern、data_path、field mapping、登录/反爬或无岗位问题
-4. **用户通知** (`notifier.py`) - 通知策略任务和阻塞原因
-
-### 失败类型处理
-
-| 类型 | Python 自动处理 | Agent 处理方式 |
-|------|:--------:|----------|
-| 网络错误 | ❌ | 稍后重试 |
-| API变化 | ❌ | 读取证据后修改 API pattern / data_path / field_mappings |
-| URL失效 | ❌ | 搜索新 URL 并验证 |
-| 需要登录 | ❌ | 通知用户 |
-| 反爬拦截 | ❌ | 调整频率 |
-
-## Agent 评估体系
-
-每次改动抓取、过滤、评分、报告、投递包或 Agent 指令时，都要运行：
+命令：
 
 ```powershell
 python -m src.evaluation --fail-under 1.0
 ```
 
-稳定性或发布前复核运行：
+大改、发布前或稳定性复核时运行：
 
 ```powershell
 python -m src.evaluation --trials 3 --fail-under 1.0
 ```
 
-能力边界诊断运行：
+能力边界诊断时运行：
 
 ```powershell
 python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 ```
 
-默认回归评测集是 `evals/regression/jobhunter_core.yaml`。旧的单文件评测入口已升级为 regression/capability 分层：regression 用于防倒退，capability 用于观察难例和能力边界。
-
-评估流程：
+评估输出：
 
 ```text
-+----------------+     +-------------------------+     +-------------+
-| 评测集 YAML    | --> | 评估 harness            | --> | Case runner |
-| regression /   |     | python -m src.evaluation|     | 逐 case 执行|
-| capability     |     +-------------------------+     +------+------+
-+----------------+                                          |
-                                                            |
-                         +----------------------------------+------------------+
-                         |                                                     |
-                         v                                                     v
-                  +---------------+                                  +-----------------+
-                  | Code graders  |                                  | Transcript JSONL|
-                  | pass / fail   |                                  | 可回放轨迹      |
-                  +-------+-------+                                  +--------+--------+
-                          |                                                   |
-                          v                                                   v
-                  +---------------+                                  +-----------------+
-                  | 指标聚合      |                                  | 失败定位证据    |
-                  +-------+-------+                                  +-----------------+
-                          |
-                          v
-                  +------------------------+
-                  | Markdown + JSON 报告   |
-                  +------------------------+
+output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/
+├── agent_eval_results.json
+├── agent_eval_report.md
+├── transcripts/<case_id>.jsonl
+├── artifacts/
+└── wf/
 ```
 
-评估体系按五类问题归因：
+`output/evals/` 是本地运行产物，不提交 Git。
 
-1. **crawler_strategy**：新链接、链接变化、登录/验证码/反爬时，是否正确选择 crawl、collect_evidence 或 blocked。
-2. **matching_filtering**：岗位是否按 profile 语义保留或拒绝，不能只靠关键词。
-3. **recommendation_quality**：分数、推荐等级和简历证据是否合理。
-4. **output_quality**：报告前 URL 校验、一键投递包和 Cover Letter 是否完整。
-5. **instruction_drift**：`AGENTS.md`、`CLAUDE.md`、`.claude/skills/jobhunter/skill.md` 是否表达同一套流程。
+巡检正式报告输出在 `output/{YYYY-MM-DD}/`。评估默认使用 Code graders 做确定性判分；model/human grader 只保留 schema，离线 runner 默认 skipped。
 
-评估输出写入 `output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/`。这个目录是本地运行产物，不提交 Git。
+## 评估失败处理
 
-输出含义：
+评估失败时：
 
-```text
-agent_eval_results.json      完整机器可读结果，包含 metrics、graders、case details
-agent_eval_report.md         人类可读摘要，列出通过率、失败归因和 transcript 路径
-transcripts/<case_id>.jsonl  单 case 执行轨迹，用于失败回放
-artifacts/                   投递包类 case 生成的临时产物
-wf/                          workflow_outcome case 的报告、投递包和 memory 产物
+1. 打开 `agent_eval_report.md` 看失败 case。
+2. 打开 `transcripts/<case_id>.jsonl` 回放执行过程。
+3. 根据 `bad_case_attribution` 判断问题归属：
+   - `crawler_strategy`
+   - `matching_filtering`
+   - `recommendation_quality`
+   - `output_quality`
+   - `instruction_drift`
+4. 修复后重新运行评估，直到通过。
+5. 如果失败来自真实用户或真实巡检，应按 `docs/eval-case-feedback-loop.md` 沉淀为候选 eval case。
+
+## 常用命令
+
+```powershell
+# 立即执行巡检
+python -m src.cli
+python -m src.cli -t social
+python -m src.cli -t internship
+python -m src.cli -t campus
+python -m src.cli -p "意向名称"
+
+# 爬虫管理
+python -m src.crawler_factory --list
+python -m src.crawler_factory --test <id>
+python -m src.crawler_factory --crawl <id> --keyword "<关键词>" --max-jobs 10
+
+# 策略巡检
+python -m src.health_monitor --inspect-strategies --keyword "<关键词>" --job-type social
+python -m src.health_monitor --inspect-company <id> --keyword "<关键词>"
+
+# 单公司策略验证
+python tests/test_all_crawlers.py --company <company_id> --keyword "<关键词>" --max-jobs 3
+
+# 飞书推送开关
+python -m src.scheduler --feishu-push status
+python -m src.scheduler --feishu-push on
+python -m src.scheduler --feishu-push off
 ```
 
-指标解释：
+## Git 和文件规则
 
-- `task_completion_rate`：active grader 全部通过的 case 占比。
-- `pass@k`：同一 case 跑 k 次，只要一次通过就算通过。
-- `pass^k`：同一 case 跑 k 次，每次都通过才算通过；求职巡检更看重这个。
-- `tool_call_accuracy`：策略 case 是否选对 `crawl`、`collect_evidence` 或 `blocked`。
-- `matching.precision/recall/f1`：语义过滤是否保留好岗位、拒绝坏岗位。
-- `bad_case_attribution`：失败 case 按问题模块归因。
+- 禁止直接 push 到 `main`。
+- 功能分支可以推送到远程，合并到 main 前必须等待用户确认。
+- 不提交 `config/agent.yaml`，只提交 `config/agent.sample.yaml`。
+- 不提交 `output/`、`logs/` 运行产物。
+- `docs/optimization-log.md` 是本地私有文档，不提交。
+- 禁止使用 `rm` 删除文件；需要删除时使用 PowerShell `Remove-Item -LiteralPath ... -Force`。
+- 不得回滚用户未要求回滚的改动。
 
-Grader 规则：
+## 飞书推送边界
 
-- 当前默认启用 code grader，用 Python 检查客观结果，如 action、分数区间、文件存在、URL 过滤、必需文本。
-- model grader 和 human grader 已有 YAML schema，但离线 runner 默认 skipped，不作为通过率门禁。
-- Cover Letter 语义质量、推荐理由是否真贴合 JD、人工 gold label 等，参考 `docs/evaluation-grader-rubrics.md`。
-- 真实失败样本回流为 eval case 的流程，参考 `docs/eval-case-feedback-loop.md`。
+飞书推送由 `config/agent.yaml` 的 `feishu.enabled` 控制。
 
-测了什么功能：
+`python -m src.scheduler --push` 指 Git commit/push 到远程仓库，不是飞书推送。
 
-```text
-+------------------------+-----------------------------------------------+
-| 归因模块               | 测试内容                                      |
-+------------------------+-----------------------------------------------+
-| crawler_strategy       | crawl / collect_evidence / blocked 路由       |
-| matching_filtering     | 保留目标岗位，拒绝关键词噪音                  |
-| recommendation_quality | 评分和推荐等级边界                            |
-| output_quality         | URL 过滤、报告、Top 3 投递包、memory          |
-| instruction_drift      | AGENTS / CLAUDE / jobhunter skill 一致性      |
-+------------------------+-----------------------------------------------+
-```
-
-## 支持的公司
-
-**已启用 (42家)：**
-- BAT+TMD: 腾讯、字节、阿里、美团、百度、滴滴、京东、拼多多、华为、小米
-- 互联网: 网易、快手、B站、小红书、携程、微博、知乎、OPPO、vivo、中兴、联想
-- 游戏: 米哈游、莉莉丝、三七互娱
-- 飞书系: 商汤、Keep、SHEIN、蔚来、理想、小鹏
-- 其他: 苹果、吉利、长城、大疆、海康、科大讯飞、深信服、工商银行
-
-**待开发 (14家)：**
-- 外资: 微软、英伟达、特斯拉、Intel、AMD、思科、SAP
-- 国央企: 建行、移动、电信
-- 其他: 比亚迪、浪潮、蚂蚁、菜鸟
-
-完整列表见 `公司列表.md` 和 `config/companies.yaml`
-
-## 文件管理规范
-
-### 项目优化记录
-
-功能优化过程记录在本地私有文档 `docs/optimization-log.md`，该文件不提交到 GitHub。
-
-只有在功能优化的开发计划已经讨论并确认后，才更新该文档；只是提出想法、整理 roadmap、讨论可能方向时不更新。
-
-当改动属于已确认要执行的功能优化时，需要同步记录：
-
-1. **问题** - 发现了什么具体问题
-2. **方案** - 采用了什么策略或实现
-3. **效果** - 行为变化、验证方式和结果
-4. **后续** - 还需要观察或继续优化的点
-
-需要更新优化记录的情况：
-
-- 调整岗位筛选、语义匹配、评分、排序、报告生成、投递建议等核心产品行为
-- 新增或重构会改变用户使用方式的功能
-- 对现有功能做策略优化，并改变结果质量、覆盖范围、误判率或使用体验
-
-不需要更新优化记录的情况：
-
-- 只是提出想法、讨论方向，或还没有确认开发计划
-- 只修 bug，且没有改变产品策略
-- 只更新 README、注释、格式或普通文案
-- 只做配置安全、Git 历史、依赖、测试环境等工程卫生清理
-- 只补测试，且不改变功能行为
-
-### 飞书推送配置
-
-每日扫描结果可推送到飞书 Wiki / 多维表格。
-
-飞书推送链路在 `src.cli.JobHunter.run_profile()` 内部：
+飞书推送链路：
 
 1. `generate_report()` 写入 `output/{YYYY-MM-DD}/{profile_id}_{YYYYMMDD_HHMM}.md`。
-2. `src.feishu_push.push_to_feishu()` 读取 `config/agent.yaml`，在 `feishu.enabled: true` 且存在 `wiki_node_token` 时推送 Wiki。
-3. `src.feishu_bitable.add_jobs_to_bitable()` 在存在 `bitable_token` 和 `bitable_table_id` 时写入多维表格。
+2. `src.feishu_push.push_to_feishu()` 推送 Wiki。
+3. `src.feishu_bitable.add_jobs_to_bitable()` 写入多维表格。
 
-这和 `src.scheduler --push` 不是一回事。`--push` 指 Git commit/push 到远程仓库，默认关闭；飞书推送由 `config/agent.yaml` 的 `feishu.enabled` 控制。
+## 规范演进
 
-飞书推送开关命令：
+出现以下情况时，必须更新相关文档：
 
-```powershell
-python -m src.scheduler --feishu-push status  # 查看状态
-python -m src.scheduler --feishu-push on      # 开启每日巡检后推送飞书
-python -m src.scheduler --feishu-push off     # 关闭每日巡检后推送飞书
-```
+- 用户指出当前规则不清楚或不正确。
+- JobHunter 状态机变化。
+- 目录结构、输出路径、评估命令变化。
+- 新增 prompt、工具或数据来源。
+- 真实失败样本暴露规则缺口。
 
-Git 只提交示例配置 `config/agent.sample.yaml`；真实配置必须复制到本地 `config/agent.yaml`，该文件已被 `.gitignore` 忽略，禁止提交到 GitHub。
+更新位置：
 
-```powershell
-Copy-Item config\agent.sample.yaml config\agent.yaml
-```
-
-本地 `config/agent.yaml` 示例：
-
-```yaml
-feishu:
-  app_id: "cli_xxx"           # 飞书应用 ID
-  app_secret: "xxx"           # 飞书应用 Secret
-  wiki_node_token: "xxx"      # Wiki 节点 token
-  bitable_token: "xxx"        # 多维表格 token（可选，首次运行自动创建）
-  bitable_table_id: "xxx"     # 数据表 ID（可选）
-  enabled: true               # 是否启用推送
-```
-
-**报告命名格式**：`{profile_id}_{YYYYMMDD_HHMM}.md`。`profile_id` 来自 profile 文件名，所以同名 profile 也会作为不同巡检任务输出不同报告。
-
-**多维表格字段**：
-- 岗位标题、公司、岗位链接
-- AI评分、投递状态、录取状态
-- 岗位类型（社招/校招/实习）
-- 投递简历、报告链接、创建时间
-
-### 临时文件清理
-
-**一次性文件用完必须清理：**
-
-| 类型 | 示例 | 处理 |
-|------|------|------|
-| API分析输出 | `*_api.json` | 用完删除 |
-| 一次性脚本 | `scripts/analyze_*.py` | 用完删除 |
-| 迁移脚本 | `scripts/migrate.py` | 执行后删除 |
-| 调试输出 | `debug_*.json` | 用完删除 |
-
-**删除方式：**
-```bash
-# 使用 PowerShell 进回收站（可恢复）
-powershell -Command "Remove-Item -LiteralPath '文件路径' -Force"
-```
-
-**禁止使用 `rm` 命令**（永久删除，不可恢复）
-
-### 目录结构
-
-```
-SmartJobHunter/
-├── config/           # 配置文件（长期保留）
-├── src/              # 源代码（长期保留）
-├── profiles/         # 求职意向（用户维护）
-├── resumes/          # 简历文件（用户维护）
-├── memory/           # 去重数据（自动更新）
-├── output/           # 输出报告（自动生成）
-├── logs/             # 日志文件（自动生成）
-├── tests/            # 测试文件（长期保留）
-└── docs/             # 文档（长期保留，含 optimization-log.md）
-```
-
-## Bug修复流程
-
-每次修复bug必须遵循：
-
-1. **出计划** - 分析问题，制定方案
-2. **Review** - 检查方案合理性
-3. **执行测试** - 验证修复效果
-4. **清理临时文件** - 删除一次性脚本和输出
-
-如果只是修 bug，不需要更新 `docs/optimization-log.md`；只有当修复同时改变了筛选、评分、推荐或用户工作流等功能策略时，才需要补充优化记录。
+- 项目级规则：`CLAUDE.md` 和 `AGENTS.md`
+- 执行架构：`.claude/skills/jobhunter/skill.md`
+- 详细设计：`docs/smartjobhunter-agent-design.md`
+- 外部介绍：`README.md` / `README_CN.md`
