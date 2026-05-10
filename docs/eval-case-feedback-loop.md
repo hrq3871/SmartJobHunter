@@ -1,5 +1,10 @@
 # Eval Case Feedback Loop
 
+> **文档用途**
+> 本文档用于说明如何把真实巡检失败、策略任务、用户反馈和人工复核沉淀成新的 eval case。
+> 主要读者是负责扩充 regression/capability 评测集、维护 bad case 闭环的开发者和 Agent。
+> 不用于定义 grader 判分细则，也不用于替代每日巡检报告或一次性运行记录。
+
 SmartJobHunter evals should grow from real daily runs, not only from hand-written
 examples. This document defines how runtime failures and user feedback become
 candidate eval cases, then stable regression coverage.

@@ -1,5 +1,10 @@
 # SmartJobHunter Agent Design
 
+> **文档用途**
+> 本文档用于说明 SmartJobHunter 的内部 Agent 架构、状态机、评估体系和规范演进规则。
+> 主要读者是维护本项目的 Claude/Codex Agent、开发者和需要理解系统设计的人。
+> 不用于对外宣传、快速上手，也不作为单次巡检的逐步执行入口；具体执行入口见 `.claude/skills/jobhunter/skill.md`。
+
 本文档是 SmartJobHunter 的内部 Agent 架构设计说明。它承接原来 `CLAUDE.md` 中过长的详细设计内容，用来让人完整理解系统如何运行；`CLAUDE.md` / `AGENTS.md` 只保留 AI 执行时必须遵守的项目级规则；`.claude/skills/jobhunter/skill.md` 是具体任务执行手册；`README.md` / `README_CN.md` 保持对外宣传和使用入口。
 
 ## 1. 文档分层
@@ -415,4 +420,3 @@ model grader 和 human grader 只保留 schema，离线 runner 默认 skipped。
 - 执行架构：`.claude/skills/jobhunter/skill.md`
 - 详细设计：`docs/smartjobhunter-agent-design.md`
 - 外部介绍：`README.md` / `README_CN.md`
-

@@ -1,5 +1,10 @@
 # Evaluation Grader Rubrics
 
+> **文档用途**
+> 本文档用于说明 SmartJobHunter 评估体系中 grader 的判分规则、适用边界和输出结构。
+> 主要读者是维护 eval case、调整评估 harness、排查评估失败的开发者和 Agent。
+> 不用于描述日常巡检流程，也不用于替代 `docs/smartjobhunter-agent-design.md` 的整体架构说明。
+
 SmartJobHunter uses graders to turn an eval case into a reproducible pass/fail
 decision. The offline runner is deterministic by default: code graders are active,
 while model and human graders are represented in the schema but skipped unless a
