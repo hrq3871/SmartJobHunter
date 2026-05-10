@@ -179,7 +179,49 @@ python -m src.evaluation --fail-under 0.9
 每次改动抓取、过滤、评分、报告、投递包或 Agent 指令时，都要运行：
 
 ```powershell
-python -m src.evaluation
+python -m src.evaluation --fail-under 1.0
+```
+
+稳定性或发布前复核运行：
+
+```powershell
+python -m src.evaluation --trials 3 --fail-under 1.0
+```
+
+能力边界诊断运行：
+
+```powershell
+python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
+```
+
+默认回归评测集是 `evals/regression/jobhunter_core.yaml`。旧的单文件评测入口已升级为 regression/capability 分层：regression 用于防倒退，capability 用于观察难例和能力边界。
+
+评估流程：
+
+```text
++----------------+     +-------------------------+     +-------------+
+| 评测集 YAML    | --> | 评估 harness            | --> | Case runner |
+| regression /   |     | python -m src.evaluation|     | 逐 case 执行|
+| capability     |     +-------------------------+     +------+------+
++----------------+                                          |
+                                                            |
+                         +----------------------------------+------------------+
+                         |                                                     |
+                         v                                                     v
+                  +---------------+                                  +-----------------+
+                  | Code graders  |                                  | Transcript JSONL|
+                  | pass / fail   |                                  | 可回放轨迹      |
+                  +-------+-------+                                  +--------+--------+
+                          |                                                   |
+                          v                                                   v
+                  +---------------+                                  +-----------------+
+                  | 指标聚合      |                                  | 失败定位证据    |
+                  +-------+-------+                                  +-----------------+
+                          |
+                          v
+                  +------------------------+
+                  | Markdown + JSON 报告   |
+                  +------------------------+
 ```
 
 评估体系按五类问题归因：
@@ -190,7 +232,47 @@ python -m src.evaluation
 4. **output_quality**：报告前 URL 校验、一键投递包和 Cover Letter 是否完整。
 5. **instruction_drift**：`AGENTS.md`、`CLAUDE.md`、`.claude/skills/jobhunter/skill.md` 是否表达同一套流程。
 
-评估输出写入 `output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS}/`。这个目录是本地运行产物，不提交 Git。
+评估输出写入 `output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/`。这个目录是本地运行产物，不提交 Git。
+
+输出含义：
+
+```text
+agent_eval_results.json      完整机器可读结果，包含 metrics、graders、case details
+agent_eval_report.md         人类可读摘要，列出通过率、失败归因和 transcript 路径
+transcripts/<case_id>.jsonl  单 case 执行轨迹，用于失败回放
+artifacts/                   投递包类 case 生成的临时产物
+wf/                          workflow_outcome case 的报告、投递包和 memory 产物
+```
+
+指标解释：
+
+- `task_completion_rate`：active grader 全部通过的 case 占比。
+- `pass@k`：同一 case 跑 k 次，只要一次通过就算通过。
+- `pass^k`：同一 case 跑 k 次，每次都通过才算通过；求职巡检更看重这个。
+- `tool_call_accuracy`：策略 case 是否选对 `crawl`、`collect_evidence` 或 `blocked`。
+- `matching.precision/recall/f1`：语义过滤是否保留好岗位、拒绝坏岗位。
+- `bad_case_attribution`：失败 case 按问题模块归因。
+
+Grader 规则：
+
+- 当前默认启用 code grader，用 Python 检查客观结果，如 action、分数区间、文件存在、URL 过滤、必需文本。
+- model grader 和 human grader 已有 YAML schema，但离线 runner 默认 skipped，不作为通过率门禁。
+- Cover Letter 语义质量、推荐理由是否真贴合 JD、人工 gold label 等，参考 `docs/evaluation-grader-rubrics.md`。
+- 真实失败样本回流为 eval case 的流程，参考 `docs/eval-case-feedback-loop.md`。
+
+测了什么功能：
+
+```text
++------------------------+-----------------------------------------------+
+| 归因模块               | 测试内容                                      |
++------------------------+-----------------------------------------------+
+| crawler_strategy       | crawl / collect_evidence / blocked 路由       |
+| matching_filtering     | 保留目标岗位，拒绝关键词噪音                  |
+| recommendation_quality | 评分和推荐等级边界                            |
+| output_quality         | URL 过滤、报告、Top 3 投递包、memory          |
+| instruction_drift      | AGENTS / CLAUDE / jobhunter skill 一致性      |
++------------------------+-----------------------------------------------+
+```
 
 ## 支持的公司
 

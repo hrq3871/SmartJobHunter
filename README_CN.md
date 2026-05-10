@@ -210,6 +210,9 @@ SmartJobHunter/
 │   ├── notifier.py          # 用户通知系统
 │   ├── filters.py           # 过滤函数（时间、去重、清洗）
 │   ├── matching.py          # 语义匹配 fallback 与评分规则
+│   ├── evaluation.py        # Agent 评估 harness
+│   ├── eval_graders.py      # 显式 code/model/human grader helper
+│   ├── eval_transcript.py   # eval case 的 JSONL 轨迹记录器
 │   ├── resume_parser.py     # 简历解析（txt/md/docx/pdf/图片）
 │   ├── scheduler.py         # 定时调度（每天 20:00）
 │   ├── health_check.py      # 兼容旧命令的健康检测入口
@@ -228,6 +231,7 @@ SmartJobHunter/
 ├── 📂 output/               # 按日期归档的报告和投递包
 ├── 📂 logs/                 # 日志文件
 ├── 📂 tests/                # 测试文件
+├── 📂 evals/                # regression、capability 和候选 eval cases
 │
 ├── 📂 .claude/skills/       # Claude Code Agent Skills
 │   └── jobhunter/           # JobHunter Agent
@@ -371,14 +375,101 @@ pytest -q -p no:cacheprovider -m "not integration"
 # 仅运行匹配/评分测试
 pytest -q -p no:cacheprovider tests/test_matching.py
 
-# Agent 工作流评估
+# Agent 评估回归套件
 python -m src.evaluation
+
+# 稳定性检查：每个 case 跑 3 次
+python -m src.evaluation --trials 3 --fail-under 1.0
+
+# 能力边界评估
+python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 ```
 
 集成爬虫测试需要浏览器和网络访问，并使用 `integration` 标记。
 
-Agent 评估使用 `evals/jobhunter_agent_eval.yaml`，本地报告写入 `output/evals/YYYY-MM-DD/`。
-它对应“三层评估体系”：覆盖核心场景的数据评测集、可量化指标、bad case 归因。详见 `docs/agent-evaluation-plan.md`。
+### Agent 评估体系
+
+评估体系把 SmartJobHunter 当成一条 Agent 工作流来测，而不是只测某个评分函数。它会检查 Python 确定性逻辑、最终交付 outcome，以及 Agent 文档是否漂移。
+
+```text
++----------------+     +-------------------------+     +-------------+
+| 评测集 YAML    | --> | 评估 harness            | --> | Case runner |
+| regression /   |     | python -m src.evaluation|     | 逐 case 执行|
+| capability     |     +-------------------------+     +------+------+
++----------------+                                          |
+                                                            |
+                         +----------------------------------+------------------+
+                         |                                                     |
+                         v                                                     v
+                  +---------------+                                  +-----------------+
+                  | Code graders  |                                  | Transcript JSONL|
+                  | pass / fail   |                                  | 可回放轨迹      |
+                  +-------+-------+                                  +--------+--------+
+                          |                                                   |
+                          v                                                   v
+                  +---------------+                                  +-----------------+
+                  | 指标聚合      |                                  | 失败定位证据    |
+                  +-------+-------+                                  +-----------------+
+                          |
+                          v
+                  +------------------------+
+                  | Markdown + JSON 报告   |
+                  +------------------------+
+```
+
+常用命令：
+
+| 命令 | 用途 | 结果含义 |
+|:--|:--|:--|
+| `python -m src.evaluation --fail-under 1.0` | 提交前回归门禁 | 既有预期行为不能退化 |
+| `python -m src.evaluation --trials 3 --fail-under 1.0` | 稳定性检查 | 每个 case 重复运行，输出 `pass@k` 和 `pass^k` |
+| `python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml` | 能力边界扫描 | 检查更难的真实边界 case，主要用于诊断 |
+
+评估输出是本地运行产物，不提交 Git：
+
+```text
+output/evals/YYYY-MM-DD/YYYYMMDD_HHMMSS_microseconds/
+├── agent_eval_results.json      # 完整机器可读结果
+├── agent_eval_report.md         # 人类可读摘要
+├── transcripts/<case_id>.jsonl  # 单 case 执行轨迹
+├── artifacts/                   # 投递包类 case 的生成产物
+└── wf/                          # workflow outcome 产物
+```
+
+指标含义：
+
+| 指标 | 含义 |
+|:--|:--|
+| `task_completion_rate` | active grader 全部通过的 case 占比 |
+| `pass@k` | 同一 case 跑 k 次，至少一次通过即算通过 |
+| `pass^k` | 同一 case 跑 k 次，每次都通过才算通过 |
+| `tool_call_accuracy` | 策略类 case 是否选对 `crawl`、`collect_evidence` 或 `blocked` |
+| `matching.precision/recall/f1` | 语义过滤是否保留好岗位、拒绝噪音岗位 |
+| `bad_case_attribution` | 失败 case 按可能问题模块归因 |
+
+测了哪些功能：
+
+```text
++------------------------+-----------------------------------------------+
+| 归因模块               | 测试内容                                      |
++------------------------+-----------------------------------------------+
+| crawler_strategy       | crawl / collect_evidence / blocked 路由       |
+| matching_filtering     | 保留目标岗位，拒绝关键词噪音                  |
+| recommendation_quality | 评分和推荐等级边界                            |
+| output_quality         | URL 过滤、报告、Top 3 投递包、memory          |
+| instruction_drift      | AGENTS / CLAUDE / jobhunter skill 一致性      |
++------------------------+-----------------------------------------------+
+```
+
+测试逻辑：
+
+1. 从 `evals/regression/jobhunter_core.yaml` 或指定 suite 读取 case。
+2. 运行目标函数或最小 workflow outcome。
+3. 使用 `src/eval_graders.py` 里的显式 grader 判定 pass/fail。
+4. 通过 `src/eval_transcript.py` 记录 JSONL 轨迹，方便失败回放。
+5. 聚合指标并写入 JSON/Markdown 报告。
+
+默认只启用 code grader。Model grader 和 human grader 已支持 YAML schema，但在离线 runner 中默认 skipped，等未来有校准好的模型裁判或人工复核流程再启用。详见 `docs/evaluation-grader-rubrics.md` 和 `docs/eval-case-feedback-loop.md`。
 
 ### 爬虫命令
 

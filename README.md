@@ -212,6 +212,9 @@ SmartJobHunter/
 │   ├── notifier.py          # User notification system
 │   ├── filters.py           # Filter functions (time, dedup, clean)
 │   ├── matching.py          # Semantic matching fallback and scoring rubric
+│   ├── evaluation.py        # Agent evaluation harness
+│   ├── eval_graders.py      # Explicit code/model/human grader helpers
+│   ├── eval_transcript.py   # JSONL transcript recorder for eval cases
 │   ├── resume_parser.py     # Resume parser (txt/md/docx/pdf/image)
 │   ├── scheduler.py         # Job scheduler (daily at 20:00)
 │   ├── health_check.py      # Legacy health-check wrapper
@@ -230,6 +233,7 @@ SmartJobHunter/
 ├── 📂 output/               # Date-archived reports and application packages
 ├── 📂 logs/                 # Log files
 ├── 📂 tests/                # Test files
+├── 📂 evals/                # Regression, capability, and candidate eval cases
 │
 ├── 📂 .claude/skills/       # Claude Code Agent Skills
 │   └── jobhunter/           # JobHunter Agent
@@ -373,14 +377,106 @@ pytest -q -p no:cacheprovider -m "not integration"
 # Matching/scoring tests only
 pytest -q -p no:cacheprovider tests/test_matching.py
 
-# Agent workflow evaluation
+# Agent evaluation regression suite
 python -m src.evaluation
+
+# Stability check: run each case 3 times
+python -m src.evaluation --trials 3 --fail-under 1.0
+
+# Capability boundary suite
+python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 ```
 
 Integration crawler tests require browser/network access and are marked with `integration`.
 
-Agent evaluation uses `evals/jobhunter_agent_eval.yaml` and writes local reports to `output/evals/YYYY-MM-DD/`.
-It follows a three-layer evaluation model: coverage dataset, quantitative metrics, and bad-case attribution. See `docs/agent-evaluation-plan.md`.
+### Agent Evaluation System
+
+The evaluation system treats SmartJobHunter as an agent workflow, not just a
+single scoring function. It checks deterministic Python behavior, delivery
+outcomes, and Agent-facing instruction drift.
+
+```text
++----------------+     +-------------------------+     +-------------+
+| Eval suite YAML| --> | Eval harness            | --> | Case runner |
+| regression /   |     | python -m src.evaluation|     | per case    |
+| capability     |     +-------------------------+     +------+------+
++----------------+                                          |
+                                                            |
+                         +----------------------------------+------------------+
+                         |                                                     |
+                         v                                                     v
+                  +---------------+                                  +-----------------+
+                  | Code graders  |                                  | Transcript JSONL|
+                  | pass / fail   |                                  | replay trace    |
+                  +-------+-------+                                  +--------+--------+
+                          |                                                   |
+                          v                                                   v
+                  +---------------+                                  +-----------------+
+                  | Metrics       |                                  | Debug evidence  |
+                  +-------+-------+                                  +-----------------+
+                          |
+                          v
+                  +------------------------+
+                  | Markdown + JSON report |
+                  +------------------------+
+```
+
+Use the suites this way:
+
+| Command | Use For | Expected Meaning |
+|:--|:--|:--|
+| `python -m src.evaluation --fail-under 1.0` | Regression gate before commits | Existing expected behavior must not regress |
+| `python -m src.evaluation --trials 3 --fail-under 1.0` | Stability check | Each case must pass repeatedly, reported as `pass@k` and `pass^k` |
+| `python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml` | Capability boundary scan | Shows whether hard realistic cases pass; diagnostic, not always a release gate |
+
+Evaluation outputs are local artifacts and should not be committed:
+
+```text
+output/evals/YYYY-MM-DD/YYYYMMDD_HHMMSS_microseconds/
+├── agent_eval_results.json      # Full machine-readable results
+├── agent_eval_report.md         # Human-readable summary
+├── transcripts/<case_id>.jsonl  # Per-case execution trace
+├── artifacts/                   # Generated package artifacts for package cases
+└── wf/                          # Workflow outcome artifacts
+```
+
+Metric meanings:
+
+| Metric | Meaning |
+|:--|:--|
+| `task_completion_rate` | Share of eval cases whose active graders passed |
+| `pass@k` | A case counts as passing if any trial passed |
+| `pass^k` | A case counts as passing only if every trial passed |
+| `tool_call_accuracy` | Strategy-action cases choosing the expected `crawl`, `collect_evidence`, or `blocked` action |
+| `matching.precision/recall/f1` | Whether semantic filtering keeps good jobs and rejects bad jobs |
+| `bad_case_attribution` | Failed cases grouped by likely fault area |
+
+What is tested:
+
+```text
++------------------------+-----------------------------------------------+
+| Metric group           | What it tests                                  |
++------------------------+-----------------------------------------------+
+| crawler_strategy       | crawl / collect_evidence / blocked routing    |
+| matching_filtering     | Keep target roles, reject keyword noise       |
+| recommendation_quality | Score and recommendation boundaries           |
+| output_quality         | URL filter, report, Top 3 package, memory     |
+| instruction_drift      | AGENTS / CLAUDE / jobhunter skill alignment   |
++------------------------+-----------------------------------------------+
+```
+
+Test logic:
+
+1. Load a case from `evals/regression/jobhunter_core.yaml` or a selected suite.
+2. Run the target function or minimal workflow outcome.
+3. Apply explicit graders from `src/eval_graders.py`.
+4. Record a JSONL transcript through `src/eval_transcript.py`.
+5. Aggregate metrics and write JSON/Markdown reports.
+
+Code graders are active by default. Model and human graders are supported in the
+YAML schema but skipped until a calibrated judge or manual review process is
+enabled. See `docs/evaluation-grader-rubrics.md` and
+`docs/eval-case-feedback-loop.md`.
 
 ### Crawler Commands
 

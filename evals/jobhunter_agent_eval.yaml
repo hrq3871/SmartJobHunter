@@ -237,6 +237,14 @@ cases:
   - id: application_package_should_generate_top3_letters
     type: application_package
     attribution: output_quality
+    graders:
+      - type: model
+        name: cover_letter_quality
+        enabled: false
+        rubric: cover_letter_quality_v1
+      - type: human
+        name: final_recommendation_review
+        required_for: high_risk
     profile:
       name: "AI产品经理"
       _profile_id: "eval_ai_pm"
@@ -275,6 +283,41 @@ cases:
       cover_letter_count: 3
       required_text: ["A公司", "AI产品经理", "ToB SaaS"]
 
+  - id: workflow_should_generate_report_package_and_memory
+    type: workflow_outcome
+    attribution: output_quality
+    source: "manual_outcome_regression"
+    goal: "Verify the minimal delivery outcome: live URL filtering, report generation, application package generation, and memory update."
+    profile:
+      name: "AI产品经理"
+      _profile_id: "eval_ai_pm"
+      _resume_content: "5年 ToB SaaS 产品经验，主导 AI 助手从0到1上线。"
+    jobs:
+      - title: "AI产品经理"
+        company: "A公司"
+        url: "https://example.com/a"
+        hash: "validhash001"
+        duty: "负责 AI 产品规划。"
+        requirement: "需要 ToB 产品经验。"
+        mock_available: true
+      - title: "失效岗位"
+        company: "B公司"
+        url: "https://example.com/404"
+        hash: "invalidhash001"
+        mock_available: false
+    evaluations:
+      - score: 95
+        recommendation: "strong_apply"
+        match_reasons: ["AI 产品方向匹配"]
+      - score: 88
+        recommendation: "apply"
+        match_reasons: ["一般匹配"]
+    expected:
+      report_exists: true
+      package_top_n: 1
+      excluded_titles: ["失效岗位"]
+      memory_contains: ["AI产品经理"]
+
   - id: agent_docs_should_match_current_workflow
     type: instruction_alignment
     attribution: instruction_drift
@@ -289,6 +332,10 @@ cases:
         - "PACKAGED"
         - "python -m src.health_monitor --inspect-strategies"
         - "python -m src.scheduler --feishu-push status"
+        - "python -m src.evaluation --trials 3 --fail-under 1.0"
+        - "evals/regression/jobhunter_core.yaml"
+        - "transcripts/<case_id>.jsonl"
+        - "Code graders"
         - "output/{YYYY-MM-DD}/"
       forbidden_text:
         - "自动自愈系统"

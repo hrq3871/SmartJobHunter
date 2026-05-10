@@ -239,10 +239,73 @@ matched_jobs = [
 每次修改抓取策略、岗位过滤、评分、报告、投递包或本 skill 文档后，运行：
 
 ```powershell
-python -m src.evaluation
+python -m src.evaluation --fail-under 1.0
+python -m src.evaluation --trials 3 --fail-under 1.0
+python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 ```
 
-评估结果写入 `output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS}/`，用于检查策略路由、岗位匹配、输出质量和 Agent 指令漂移。
+默认回归评测集是 `evals/regression/jobhunter_core.yaml`，用于防倒退；`evals/capability/jobhunter_hard_cases.yaml` 用于观察难例和能力边界。
+
+评估结果写入 `output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/`，用于检查策略路由、岗位匹配、输出质量和 Agent 指令漂移。这个目录是本地运行产物，不提交 Git。
+
+评估流程：
+
+```text
++----------------+     +-------------------------+     +-------------+
+| 评测集 YAML    | --> | 评估 harness            | --> | Case runner |
+| regression /   |     | python -m src.evaluation|     | 逐 case 执行|
+| capability     |     +-------------------------+     +------+------+
++----------------+                                          |
+                                                            |
+                         +----------------------------------+------------------+
+                         |                                                     |
+                         v                                                     v
+                  +---------------+                                  +-----------------+
+                  | Code graders  |                                  | Transcript JSONL|
+                  | pass / fail   |                                  | 可回放轨迹      |
+                  +-------+-------+                                  +--------+--------+
+                          |                                                   |
+                          v                                                   v
+                  +---------------+                                  +-----------------+
+                  | 指标聚合      |                                  | 失败定位证据    |
+                  +-------+-------+                                  +-----------------+
+                          |
+                          v
+                  +------------------------+
+                  | Markdown + JSON 报告   |
+                  +------------------------+
+```
+
+输出含义：
+
+```text
+agent_eval_results.json      完整机器可读结果，包含 metrics、graders、case details
+agent_eval_report.md         人类可读摘要，列出通过率、失败归因和 transcript 路径
+transcripts/<case_id>.jsonl  单 case 执行轨迹，用于失败回放
+artifacts/                   投递包类 case 生成的临时产物
+wf/                          workflow_outcome case 的报告、投递包和 memory 产物
+```
+
+评估归因：
+
+```text
++------------------------+-----------------------------------------------+
+| 归因模块               | 测试内容                                      |
++------------------------+-----------------------------------------------+
+| crawler_strategy       | crawl / collect_evidence / blocked 路由       |
+| matching_filtering     | 保留目标岗位，拒绝关键词噪音                  |
+| recommendation_quality | 评分和推荐等级边界                            |
+| output_quality         | URL 过滤、报告、Top 3 投递包、memory          |
+| instruction_drift      | AGENTS / CLAUDE / jobhunter skill 一致性      |
++------------------------+-----------------------------------------------+
+```
+
+Grader 规则：
+
+- 默认只启用 code grader，检查客观事实：action、分数区间、URL 过滤、文件存在、必需文本。
+- model grader 和 human grader 已有 YAML schema，但离线 runner 默认 skipped。
+- Cover Letter 语义质量和人工 gold label 参考 `docs/evaluation-grader-rubrics.md`。
+- 真实失败样本回流参考 `docs/eval-case-feedback-loop.md`。
 
 ---
 
