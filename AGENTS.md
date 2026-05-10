@@ -13,8 +13,8 @@
 | README.md / README_CN.md                      | 对外介绍、快速开始、常用命令                 |
 | CLAUDE.md / AGENTS.md                         | AI 项目级规则、运行架构、Skill/Prompt 路由   |
 | docs/smartjobhunter-agent-design.md           | 内部完整 Agent 架构和评估设计                |
-| docs/evaluation-grader-rubrics.md             | Eval grader 判分规则                         |
-| docs/eval-case-feedback-loop.md               | 真实失败/反馈回流为 eval case 的流程         |
+| evals/evaluation-grader-rubrics.md            | Eval grader 判分规则                         |
+| evals/eval-case-feedback-loop.md              | 真实失败/反馈回流为 eval case 的流程         |
 | docs/plans/                                   | 历史计划，不作为当前运行规则                 |
 | .claude/skills/jobhunter/skill.md             | JobHunter Agent 具体执行手册                 |
 | .claude/skills/jobhunter/profile.md           | 候选人画像子流程                             |
@@ -30,6 +30,8 @@
 | output/evals/                                 | 本地 eval 运行产物，不提交 Git               |
 +----------------------------------------------+----------------------------------------------+
 ```
+
+维护原则：`docs/` 只放全局设计、AI 自动维护记录和历史计划；eval 运行体系直接使用的规则、rubric、反馈闭环放在 `evals/`，和评测集一起维护。
 
 ## 运行架构
 
@@ -65,8 +67,8 @@ SmartJobHunter 不是只靠 `CLAUDE.md` 运行，也不是只靠 Skills 运行�
 | 对齐旧评分/更细评分拆解                | prompts/evaluate.md                           | src.matching.evaluate_job_fit                |
 | 新链接、链接变化、抓取失败、反爬        | prompts/analyze_crawler_strategy.md           | logs/strategy_tasks + logs/crawler_evidence  |
 | 生成或复核报告                         | prompts/report.md                             | output/{YYYY-MM-DD}/                         |
-| 评估失败或 instruction_drift           | evaluation-grader-rubrics.md                  | transcripts/<case_id>.jsonl                  |
-| 真实失败样本回流                       | eval-case-feedback-loop.md                    | evals/candidates/                            |
+| 评估失败或 instruction_drift           | evals/evaluation-grader-rubrics.md            | transcripts/<case_id>.jsonl                  |
+| 真实失败样本回流                       | evals/eval-case-feedback-loop.md              | evals/candidates/                            |
 +--------------------------------------+----------------------------------------------+----------------------------------------------+
 ```
 
@@ -180,7 +182,7 @@ output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/
    - `output_quality`
    - `instruction_drift`
 4. 修复后重新运行评估，直到通过。
-5. 如果失败来自真实用户或真实巡检，按 `docs/eval-case-feedback-loop.md` 沉淀为候选 eval case。
+5. 如果失败来自真实用户或真实巡检，按 `evals/eval-case-feedback-loop.md` 沉淀为候选 eval case。
 
 ## 常用命令
 

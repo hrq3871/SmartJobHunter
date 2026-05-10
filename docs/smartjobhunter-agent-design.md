@@ -16,8 +16,8 @@ SmartJobHunter 是一个面向公司官网岗位巡检的 Agent 平台项目。P
 | README.md / README_CN.md                      | 对外介绍、能力定位、快速开始、常用命令       |
 | CLAUDE.md / AGENTS.md                         | AI 项目级规则、运行架构、Skill/Prompt 路由   |
 | docs/smartjobhunter-agent-design.md           | 内部完整架构、状态机、评估体系和演进规则     |
-| docs/evaluation-grader-rubrics.md             | Eval grader 判分标准和 schema                 |
-| docs/eval-case-feedback-loop.md               | 真实失败/反馈沉淀为 eval case 的闭环         |
+| evals/evaluation-grader-rubrics.md            | Eval grader 判分标准和 schema                 |
+| evals/eval-case-feedback-loop.md              | 真实失败/反馈沉淀为 eval case 的闭环         |
 | docs/plans/                                   | 历史实施计划，不作为当前运行规则             |
 | docs/optimization-log.md                      | 本地私有优化记录，不提交 Git                 |
 | .claude/skills/jobhunter/skill.md             | JobHunter Agent 具体执行手册                 |
@@ -47,7 +47,8 @@ SmartJobHunter 是一个面向公司官网岗位巡检的 Agent 平台项目。P
 - CLAUDE.md / AGENTS.md 写 AI 执行时必须知道的规则和路由。
 - `.claude/skills/jobhunter/skill.md` 写单次任务如何跑。
 - prompts 写具体判断标准，不承担系统分层说明。
-- docs 根目录只保留当前有效设计文档；历史计划放 `docs/plans/`。
+- docs 根目录只保留全局设计、AI 自动维护或历史计划类文档；eval 运行体系文档放 `evals/`。
+- `evals/` 同时放评测集、grader 规则、失败回流流程和候选 case。
 
 ## 2. 系统定位
 
@@ -97,6 +98,8 @@ SmartJobHunter/
 ├── evals/
 │   ├── regression/jobhunter_core.yaml
 │   ├── capability/jobhunter_hard_cases.yaml
+│   ├── evaluation-grader-rubrics.md
+│   ├── eval-case-feedback-loop.md
 │   ├── candidates/
 │   └── jobhunter_agent_eval.yaml    # legacy/default-compatible copy
 ├── src/
@@ -137,8 +140,8 @@ SmartJobHunter/
 │       └── update_memory.md
 └── docs/
     ├── smartjobhunter-agent-design.md
-    ├── evaluation-grader-rubrics.md
-    └── eval-case-feedback-loop.md
+    ├── optimization-log.md          # ignored, local only
+    └── plans/
 ```
 
 ## 4. 运行架构
@@ -179,8 +182,8 @@ output / logs / memory / evals
 | 过滤关键词噪音岗位                   | prompts/semantic_filter.md                    | src.filters + src.matching.match_job_intent  |
 | 策略巡检出现 unknown/new/failed       | prompts/analyze_crawler_strategy.md           | logs/strategy_tasks + logs/crawler_evidence  |
 | 生成或复核报告                       | prompts/report.md                             | output/{YYYY-MM-DD}/                         |
-| 修复 eval 失败                       | evaluation-grader-rubrics + transcripts       | output/evals/.../agent_eval_report.md        |
-| 真实失败回流                         | eval-case-feedback-loop.md                    | evals/candidates/                            |
+| 修复 eval 失败                       | evals/evaluation-grader-rubrics.md + transcripts | output/evals/.../agent_eval_report.md     |
+| 真实失败回流                         | evals/eval-case-feedback-loop.md              | evals/candidates/                            |
 +--------------------------------------+----------------------------------------------+----------------------------------------------+
 ```
 
@@ -462,7 +465,7 @@ output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/
 +------------------------+-----------------------------------------------+
 ```
 
-Code graders 是默认启用的机器判分；model/human grader 只保留 schema，离线 runner 默认 skipped。具体 rubric 见 `docs/evaluation-grader-rubrics.md`。
+Code graders 是默认启用的机器判分；model/human grader 只保留 schema，离线 runner 默认 skipped。具体 rubric 见 `evals/evaluation-grader-rubrics.md`。
 
 ## 8. 失败处理
 
@@ -473,7 +476,7 @@ Code graders 是默认启用的机器判分；model/human grader 只保留 schem
 3. 判断问题属于抓取策略、匹配过滤、推荐质量、输出质量还是 instruction_drift。
 4. 修复代码、配置、prompt、Skill 或项目规则。
 5. 重新运行 regression eval。
-6. 如果是新真实失败，按 `docs/eval-case-feedback-loop.md` 沉淀到 `evals/candidates/`。
+6. 如果是新真实失败，按 `evals/eval-case-feedback-loop.md` 沉淀到 `evals/candidates/`。
 
 ## 9. 文档与规范演进
 

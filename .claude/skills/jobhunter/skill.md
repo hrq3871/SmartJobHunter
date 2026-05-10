@@ -16,8 +16,7 @@ SmartJobHunter/
 ├── CLAUDE.md / AGENTS.md                 # AI 项目级规则和 Skill/Prompt 路由
 ├── docs/
 │   ├── smartjobhunter-agent-design.md    # 内部完整 Agent 架构
-│   ├── evaluation-grader-rubrics.md      # eval grader 判分规则
-│   └── eval-case-feedback-loop.md        # 真实失败回流 eval case 的流程
+│   └── plans/                            # 历史计划，不作为当前运行规则
 ├── config/
 │   ├── companies.yaml                    # 公司官网链接和抓取策略
 │   ├── agent.sample.yaml                 # 可提交示例配置
@@ -32,7 +31,10 @@ SmartJobHunter/
 ├── output/evals/                         # 本地评估产物，不提交 Git
 ├── evals/
 │   ├── regression/jobhunter_core.yaml    # 默认 regression eval
-│   └── capability/jobhunter_hard_cases.yaml
+│   ├── capability/jobhunter_hard_cases.yaml
+│   ├── evaluation-grader-rubrics.md      # eval grader 判分规则
+│   ├── eval-case-feedback-loop.md        # 真实失败回流 eval case 的流程
+│   └── candidates/                       # 待提升的真实失败候选 case
 ├── src/                                  # Python 工具层
 └── .claude/skills/jobhunter/
     ├── skill.md                          # 本执行手册
@@ -55,6 +57,7 @@ SmartJobHunter/
 ```
 
 目录结构或重要文件变化时，必须同步更新本节、`docs/smartjobhunter-agent-design.md`、`CLAUDE.md` 和 `AGENTS.md`。
+`docs/` 只放全局设计、AI 自动维护记录和历史计划；eval 运行体系文档放在 `evals/`。
 
 ## 运行保障
 
