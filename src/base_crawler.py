@@ -264,18 +264,38 @@ class InterceptCrawler(BaseCrawler):
 
         for selector in search_selectors:
             try:
-                element = page.query_selector(selector)
-                if element and element.is_visible():
+                for element in page.query_selector_all(selector):
+                    if not element or not element.is_visible() or not element.is_enabled():
+                        continue
                     element.click()
                     page.wait_for_timeout(300)
                     element.fill(keyword)
                     page.wait_for_timeout(300)
                     element.press('Enter')
+                    self._click_search_button(page)
                     print(f"  [Search] Searched for: {keyword}", file=sys.stderr)
                     return True
             except Exception as e:
                 continue
 
+        return False
+
+    def _click_search_button(self, page: Page) -> bool:
+        """Click a visible search button when Enter alone is not enough."""
+        button_selectors = [
+            'button[class*="search"]',
+            '[class*="search_btn"]',
+            '[class*="search-button"]',
+            'button:has-text("搜索")',
+        ]
+        for selector in button_selectors:
+            try:
+                for element in page.query_selector_all(selector):
+                    if element and element.is_visible() and element.is_enabled():
+                        element.click()
+                        return True
+            except Exception:
+                continue
         return False
 
     def crawl_with_intercept(
@@ -317,8 +337,17 @@ class InterceptCrawler(BaseCrawler):
                 page.goto(url, timeout=60000, wait_until='domcontentloaded')
                 page.wait_for_timeout(5000)
 
-                # 如果没有捕获到数据，尝试搜索交互
-                if not intercepted_data:
+                # 很多官网首屏会先返回默认岗位列表；有关键词时必须主动尝试搜索，
+                # 否则会把默认列表当成搜索结果。
+                if keyword:
+                    initial_data = list(intercepted_data)
+                    intercepted_data.clear()
+                    searched = self._try_search(page, keyword)
+                    if searched:
+                        page.wait_for_timeout(5000)
+                    if not searched or not intercepted_data:
+                        intercepted_data.extend(initial_data)
+                elif not intercepted_data:
                     print(f"  [Search] No API captured, trying search interaction...", file=sys.stderr)
                     self._try_search(page, keyword)
                     page.wait_for_timeout(5000)

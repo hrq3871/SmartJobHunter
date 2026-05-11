@@ -19,10 +19,13 @@ description: 加载所有配置文件
   "profiles": [
     {
       "name": "产品经理-TOB方向",
+      "_profile_id": "pm_tob",
+      "_profile_path": "profiles/pm_tob.md",
       "enabled": true,
       "job_type": "社招",
       "resume": "resumes/pm_tob.md",
-      "keywords": ["产品经理", "TOB", "SaaS"],
+      "target_roles": ["产品经理", "AI产品经理", "AI应用产品经理"],
+      "must_have": ["产品规划", "需求分析"],
       "intent": "寻找 TOB SaaS 产品经理岗位..."
     }
   ],

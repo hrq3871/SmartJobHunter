@@ -227,3 +227,48 @@ def test_resume_evidence_uses_source_snippet_in_strong_match():
     )
 
     assert "主导企业知识库 AI 助手从0到1上线" in evidence_text
+
+
+def test_ai_product_profile_rejects_ai_product_operations_noise():
+    profile = {
+        "target_roles": ["AI产品经理", "AI应用产品", "AI解决方案产品经理"],
+        "target_domains": ["大模型应用", "Agent", "AI解决方案"],
+        "must_have": ["产品规划", "需求分析", "AI产品"],
+        "avoid": ["运营", "销售", "客服", "标注"],
+    }
+    job = {
+        "title": "AI产品运营",
+        "company": "Example",
+        "location": "北京",
+        "category": "运营",
+        "duty": "负责 AI 产品用户运营、活动运营、内容配置和数据看板跟进。",
+        "requirement": "有运营经验，能推动用户增长和活动转化。",
+    }
+
+    result = match_job_intent(job, profile, decision_level="moderate")
+
+    assert result["should_keep"] is False
+    assert result["match_score"] < 0.6
+    assert "negative_role" in result["evidence"]
+
+
+def test_ai_solution_product_manager_still_passes_broad_target_roles():
+    profile = {
+        "target_roles": ["AI产品经理", "AI应用产品", "AI解决方案产品经理"],
+        "target_domains": ["大模型应用", "Agent", "AI解决方案"],
+        "must_have": ["产品规划", "需求分析", "AI产品"],
+        "avoid": ["运营", "销售", "客服", "标注"],
+    }
+    job = {
+        "title": "AI解决方案产品经理",
+        "company": "Example",
+        "location": "北京",
+        "category": "产品",
+        "duty": "负责面向企业客户的大模型应用产品规划、需求分析、方案设计和落地交付。",
+        "requirement": "需要 AI 产品经验，理解客户业务场景、Agent 工作流和跨团队协作。",
+    }
+
+    result = match_job_intent(job, profile, decision_level="moderate")
+
+    assert result["should_keep"] is True
+    assert result["match_score"] >= 0.6

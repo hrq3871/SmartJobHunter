@@ -4,6 +4,7 @@
 
 ## 求职意向
 - 名称: {profile_name}
+- 任务ID: {profile_id}
 - 类型: {job_type}
 - 描述: {intent}
 
@@ -24,7 +25,9 @@
 2. 按评分从高到低排序
 3. 每个岗位包含: 基本信息、匹配分析、投递建议、风险提示
 4. 报告必须体现 recommendation 和 scoring_breakdown，不要只展示总分
-5. 末尾添加总结和行动建议
+5. 只保留已经校验可访问的岗位链接，不要写空链接、404 链接或未测试链接
+6. 末尾添加总结和行动建议
+7. Top 3 岗位需要另生成一键投递包和定制 Cover Letter，Cover Letter 必须结合公司、岗位、JD 证据和简历证据
 
 **输出格式:**
 ```markdown
@@ -32,6 +35,7 @@
 
 > 生成时间: {datetime}
 > 求职意向: {profile_name}
+> 任务ID: {profile_id}
 > 岗位类型: {job_type}
 
 ## 📊 本次巡检统计

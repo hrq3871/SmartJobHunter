@@ -9,7 +9,7 @@ echo SmartJobHunter 定时任务
 echo 时间: %date% %time%
 echo ============================================
 
-python scheduler.py --schedule
+python -m src.scheduler --schedule
 
 echo.
 echo 任务完成

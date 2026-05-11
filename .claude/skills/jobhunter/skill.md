@@ -1,183 +1,102 @@
 ---
 name: jobhunter
-description: 智能求职巡检 Agent
-user_invocable: true
+description: Use when the user asks to run SmartJobHunter, find or evaluate jobs, analyze resumes, generate reports or application packages, inspect crawler evidence, or fix company crawler strategies.
 ---
 
-# SmartJobHunter Agent
+# JobHunter Skillmap
 
-基于 LLM 的智能求职巡检系统，自动抓取、过滤、评估岗位并生成报告。
+本文件是 SmartJobHunter 的 Skillmap/路由索引，不是完整 Agent 定义。完整 Agent 定义由仓库根目录的 `CLAUDE.md` / `AGENTS.md` 自动加载并保障；本 Skill 只负责在触发时快速指向对应子流程、Prompt 和 Python 工具。
 
-## 快速开始
+## 什么时候用
 
-用户说"运行巡检"、"找工作"或"帮我看看有什么岗位"时，按以下流程执行：
+用户表达以下意图时加载本 Skill：
 
----
+- 运行求职巡检、找岗位、今天有什么岗位。
+- 分析简历、建立候选人画像。
+- 判断岗位是否适合。
+- 生成报告、生成 Top 3 投递包、复核 Cover Letter。
+- 公司官网链接变化、抓取失败、需要分析 `logs/crawler_evidence/`。
+- eval 失败、instruction_drift、需要回放 `transcripts/<case_id>.jsonl`。
 
-## 状态机流程
+不用于项目介绍、安装说明、公开能力说明；这些优先看 README。
 
-```
-INIT → LOADED → CRAWLED → FILTERED → EVALUATED → REPORTED → DONE
-```
+## 路由表
 
----
-
-### INIT
-
-**目标**: 初始化并加载所有配置
-
-**执行动作**:
-1. 调用 `load_config` 工具
-2. 读取 `profiles/{profile_name}.md` 获取求职意向
-3. 读取 `resumes/{resume_file}` 获取简历内容
-4. 读取 `config/companies.yaml` 获取公司列表
-5. 读取 `config/agent.yaml` 获取 Agent 配置
-
-**输出变量**:
-```
-profile = {name, intent, keywords, job_type, resume_path}
-resume = "简历文本内容"
-companies = ["腾讯", "字节跳动"]
-agent_config = {decision_level, model_strategy, ...}
-```
-
-**完成条件**: 所有配置加载成功，无缺失文件
-
-**状态转换**: → LOADED
-
----
-
-### LOADED
-
-**目标**: 抓取岗位数据
-
-**执行动作**:
-1. 调用 `crawl` 工具，传入 companies 和 job_type
-2. 等待爬虫完成，获取岗位列表
-
-**输入变量**: companies, job_type
-
-**输出变量**:
-```
-jobs = [
-  {title, company, location, duty, requirement, url, hash, ...},
-  ...
-]
+```text
++--------------------------------------+----------------------------------------------+----------------------------------------------+
+| 场景                                 | 读取/使用                                    | 输出或命令                                   |
++--------------------------------------+----------------------------------------------+----------------------------------------------+
+| 完整巡检                             | CLAUDE.md / AGENTS.md                         | python -m src.cli                            |
+| 候选人画像                           | profile.md + prompts/build_candidate_profile.md | candidate_profile JSON                    |
+| HR 式简历深挖                        | prompts/analyze_resume.md                     | ability profile / highlights / gaps          |
+| 单岗位匹配                           | match.md + prompts/analyze_job.md + prompts/match_candidate_job.md | match decision         |
+| 语义过滤                             | prompts/semantic_filter.md                    | should_keep / concerns / evidence            |
+| 兼容评分拆解                         | prompts/evaluate.md                           | score + scoring_breakdown                    |
+| 抓取策略分析                         | prompts/analyze_crawler_strategy.md           | strategy type + patch plan + verification    |
+| 报告生成/复核                        | prompts/report.md                             | output/{YYYY-MM-DD}/                         |
+| 配置读取                             | tools/load_config.md                          | profiles / companies / agent config          |
+| 抓取                                 | tools/crawl.md                                | raw jobs                                     |
+| 过滤                                 | tools/filter.md                               | filtered jobs                                |
+| 更新 memory                          | tools/update_memory.md                        | memory/seen_jobs.md                          |
+| eval 失败排查                        | evals/evaluation-grader-rubrics.md            | agent_eval_report.md + transcripts           |
+| 真实失败回流                         | evals/eval-case-feedback-loop.md              | evals/candidates/                            |
++--------------------------------------+----------------------------------------------+----------------------------------------------+
 ```
 
-**完成条件**: jobs 列表不为空（或确认无新岗位）
+## 状态机锚点
 
-**状态转换**: → CRAWLED
+完整状态机在 `CLAUDE.md` / `AGENTS.md` 中定义；本 Skill 只保留触发和检查锚点，避免和 Agent 定义重复漂移。
 
----
-
-### CRAWLED
-
-**目标**: 过滤岗位（确定性 + 语义）
-
-**执行动作**:
-1. 调用 `filter_by_time` 工具，传入 jobs 和 time_filter_days
-2. 调用 `dedup` 工具，传入过滤后的 jobs，读取 memory/seen_jobs.md
-3. 对每个剩余岗位，执行 AI 语义过滤:
-   - 使用 `semantic_filter` prompt
-   - 输入: profile.intent, profile.keywords, job
-   - 输出: match_score, match_reason, match_reasons, concerns, evidence, should_keep
-4. 根据 decision_level 阈值过滤
-
-**判断边界**:
-- 时间过滤和去重属于 Python 确定性逻辑。
-- 岗位语义是否匹配由 AI 做主判，Python CLI 只提供 `src.matching` fallback。
-- 不允许只用关键词命中决定保留；必须看岗位核心职责。
-
-**输入变量**: jobs, profile, agent_config.decision_level
-
-**输出变量**:
-```
-matched_jobs = [
-  {job, match_score, match_reason},
-  ...
-]
+```text
+INIT -> LOADED -> STRATEGY_INSPECTED -> CRAWLED -> FILTERED -> EVALUATED -> URL_VALIDATED -> REPORTED -> PACKAGED -> DONE
 ```
 
-**完成条件**: 所有岗位完成语义过滤判断
+关键状态：
 
-**状态转换**: → FILTERED
+- `STRATEGY_INSPECTED`：运行策略巡检，读取 strategy task 和 evidence。
+- `URL_VALIDATED`：报告前必须过滤空链接、404、不可访问链接。
+- `PACKAGED`：为 Top 3 岗位生成投递包，Cover Letter 必须结合 JD 证据和简历证据。
 
----
+## 常用命令
 
-### FILTERED
+```powershell
+# 完整巡检
+python -m src.cli
+python -m src.cli -t social
+python -m src.cli -t internship
+python -m src.cli -t campus
+python -m src.cli -p "意向名称"
 
-**目标**: 深度评估匹配岗位
+# 策略巡检
+python -m src.health_monitor --inspect-strategies --keyword "<关键词>" --job-type social
+python -m src.health_monitor --inspect-company <company_id> --keyword "<关键词>"
 
-**执行动作**:
-1. 调用 `clean_data` 工具，截断过长文本
-2. 检查 memory/profile_cache.md 是否有缓存的能力画像
-3. 执行简历分析 (使用 analyze_resume prompt)
-4. 对每个 matched_job 执行岗位评估 (使用 evaluate prompt)
+# 抓取与验证
+python -m src.crawler_factory --crawl <company_id> --keyword "<关键词>" --max-jobs 10
+python tests/test_all_crawlers.py --company <company_id> --keyword "<关键词>" --max-jobs 3
 
-**职责边界**:
-- AI 负责匹配判断、简历能力画像、投递建议。
-- Python 负责数据清洗、fallback 评分、Markdown 文件落盘。
-- ReportGenerator 只做格式化，不替代 AI 判断。
+# 飞书推送开关
+python -m src.scheduler --feishu-push status
+python -m src.scheduler --feishu-push on
+python -m src.scheduler --feishu-push off
 
-**状态转换**: → EVALUATED
-
----
-
-### EVALUATED
-
-**目标**: 生成报告
-
-**执行动作**:
-1. 按评分从高到低排序 evaluations
-2. 执行报告生成 (使用 report prompt)
-3. 保存到 `output/{date}_{profile_name}.md`
-
-**状态转换**: → REPORTED
-
----
-
-### REPORTED
-
-**目标**: 更新 Memory
-
-**执行动作**:
-1. 调用 `update_memory` 工具
-2. 将处理的岗位追加到 memory/seen_jobs.md
-
-**状态转换**: → DONE
-
----
-
-### DONE
-
-**输出**:
-```
-✅ 巡检完成
-📄 报告: output/20260410_产品经理-TOB方向.md
-📊 匹配岗位: 5 个
-🎯 最高分: 腾讯-AI产品经理 (89分)
+# eval
+python -m src.evaluation --fail-under 1.0
+python -m src.evaluation --trials 3 --fail-under 1.0
+python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 ```
 
----
+默认 regression 数据集是 `evals/regression/jobhunter_core.yaml`。eval 输出写入 `output/evals/{YYYY-MM-DD}/...`，正式巡检报告写入 `output/{YYYY-MM-DD}/...`。
 
-## 执行日志格式
+## Eval 排查速记
 
-```
-[INIT] 开始加载配置...
-[LOADED] ✓ 配置加载完成 (profile: 产品经理-TOB, companies: 2)
-[CRAWLED] ✓ 抓取完成 (50 个岗位)
-[FILTERED] ✓ 过滤完成 (时间:50 → 去重:45 → 语义:12)
-[EVALUATED] ✓ 评估完成 (12 个岗位)
-[REPORTED] ✓ 报告生成: output/20260410_产品经理-TOB方向.md
-[DONE] ✅ 巡检完成
-```
+- 先看 `agent_eval_report.md`。
+- 再看 `transcripts/<case_id>.jsonl` 回放轨迹。
+- 根据 `bad_case_attribution` 定位到 `crawler_strategy`、`matching_filtering`、`recommendation_quality`、`output_quality` 或 `instruction_drift`。
+- Code graders 是默认启用的确定性判分；model/human grader 目前只保留 schema。
 
----
+## 维护规则
 
-## 错误处理
-
-如果某状态执行失败:
-1. 输出错误信息: `[ERROR] 状态: XXX, 错误: ...`
-2. 停止执行，不进入下一状态
-3. 提示用户检查配置或重试
+- 完整流程、职责边界、状态机细节只改 `CLAUDE.md` / `AGENTS.md`。
+- 本 Skill 只维护触发词、路由表、命令索引和 eval 锚点。
+- 新增 prompt/tool 时，同步更新本路由表和 `docs/smartjobhunter-agent-design.md`。

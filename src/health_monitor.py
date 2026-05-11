@@ -1,16 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-SmartJobHunter 爬虫健康监控与自愈系统
+SmartJobHunter 爬虫健康监控与策略巡检系统
 
 功能：
 1. 检测爬虫健康状态
 2. 诊断失败原因
-3. 尝试自动修复
+3. 生成证据和 strategy task，由当前 Agent 分析并固化策略
 """
 
 import sys
 import yaml
+import json
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
@@ -62,7 +63,7 @@ class Diagnosis:
 
 
 class HealthMonitor:
-    """爬虫健康监控与自愈系统"""
+    """爬虫健康监控与策略巡检系统"""
 
     def __init__(self, config_path: str = None):
         """初始化健康监控器
@@ -79,6 +80,160 @@ class HealthMonitor:
             return {"companies": []}
         with open(self.config_path, 'r', encoding='utf-8') as f:
             return yaml.safe_load(f) or {"companies": []}
+
+    def inspect_company_strategy(
+        self,
+        company_id: str,
+        keyword: str = "产品经理",
+        job_type: str = "social",
+        headless: bool = True,
+        task_output_root: str | Path = "logs/strategy_tasks",
+    ) -> Dict[str, Any]:
+        """Inspect one company's configured links and decide the next crawler strategy action."""
+        from .company_registry import choose_company_url, normalize_company
+        from . import site_inspector
+        from . import crawler_evidence
+        from .strategy_planner import plan_strategy_action, write_strategy_task
+
+        raw_company = self._get_company_config(company_id)
+        if not raw_company:
+            return {
+                "company_id": company_id,
+                "action": "blocked",
+                "block_type": "missing_config",
+                "requires_agent": False,
+                "reason": "company_not_found",
+            }
+
+        company = normalize_company(raw_company)
+        url = choose_company_url(company, keyword=keyword, job_type=job_type)
+        if not url:
+            decision = {
+                "action": "blocked",
+                "block_type": "missing_url",
+                "reason": "no_company_link_configured",
+                "requires_agent": False,
+                "next_commands": [],
+            }
+            task_path = write_strategy_task(company, decision, output_root=task_output_root)
+            return self._strategy_result(company, decision, task_path=task_path)
+
+        inspection = site_inspector.inspect_link(url, headless=headless)
+        decision = self._with_strategy_commands(
+            company,
+            plan_strategy_action(company, inspection),
+            keyword=keyword,
+            job_type=job_type,
+        )
+        task_path = None
+        evidence_dir = None
+
+        if decision.get("action") == "collect_evidence":
+            try:
+                evidence = crawler_evidence.collect_evidence(
+                    url=url,
+                    company_id=company_id,
+                    company_name=company.get("name", company_id),
+                    keyword=keyword,
+                    job_type=job_type,
+                    headless=headless,
+                )
+                evidence_path = Path(evidence.get("evidence_path", ""))
+                evidence_dir = str(evidence_path.parent) if evidence_path else None
+            except Exception as exc:
+                decision["evidence_error"] = str(exc)
+            task_path = write_strategy_task(company, decision, evidence_dir=evidence_dir, output_root=task_output_root)
+        elif decision.get("action") == "blocked":
+            task_path = write_strategy_task(company, decision, output_root=task_output_root)
+
+        return self._strategy_result(company, decision, inspection=inspection, task_path=task_path, evidence_dir=evidence_dir)
+
+    def inspect_all_strategies(
+        self,
+        keyword: str = "产品经理",
+        job_type: str = "social",
+        headless: bool = True,
+        task_output_root: str | Path = "logs/strategy_tasks",
+    ) -> Dict[str, Any]:
+        """Inspect all enabled companies and continue after individual failures."""
+        from .company_registry import load_companies
+
+        companies = load_companies(self.config_path, enabled_only=True)
+        results = []
+        summary = {
+            "total": len(companies),
+            "ready": 0,
+            "needs_agent": 0,
+            "blocked": 0,
+            "failed": 0,
+            "results": results,
+        }
+
+        for company in companies:
+            company_id = company.get("id")
+            try:
+                result = self.inspect_company_strategy(
+                    company_id,
+                    keyword=keyword,
+                    job_type=job_type,
+                    headless=headless,
+                    task_output_root=task_output_root,
+                )
+            except Exception as exc:
+                result = {
+                    "company_id": company_id,
+                    "company_name": company.get("name", company_id),
+                    "action": "failed",
+                    "reason": str(exc),
+                    "requires_agent": True,
+                }
+            results.append(result)
+            action = result.get("action")
+            if action == "crawl":
+                summary["ready"] += 1
+            elif action == "collect_evidence":
+                summary["needs_agent"] += 1
+            elif action == "blocked":
+                summary["blocked"] += 1
+            else:
+                summary["failed"] += 1
+
+        return summary
+
+    def _strategy_result(
+        self,
+        company: Dict[str, Any],
+        decision: Dict[str, Any],
+        inspection: Dict[str, Any] | None = None,
+        task_path: Path | None = None,
+        evidence_dir: str | None = None,
+    ) -> Dict[str, Any]:
+        return {
+            "company_id": company.get("id"),
+            "company_name": company.get("name", company.get("id")),
+            "action": decision.get("action"),
+            "reason": decision.get("reason"),
+            "block_type": decision.get("block_type"),
+            "requires_agent": bool(decision.get("requires_agent")),
+            "task_path": str(task_path) if task_path else None,
+            "evidence_dir": evidence_dir,
+            "inspection": inspection or {},
+            "next_commands": decision.get("next_commands", []),
+        }
+
+    def _with_strategy_commands(
+        self,
+        company: Dict[str, Any],
+        decision: Dict[str, Any],
+        keyword: str,
+        job_type: str,
+    ) -> Dict[str, Any]:
+        decision = dict(decision)
+        if decision.get("action") in {"collect_evidence", "blocked", "failed"}:
+            decision["next_commands"] = [
+                f'python -m src.crawler_evidence --company {company.get("id")} --keyword "{keyword}" --job-type {job_type}'
+            ]
+        return decision
 
     def check_crawler(self, company_id: str, max_jobs: int = 5) -> HealthReport:
         """检测单个爬虫健康状态
@@ -220,8 +375,8 @@ class HealthMonitor:
                 company_id=company_id,
                 failure_type=FailureType.URL_INVALID,
                 reason="招聘页面 URL 已失效",
-                can_auto_repair=True,
-                repair_action="搜索新的招聘官网 URL"
+                can_auto_repair=False,
+                repair_action="生成 strategy task，并由当前 Agent 搜索/验证新的招聘官网 URL"
             )
 
         # 需要登录
@@ -250,8 +405,8 @@ class HealthMonitor:
                 company_id=company_id,
                 failure_type=FailureType.API_CHANGED,
                 reason="API 结构可能已变化",
-                can_auto_repair=True,
-                repair_action="重新分析 API 结构"
+                can_auto_repair=False,
+                repair_action="生成 crawler evidence，并由当前 Agent 重新判断 API pattern/data_path/field_mappings"
             )
 
         # 未知错误
@@ -264,88 +419,23 @@ class HealthMonitor:
         )
 
     def auto_repair(self, company_id: str, diagnosis: Diagnosis) -> bool:
-        """尝试自动修复
+        """Compatibility API: create a strategy task instead of pretending Python can repair."""
+        from .company_registry import normalize_company
+        from .strategy_planner import write_strategy_task
 
-        Args:
-            company_id: 公司ID
-            diagnosis: 诊断结果
-
-        Returns:
-            是否修复成功
-        """
-        if not diagnosis.can_auto_repair:
-            return False
-
-        if diagnosis.failure_type == FailureType.URL_INVALID:
-            # 搜索新的 URL
-            return self._repair_url(company_id)
-
-        if diagnosis.failure_type == FailureType.API_CHANGED:
-            # 重新分析 API
-            return self._repair_api(company_id)
-
-        return False
-
-    def _repair_url(self, company_id: str) -> bool:
-        """修复 URL
-
-        Args:
-            company_id: 公司ID
-
-        Returns:
-            是否修复成功
-        """
-        # 调用 AutoAnalyzer 搜索新 URL
-        try:
-            from .auto_analyzer import AutoAnalyzer
-            analyzer = AutoAnalyzer()
-
-            company_config = self._get_company_config(company_id)
-            if not company_config:
-                return False
-
-            company_name = company_config.get('name', company_id)
-            new_config = analyzer.analyze_company(company_name)
-
-            if new_config and new_config.get('urls'):
-                self._update_company_config(company_id, new_config)
-                return True
-
-        except Exception as e:
-            print(f"[Repair] URL repair failed: {e}", file=sys.stderr)
-
-        return False
-
-    def _repair_api(self, company_id: str) -> bool:
-        """修复 API 配置
-
-        Args:
-            company_id: 公司ID
-
-        Returns:
-            是否修复成功
-        """
-        try:
-            from .auto_analyzer import AutoAnalyzer
-            analyzer = AutoAnalyzer()
-
-            company_config = self._get_company_config(company_id)
-            if not company_config:
-                return False
-
-            # 使用现有 URL 重新分析
-            url = company_config.get('urls', {}).get('social', '')
-            if not url:
-                return False
-
-            new_config = analyzer.analyze_url(url)
-            if new_config and new_config.get('api'):
-                self._update_company_config(company_id, new_config)
-                return True
-
-        except Exception as e:
-            print(f"[Repair] API repair failed: {e}", file=sys.stderr)
-
+        company = self._get_company_config(company_id) or {"id": company_id, "name": company_id}
+        company = normalize_company(company)
+        decision = {
+            "action": "collect_evidence",
+            "reason": diagnosis.reason,
+            "failure_type": diagnosis.failure_type.value,
+            "requires_agent": True,
+            "next_commands": [
+                f'python -m src.crawler_evidence --company {company_id} --keyword "产品经理" --job-type social'
+            ],
+        }
+        task_path = write_strategy_task(company, decision)
+        print(f"[Strategy] Task created for Agent analysis: {task_path}", file=sys.stderr)
         return False
 
     def _get_company_config(self, company_id: str) -> Optional[dict]:
@@ -436,12 +526,34 @@ if __name__ == '__main__':
     parser.add_argument('--check', type=str, help='检查指定公司')
     parser.add_argument('--check-all', action='store_true', help='检查所有公司')
     parser.add_argument('--report', action='store_true', help='生成健康报告')
+    parser.add_argument('--inspect-strategies', action='store_true', help='每日策略巡检：检查链接和抓取策略')
+    parser.add_argument('--inspect-company', type=str, help='策略巡检指定公司')
+    parser.add_argument('--keyword', default='产品经理', help='策略巡检关键词')
+    parser.add_argument('--job-type', default='social', help='岗位类型 social/campus/internship')
+    parser.add_argument('--headful', action='store_true', help='显示浏览器窗口')
 
     args = parser.parse_args()
 
     monitor = HealthMonitor()
 
-    if args.check:
+    if args.inspect_company:
+        result = monitor.inspect_company_strategy(
+            args.inspect_company,
+            keyword=args.keyword,
+            job_type=args.job_type,
+            headless=not args.headful,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    elif args.inspect_strategies:
+        summary = monitor.inspect_all_strategies(
+            keyword=args.keyword,
+            job_type=args.job_type,
+            headless=not args.headful,
+        )
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+
+    elif args.check:
         report = monitor.check_crawler(args.check)
         print(f"状态: {report.status.value}")
         print(f"岗位数: {report.jobs_found}")

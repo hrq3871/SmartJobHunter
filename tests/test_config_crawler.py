@@ -16,6 +16,7 @@ from src.crawler_factory import (
     create_crawler,
     get_enabled_companies,
     crawl_company,
+    select_strategy_type,
 )
 from src.config_crawler import ConfigCrawler
 from src.base_crawler import BaseCrawler, InterceptCrawler
@@ -61,6 +62,15 @@ class TestCompanyConfig:
             if 'field_mappings' in company:
                 assert company['enabled'] == True
 
+    def test_get_enabled_companies_skips_strategy_problem_ids(self, monkeypatch):
+        monkeypatch.setenv("SMARTHUNTER_SKIP_COMPANIES", "tencent,meituan")
+
+        companies = get_enabled_companies("social")
+        company_ids = {company.get("id") for company in companies}
+
+        assert "tencent" not in company_ids
+        assert "meituan" not in company_ids
+
 
 class TestCrawlerCreation:
     """测试爬虫创建"""
@@ -88,6 +98,24 @@ class TestCrawlerCreation:
         """测试创建无效公司的爬虫"""
         with pytest.raises(CompanyNotFoundError):
             create_crawler('invalid_company')
+
+    def test_config_intercept_strategy_uses_config_crawler(self):
+        company = {
+            "strategy": {"type": "config_intercept"},
+            "api": {"type": "intercept"},
+        }
+
+        assert select_strategy_type(company) == "config"
+
+    def test_legacy_python_strategy_is_preserved(self):
+        company = {"strategy": {"type": "legacy_python"}}
+
+        assert select_strategy_type(company) == "legacy_python"
+
+    def test_custom_python_strategy_is_routed(self):
+        company = {"id": "special", "strategy": {"type": "custom_python", "module": "special"}}
+
+        assert select_strategy_type(company) == "custom_python"
 
 
 class TestFieldParsing:

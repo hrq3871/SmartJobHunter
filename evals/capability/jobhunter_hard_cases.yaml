@@ -1,0 +1,70 @@
+version: 1
+name: SmartJobHunter Capability Evaluation
+description: >
+  Harder, realistic cases used to probe current capability boundaries. This
+  suite is diagnostic and does not need to be held to the same pass threshold
+  as the regression suite.
+
+cases:
+  - id: hard_ai_keyword_engineering_noise_should_reject
+    type: matching_intent
+    attribution: matching_filtering
+    source: "manual_boundary_case"
+    goal: "Reject AI-keyword roles when the actual role is engineering, not product."
+    profile:
+      intent: "寻找 AI 产品经理岗位，偏好大模型应用和 ToB SaaS。"
+      keywords: ["产品经理", "AI产品", "大模型"]
+      exclude_keywords: ["工程师", "算法", "开发", "研发", "Infra"]
+    job:
+      title: "Agent Infra 工程师"
+      company: "Example"
+      location: "杭州"
+      category: "技术"
+      duty: "负责 Agent 平台基础设施、任务编排、模型服务和后端工程化。"
+      requirement: "需要 Python/Go 开发经验，熟悉分布式系统和模型推理服务。"
+    expected:
+      should_keep: false
+      max_match_score: 0.59
+
+  - id: hard_marketing_ai_pm_should_not_be_strong_apply
+    type: job_fit
+    attribution: recommendation_quality
+    source: "manual_boundary_case"
+    goal: "Avoid over-recommending marketing-growth roles for a ToB AI product profile."
+    profile:
+      intent: "寻找 AI Agent 和大模型应用方向的产品经理岗位，偏好 ToB SaaS。"
+      keywords: ["AI产品", "大模型", "Agent", "ToB"]
+      avoid: ["运营", "增长", "投放"]
+    resume: |
+      5年 ToB SaaS 产品经验，主导企业知识库 AI 助手从0到1上线。
+      熟悉 LLM 应用、RAG、Agent 工作流、需求分析和跨团队推进。
+    job:
+      title: "营销AI产品经理"
+      company: "Example"
+      location: "上海"
+      category: "产品"
+      duty: "负责营销场景 AI 工具的增长策略、活动转化、投放链路和用户运营效率。"
+      requirement: "需要增长运营经验，熟悉营销活动、投放策略和数据转化。"
+    expected:
+      max_score: 79
+      recommendation_not_in: ["strong_apply"]
+
+  - id: hard_public_jobs_with_login_button_should_collect_evidence
+    type: strategy_action
+    attribution: crawler_strategy
+    source: "manual_boundary_case"
+    goal: "Do not block a public career page just because it has a generic login button."
+    company:
+      id: "public_jobs_with_login_button"
+      name: "Public Jobs With Login Button"
+      strategy:
+        status: "unknown"
+    html: "<html><button>登录</button><main>社会招聘 AI产品经理 岗位 职位列表</main></html>"
+    text: "登录\n社会招聘\nAI产品经理\n岗位\n职位列表"
+    inspection:
+      ok: true
+      fingerprint: "public-login-button"
+    expected:
+      action: "collect_evidence"
+      requires_agent: true
+      signal_absent: "login_required"

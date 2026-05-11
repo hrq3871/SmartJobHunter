@@ -1,0 +1,497 @@
+# SmartJobHunter Agent Design
+
+> **文档用途**
+> 本文档用于说明 SmartJobHunter 的内部 Agent 架构、状态机、评估体系和规范演进规则。
+> 主要读者是维护本项目的 Claude/Codex Agent、开发者和需要理解系统设计的人。
+> 不用于对外宣传、快速上手，也不作为 Agent 自动加载的定义文件；Agent 定义见 `CLAUDE.md` / `AGENTS.md`，Skill 路由见 `.claude/skills/jobhunter/skill.md`。
+
+SmartJobHunter 是一个面向公司官网岗位巡检的 Agent 平台项目。Python 负责可复现的工具层，当前 Claude/Codex Agent 负责需要语义判断、证据复核和策略固化的部分。Python 不调用外部 LLM API。
+
+## 1. 文档分层
+
+```text
++----------------------------------------------+----------------------------------------------+
+| 文件/目录                                     | 作用                                         |
++----------------------------------------------+----------------------------------------------+
+| README.md / README_CN.md                      | 对外介绍、能力定位、快速开始、常用命令       |
+| CLAUDE.md / AGENTS.md                         | 自动加载的 SmartJobHunter Agent 定义文件     |
+| docs/smartjobhunter-agent-design.md           | 内部完整架构、状态机、评估体系和演进规则     |
+| evals/evaluation-grader-rubrics.md            | Eval grader 判分标准和 schema                 |
+| evals/eval-case-feedback-loop.md              | 真实失败/反馈沉淀为 eval case 的闭环         |
+| docs/plans/                                   | 历史实施计划，不作为当前运行规则             |
+| docs/optimization-log.md                      | 本地私有优化记录，不提交 Git                 |
+| .claude/skills/jobhunter/skill.md             | JobHunter Skillmap：触发词和路由索引         |
+| .claude/skills/jobhunter/profile.md           | 候选人画像子流程                             |
+| .claude/skills/jobhunter/match.md             | 候选人-岗位匹配子流程                        |
+| .claude/skills/jobhunter/prompts/*.md         | Agent 判断提示词                             |
+| .claude/skills/jobhunter/tools/*.md           | Python 工具入口和命令说明                    |
+| evals/regression/jobhunter_core.yaml          | 默认 regression eval 数据集                  |
+| evals/capability/jobhunter_hard_cases.yaml    | 能力边界诊断数据集                           |
+| evals/candidates/                             | 真实失败回流候选 case                        |
+| config/companies.yaml                         | 用户维护的公司官网链接和策略配置             |
+| config/agent.sample.yaml                      | 可提交的本地配置模板                         |
+| config/agent.yaml                             | 本地私有配置，不提交 Git                     |
+| profiles/*.md                                 | 求职意向，文件名作为 profile_id              |
+| resumes/*                                     | 简历原文                                     |
+| src/                                          | Python 抓取、过滤、报告、评估工具层          |
+| logs/strategy_tasks/                          | 策略任务，给 Agent 读取                      |
+| logs/crawler_evidence/                        | 页面、DOM、网络、截图证据                    |
+| output/{YYYY-MM-DD}/                          | 正式巡检报告和投递包                         |
+| output/evals/                                 | 本地 eval 运行产物，不提交 Git               |
++----------------------------------------------+----------------------------------------------+
+```
+
+维护原则：
+
+- README 只写对外信息；不要塞内部 Agent 运行规则。
+- CLAUDE.md / AGENTS.md 写完整 Agent 定义：身份、目录、状态机、Prompt 路由、评估和边界。
+- `.claude/skills/jobhunter/skill.md` 只写 Skillmap：触发场景、路由索引、常用命令和 eval 锚点。
+- prompts 写具体判断标准，不承担系统分层说明。
+- docs 根目录只保留全局设计、AI 自动维护或历史计划类文档；eval 运行体系文档放 `evals/`。
+- `evals/` 同时放评测集、grader 规则、失败回流流程和候选 case。
+
+## 2. 系统定位
+
+Python 工具层负责：
+
+- 官网抓取、文本抽取、确定性过滤、fallback 粗评分。
+- URL 校验、报告落盘、投递包落盘、memory 更新。
+- 策略巡检、证据采集、评估 harness、transcript 和 code graders。
+
+当前 Claude/Codex Agent 负责：
+
+- 从简历和求职目标构建候选人画像。
+- 分析 JD，生成岗位画像。
+- 语义过滤和最终匹配判断。
+- 读取 strategy task 和 evidence，固化公司抓取策略。
+- 复核报告质量、投递包质量和异常结果。
+- 根据真实失败更新 eval case、prompt、Skillmap 和 Agent 定义。
+
+关键边界：
+
+- 不直接替用户投递。
+- 不绕过登录、验证码或强反爬。
+- 不把 Python fallback 分数当作最终 AI 结论。
+- 不提交 `config/agent.yaml`、`output/`、`logs/`、`docs/optimization-log.md`。
+
+## 3. 目录结构
+
+```text
+SmartJobHunter/
+├── README.md / README_CN.md
+├── CLAUDE.md / AGENTS.md
+├── config/
+│   ├── companies.yaml
+│   ├── agent.sample.yaml
+│   ├── agent.yaml                  # ignored, local only
+│   └── system_templates.yaml
+├── profiles/
+├── resumes/
+├── memory/
+│   └── seen_jobs.md
+├── logs/
+│   ├── strategy_tasks/
+│   └── crawler_evidence/
+├── output/
+│   ├── {YYYY-MM-DD}/
+│   └── evals/
+├── evals/
+│   ├── regression/jobhunter_core.yaml
+│   ├── capability/jobhunter_hard_cases.yaml
+│   ├── evaluation-grader-rubrics.md
+│   ├── eval-case-feedback-loop.md
+│   ├── candidates/
+│   └── jobhunter_agent_eval.yaml    # legacy/default-compatible copy
+├── src/
+│   ├── cli.py                       # JobHunter 主流程
+│   ├── crawler_factory.py           # 公司策略选择和抓取入口
+│   ├── config_crawler.py
+│   ├── dom_crawler.py
+│   ├── site_strategies/
+│   ├── health_monitor.py            # 策略巡检
+│   ├── crawler_evidence.py          # 证据采集
+│   ├── strategy_planner.py
+│   ├── filters.py
+│   ├── matching.py
+│   ├── resume_parser.py
+│   ├── feishu_push.py
+│   ├── feishu_bitable.py
+│   ├── scheduler.py
+│   ├── evaluation.py
+│   ├── eval_graders.py
+│   └── eval_transcript.py
+├── .claude/skills/jobhunter/
+│   ├── skill.md                    # Skillmap：触发词和路由索引
+│   ├── profile.md
+│   ├── match.md
+│   ├── prompts/
+│   │   ├── analyze_crawler_strategy.md
+│   │   ├── analyze_resume.md
+│   │   ├── build_candidate_profile.md
+│   │   ├── semantic_filter.md
+│   │   ├── analyze_job.md
+│   │   ├── match_candidate_job.md
+│   │   ├── evaluate.md
+│   │   └── report.md
+│   └── tools/
+│       ├── load_config.md
+│       ├── crawl.md
+│       ├── filter.md
+│       └── update_memory.md
+└── docs/
+    ├── smartjobhunter-agent-design.md
+    ├── optimization-log.md          # ignored, local only
+    └── plans/
+```
+
+## 4. 运行架构
+
+```text
+用户意图
+  |
+  v
+CLAUDE.md / AGENTS.md
+  |  自动加载的 Agent 定义：身份、边界、状态机、Prompt 路由、评估
+  v
+.claude/skills/jobhunter/skill.md
+  |  Skillmap：触发词、路由索引、常用命令
+  +--> profile.md + build_candidate_profile.md / analyze_resume.md
+  +--> match.md + analyze_job.md + match_candidate_job.md / evaluate.md
+  +--> analyze_crawler_strategy.md
+  +--> report.md
+  |
+  v
+Python 工具层
+  |  src.cli / crawler_factory / filters / matching / health_monitor / evaluation
+  v
+output / logs / memory / evals
+```
+
+### Skill / Prompt 路由
+
+```text
++--------------------------------------+----------------------------------------------+----------------------------------------------+
+| 场景                                 | 使用的 Skill / Prompt                         | Python / 数据入口                            |
++--------------------------------------+----------------------------------------------+----------------------------------------------+
+| 用户问项目是什么、怎么安装           | README.md / README_CN.md                      | 不进入完整状态机                             |
+| 运行完整巡检                         | CLAUDE.md / AGENTS.md + jobhunter Skillmap    | python -m src.cli                            |
+| 分析简历、补候选人画像               | profile.md + build_candidate_profile.md       | src.resume_parser.parse_resume               |
+| 需要更偏 HR 的简历深挖               | prompts/analyze_resume.md                     | 简历原文                                     |
+| 单个岗位是否适合                     | match.md + analyze_job.md + match_candidate_job.md | 岗位 JD + candidate_profile + profile   |
+| Python fallback 兼容评分/旧流程       | prompts/evaluate.md                           | src.matching.evaluate_job_fit                |
+| 过滤关键词噪音岗位                   | prompts/semantic_filter.md                    | src.filters + src.matching.match_job_intent  |
+| 策略巡检出现 unknown/new/failed       | prompts/analyze_crawler_strategy.md           | logs/strategy_tasks + logs/crawler_evidence  |
+| 生成或复核报告                       | prompts/report.md                             | output/{YYYY-MM-DD}/                         |
+| 修复 eval 失败                       | evals/evaluation-grader-rubrics.md + transcripts | output/evals/.../agent_eval_report.md     |
+| 真实失败回流                         | evals/eval-case-feedback-loop.md              | evals/candidates/                            |
++--------------------------------------+----------------------------------------------+----------------------------------------------+
+```
+
+### Python 主流程与 Agent 介入点
+
+```text
+src.cli.JobHunter.run_profile()
+  -> load_config()
+     Agent: 检查 profile 目标，不默认产品经理
+  -> resume_parser.parse_resume()
+     Agent: profile.md / build_candidate_profile.md
+  -> crawl_jobs()
+     Python: crawler_factory
+     Agent: 若策略失败，analyze_crawler_strategy.md
+  -> filter_jobs()
+     Python: time -> dedup -> clean_data -> match_job_intent
+     Agent: semantic_filter.md 复核高风险岗位
+  -> evaluate_job()
+     Python fallback: matching.evaluate_job_fit
+     Agent: analyze_job.md + match_candidate_job.md 做最终判断
+  -> _rank_and_filter_results()
+  -> _filter_live_urls()
+  -> generate_report()
+     Agent: report.md 复核报告内容
+  -> generate_application_package()
+     Agent: 确认 Cover Letter 结合 JD 和简历证据
+  -> Feishu push / Bitable
+  -> filters.update_memory()
+```
+
+## 5. Agent 闭环
+
+```text
++----------+     +----------+     +----------+     +----------+     +----------+
+| 感知     | --> | 决策     | --> | 执行     | --> | 反馈     | --> | 学习     |
++----------+     +----------+     +----------+     +----------+     +----------+
+| 配置     |     | 策略分类 |     | 抓取     |     | 报告     |     | eval case|
+| 证据包   |     | 是否保留 |     | 过滤     |     | 投递包   |     | 文档演进 |
+| 简历/JD  |     | 是否推荐 |     | 评估     |     | 用户反馈 |     | 策略固化 |
++----------+     +----------+     +----------+     +----------+     +----------+
+```
+
+## 6. 核心状态机
+
+```text
+INIT
+  -> LOADED
+  -> STRATEGY_INSPECTED
+  -> CRAWLED
+  -> FILTERED
+  -> EVALUATED
+  -> URL_VALIDATED
+  -> REPORTED
+  -> PACKAGED
+  -> DONE
+```
+
+### INIT
+
+目标：初始化并加载配置。
+
+读取：
+
+- `config/companies.yaml`
+- `profiles/*.md`
+- `resumes/*`
+- `memory/seen_jobs.md`
+- `config/agent.yaml`（如果存在）
+
+对应说明：`.claude/skills/jobhunter/tools/load_config.md`。
+
+### LOADED
+
+目标：确认 profile、简历、公司配置可用。
+
+Agent 必须检查：
+
+- `target_roles`、`target_domains`、`must_have`、`avoid`、`keywords`。
+- 简历是否存在且可解析。
+- 目标宽泛时是否需要多个关键词抽样。
+- 不得默认用户是产品经理。
+
+候选人画像：
+
+- 默认使用 `profile.md` + `prompts/build_candidate_profile.md`。
+- 需要更细 HR 式分析时补充 `prompts/analyze_resume.md`。
+
+### STRATEGY_INSPECTED
+
+目标：巡检公司官网链接和抓取策略。
+
+命令：
+
+```powershell
+python -m src.health_monitor --inspect-strategies --keyword "<关键词>" --job-type <social|campus|internship>
+python -m src.health_monitor --inspect-company <company_id> --keyword "<关键词>"
+```
+
+对 `unknown/new/changed/failed` 策略读取：
+
+- `logs/strategy_tasks/.../task.json`
+- `logs/crawler_evidence/.../evidence.json`
+- `logs/crawler_evidence/.../network.json`
+- `logs/crawler_evidence/.../page.html`
+- `logs/crawler_evidence/.../page.txt`
+- `logs/crawler_evidence/.../page.png`
+
+Agent 使用 `prompts/analyze_crawler_strategy.md` 判断：
+
+- `config_intercept`
+- `config_dom`
+- `legacy_python`
+- `custom_python`
+- `browser_operation`
+- `unsupported`
+
+修改策略后必须验证：
+
+```powershell
+python tests/test_all_crawlers.py --company <company_id> --keyword "<关键词>" --max-jobs 3
+```
+
+### CRAWLED
+
+目标：抓取岗位数据。
+
+命令：
+
+```powershell
+python -m src.crawler_factory --crawl <company_id> --keyword "<关键词>" --max-jobs 10
+```
+
+说明：`.claude/skills/jobhunter/tools/crawl.md`。
+
+若 CLI 输出为空，不直接结论“没有合适岗位”；应抽查原始抓取、关键词和 profile。
+
+### FILTERED
+
+目标：过滤岗位。
+
+```text
+raw jobs
+  -> filter_by_time
+  -> dedup
+  -> clean_data
+  -> match_job_intent
+  -> Agent semantic review
+```
+
+工具说明：`.claude/skills/jobhunter/tools/filter.md`。
+
+Agent 使用 `prompts/semantic_filter.md` 复核：
+
+- 标题关键词是否只是噪音。
+- 岗位核心职责是否匹配 profile。
+- 销售、客服、审核、标注、纯运营等风险是否进入强推荐。
+
+### EVALUATED
+
+目标：生成岗位画像和最终匹配判断。
+
+默认链路：
+
+```text
+profile.md
+  -> build_candidate_profile.md
+match.md
+  -> analyze_job.md
+  -> match_candidate_job.md
+```
+
+兼容/辅助链路：
+
+- `prompts/evaluate.md`：旧版深度岗位评分 prompt，适合对齐 Python fallback 评分维度。
+- `src.matching.evaluate_job_fit()`：无 Agent 执行 prompt 时的 deterministic fallback。
+
+输出必须包含：
+
+- JD 证据
+- 简历证据
+- 匹配分数
+- 推荐等级
+- 缺失技能
+- 风险信号
+
+### URL_VALIDATED
+
+目标：报告前校验岗位详情链接。
+
+Python 执行：`JobHunter._filter_live_urls()`。
+
+规则：
+
+- 空链接、404、不可访问链接不得进入报告或飞书。
+- 链接校验后无岗位时，不生成报告。
+
+### REPORTED
+
+目标：生成日期归档报告。
+
+路径：
+
+```text
+output/{YYYY-MM-DD}/{profile_id}_{YYYYMMDD_HHMM}.md
+```
+
+Agent 使用 `prompts/report.md` 复核报告是否包含 recommendation、scoring breakdown、风险、行动建议和可访问链接。
+
+### PACKAGED
+
+目标：生成 Top 3 投递包。
+
+路径：
+
+```text
+output/{YYYY-MM-DD}/application_packages/{profile_id}_{YYYYMMDD_HHMM}/
+```
+
+Cover Letter 必须结合公司、岗位、JD 证据、简历证据和风险点。
+
+### DONE
+
+目标：更新 memory 并汇报。
+
+工具说明：`.claude/skills/jobhunter/tools/update_memory.md`。
+
+更新：
+
+```text
+memory/seen_jobs.md
+```
+
+## 7. 评估体系
+
+命令：
+
+```powershell
+python -m src.evaluation --fail-under 1.0
+python -m src.evaluation --trials 3 --fail-under 1.0
+python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
+python -m pytest tests/test_evaluation.py -v
+```
+
+默认 regression 数据集：`evals/regression/jobhunter_core.yaml`。
+
+输出：
+
+```text
+output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/
+├── agent_eval_results.json
+├── agent_eval_report.md
+├── transcripts/<case_id>.jsonl
+├── artifacts/
+└── wf/
+```
+
+指标：
+
+- `task_completion_rate`
+- `pass@k`
+- `pass^k`
+- `tool_call_accuracy`
+- `matching.precision`
+- `matching.recall`
+- `matching.f1`
+- `bad_case_attribution`
+
+归因：
+
+```text
++------------------------+-----------------------------------------------+
+| 归因模块               | 测试内容                                      |
++------------------------+-----------------------------------------------+
+| crawler_strategy       | crawl / collect_evidence / blocked 路由       |
+| matching_filtering     | 保留目标岗位，拒绝关键词噪音                  |
+| recommendation_quality | 评分和推荐等级边界                            |
+| output_quality         | URL 过滤、报告、Top 3 投递包、memory          |
+| instruction_drift      | AGENTS / CLAUDE / jobhunter Skillmap 一致性   |
++------------------------+-----------------------------------------------+
+```
+
+Code graders 是默认启用的机器判分；model/human grader 只保留 schema，离线 runner 默认 skipped。具体 rubric 见 `evals/evaluation-grader-rubrics.md`。
+
+## 8. 失败处理
+
+失败时按顺序处理：
+
+1. 打开 `agent_eval_report.md` 看失败 case 和 attribution。
+2. 打开 `transcripts/<case_id>.jsonl` 回放执行过程。
+3. 判断问题属于抓取策略、匹配过滤、推荐质量、输出质量还是 instruction_drift。
+4. 修复代码、配置、prompt、Skill 或项目规则。
+5. 重新运行 regression eval。
+6. 如果是新真实失败，按 `evals/eval-case-feedback-loop.md` 沉淀到 `evals/candidates/`。
+
+## 9. 文档与规范演进
+
+当出现以下情况时，必须更新相关文档：
+
+- 用户指出当前行为或文档理解错误。
+- JobHunter 状态机新增、删除或改名。
+- 目录结构、输出路径、评估命令发生变化。
+- 新增 prompt、工具、数据来源或 Python 主流程。
+- 真实失败样本暴露出规则缺口。
+
+同步更新顺序：
+
+1. `CLAUDE.md` 和 `AGENTS.md`
+2. `.claude/skills/jobhunter/skill.md`
+3. `docs/smartjobhunter-agent-design.md`
+4. 必要时更新 README 的对外说明
+5. 修改后运行 `python -m src.evaluation --fail-under 1.0`

@@ -16,6 +16,8 @@
 
 ---
 
+> 开发者/维护者操作手册：需要完整命令、策略修复、评估回归时看 [docs/usage-cn.md](docs/usage-cn.md)。
+
 ## 为什么做这个项目
 
 这是一个面向 **公司官网岗位巡检** 的智能求职工具。
@@ -64,9 +66,15 @@
 
 - 自动巡检多家公司官网职位
 - 过滤重复岗位和低相关岗位
-- 基于简历进行岗位匹配评分
+- 支持不同岗位方向的简历与求职目标配置，不限定产品经理
+- 基于简历证据、求职目标和 JD 证据进行岗位匹配评分
 - 输出推荐理由、匹配证据和风险提示
-- 生成结构化岗位报告，帮助快速判断是否值得投递
+- 按日期归档生成结构化岗位报告，帮助快速判断是否值得投递
+- 生成报告前校验岗位详情链接，只保留真实可访问链接
+- 为 Top 3 高匹配岗位生成一键投递包和定制 Cover Letter
+- 每日任务会主动巡检公司官网链接和抓取策略，为 Agent 修复提供证据
+- 可选把每日跑完结果推送到飞书 Wiki 和多维表格
+- 提供离线 Agent 评估集，回归检查策略路由、岗位匹配、输出质量和指令漂移
 
 ## 规划中的能力
 
@@ -85,8 +93,8 @@
 - **面试后复盘与预测策略优化**
   支持上传面试录音或文稿，自动生成复盘和改进建议；将真实面试问题与预测问题做命中率比对，分析遗漏点，并反向优化后续 JD 面试问题预测策略。
 
-- **从“发现机会”走向“辅助申请”**
-  让系统不只是一个岗位监控工具，而是覆盖机会发现、匹配筛选、材料生成、飞书提醒、面试准备和面试复盘的完整求职辅助代理。
+- **更完整的投递跟踪**
+  把当前报告、飞书推送和 Top 3 投递包进一步扩展成投递跟踪体系，记录每个岗位使用的简历、Cover Letter 和投递状态。
 
 ## 一句话概括
 
@@ -96,16 +104,36 @@
 
 | 功能 | 描述 |
 |:---:|:---|
-| 🤖 **Agent 驱动** | 大模型驱动的智能岗位匹配与评估 |
+| 🤖 **Agent 驱动** | 当前 Claude/Codex agent 负责简历画像、岗位画像、匹配判断与解释 |
+| 🎯 **通用求职目标** | 支持产品、数据、研发等不同岗位方向；产品经理只是示例 profile |
 | 🎯 **多意向并行** | 支持多个求职方向，每份简历独立巡检 |
 | 📄 **多格式简历** | 支持 txt、md、docx、pdf、png、jpg 格式 |
 | 🔍 **智能过滤** | 三层漏斗：时间 → 去重 → 语义意向匹配 |
-| 📊 **AI 评估** | 规则指导评分（0-100分）+ 基于证据的匹配理由 |
+| 📊 **AI 评估** | Agent 主判 + Python fallback 粗评分（0-100分）+ 基于证据的匹配理由 |
 | 📊 **岗位分类** | 区分实习/校招/社招 |
 | ⏰ **定时执行** | 每天 20:00 自动巡检 |
-| 🔧 **自愈系统** | 爬虫健康监控与自动修复 |
-| 🏢 **56 家公司** | 42 家已启用，API 已验证 |
-| ⚙️ **配置驱动** | 添加新公司无需写代码 |
+| 🔧 **每日策略巡检** | 抓取前巡检公司链接，采集证据，并由当前 Agent 固化可复用抓取策略 |
+| 🏢 **公司官网** | 配置中启用的公司以当前测试结果为准 |
+| ⚙️ **配置驱动** | 优先通过配置添加公司，特殊站点可能需要代码适配 |
+| 📦 **一键投递包** | 链接校验后为 Top 3 岗位生成定制 Cover Letter |
+| 🗂️ **日期归档** | 报告和投递包按运行日期保存 |
+| 🧪 **Agent 评估** | 用固定评测集衡量抓取策略、匹配过滤、输出质量和 Agent 指令一致性 |
+
+## 最简单使用方式
+
+1. 把简历放到 `resumes/`，例如 `resumes/my_resume.md`。
+2. 在 `profiles/` 里维护求职意向：目标岗位、关键词、必须项、排除项，并把 `resume` 指向你的简历。
+3. 在 `config/companies.yaml` 里维护要巡检的公司官网/招聘链接，启用想看的公司。
+4. 对 Agent 说：“运行今天的社招巡检”或“只跑 AI 产品经理这个意向”。
+5. 结果看 `output/{日期}/`；Top 3 投递包看 `output/{日期}/application_packages/`。
+
+会用命令的话，也可以直接跑：
+
+```powershell
+python -m src.cli
+python -m src.cli -t social
+python -m src.cli -p "意向名称"
+```
 
 ## 🚀 快速开始
 
@@ -176,8 +204,9 @@ python -m src.cli --list-profiles
 ### 5️⃣ 查看报告
 
 ```bash
-ls output/
-# 20260410_产品经理.md
+ls output/2026-05-07/
+# pm_tob_20260507_2030.md
+# application_packages/pm_tob_20260507_2030/
 ```
 
 ## 📁 目录结构
@@ -187,18 +216,26 @@ SmartJobHunter/
 ├── 📂 src/                  # Python 模块
 │   ├── cli.py               # CLI 入口 & JobHunter 类
 │   ├── crawler.py           # 传统爬虫（腾讯、字节等）
-│   ├── crawler_factory.py   # 爬虫工厂（含自愈逻辑）
+│   ├── crawler_factory.py   # 爬虫工厂（配置爬虫 + 专用策略）
 │   ├── config_crawler.py    # 配置驱动爬虫
 │   ├── base_crawler.py      # 爬虫基类（API 拦截）
-│   ├── health_monitor.py    # 健康监控与诊断
-│   ├── auto_analyzer.py     # 新公司自动分析
+│   ├── company_registry.py  # 公司链接注册表
+│   ├── site_inspector.py    # 官网链接与策略巡检
+│   ├── strategy_planner.py  # Agent 策略任务生成
+│   ├── crawler_evidence.py  # 页面/网络/DOM 证据采集
+│   ├── health_monitor.py    # 每日策略巡检与诊断
+│   ├── auto_analyzer.py     # 历史招聘系统模板匹配器
 │   ├── notifier.py          # 用户通知系统
 │   ├── filters.py           # 过滤函数（时间、去重、清洗）
 │   ├── matching.py          # 语义匹配 fallback 与评分规则
+│   ├── evaluation.py        # Agent 评估 harness
+│   ├── eval_graders.py      # 显式 code/model/human grader helper
+│   ├── eval_transcript.py   # eval case 的 JSONL 轨迹记录器
 │   ├── resume_parser.py     # 简历解析（txt/md/docx/pdf/图片）
 │   ├── scheduler.py         # 定时调度（每天 20:00）
-│   ├── health_check.py      # 健康检测
-│   └── git_auto_push.py     # Git 自动推送
+│   ├── health_check.py      # 兼容旧命令的健康检测入口
+│   ├── git_auto_push.py     # 可选 Git 自动推送
+│   └── site_strategies/     # 专用公司抓取策略
 │
 ├── 📂 config/               # 配置文件
 │   ├── agent.sample.yaml    # 可提交的 Agent 示例配置
@@ -209,9 +246,10 @@ SmartJobHunter/
 ├── 📂 profiles/             # 求职意向（Markdown + YAML frontmatter）
 ├── 📂 resumes/              # 简历文件
 ├── 📂 memory/               # 去重数据（seen_jobs.md）
-├── 📂 output/               # 生成的报告
+├── 📂 output/               # 按日期归档的报告和投递包
 ├── 📂 logs/                 # 日志文件
 ├── 📂 tests/                # 测试文件
+├── 📂 evals/                # regression、capability 和候选 eval cases
 │
 ├── 📂 .claude/skills/       # Claude Code Agent Skills
 │   └── jobhunter/           # JobHunter Agent
@@ -309,7 +347,9 @@ SmartJobHunter 不再把关键词命中本身视为匹配。
 2. **语义意向过滤**：Agent 判断岗位真实职责是否符合求职意向，关键词只作为辅助证据。
 3. **简历-岗位匹配评分**：Agent 按角色匹配、领域匹配、简历证据、偏好、证据质量和风险扣分评分。
 4. **报告排序**：岗位按最终评分降序排列，低于 `threshold_score` 的岗位不进入报告，并受 `output.max_jobs_per_report` 数量上限控制。
-5. **Python fallback**：当没有 Agent 执行 prompt 时，`src.matching` 用同一套规则支持 CLI 运行和自动化测试。
+5. **链接校验**：生成报告前检查岗位详情链接，过滤空链接或不可访问链接。
+6. **投递包生成**：为 Top 3 高分岗位生成独立 Cover Letter 包。
+7. **Python fallback**：当没有 Agent 执行 prompt 时，`src.matching` 用同一套规则支持 CLI 运行和自动化测试。
 
 评分维度：
 
@@ -337,6 +377,13 @@ Agent 提示词位于 `.claude/skills/jobhunter/prompts/`，要求输出有证�
 | `python -m src.cli -p "意向名"` | 运行指定意向 |
 | `python -m src.cli --list-profiles` | 列出所有意向 |
 
+CLI 输出会按日期归档：
+
+```text
+output/YYYY-MM-DD/<profile_id>_<YYYYMMDD_HHMM>.md
+output/YYYY-MM-DD/application_packages/<profile_id>_<YYYYMMDD_HHMM>/
+```
+
 ## ✅ 测试
 
 ```bash
@@ -345,9 +392,21 @@ pytest -q -p no:cacheprovider -m "not integration"
 
 # 仅运行匹配/评分测试
 pytest -q -p no:cacheprovider tests/test_matching.py
+
+# Agent 评估回归套件
+python -m src.evaluation
+
+# 稳定性检查：每个 case 跑 3 次
+python -m src.evaluation --trials 3 --fail-under 1.0
+
+# 能力边界评估
+python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 ```
 
 集成爬虫测试需要浏览器和网络访问，并使用 `integration` 标记。
+
+Agent 评估报告会写入 `output/evals/YYYY-MM-DD/`，属于本地运行产物。
+完整内部 Agent 架构和评估设计见 `docs/smartjobhunter-agent-design.md`。
 
 ### 爬虫命令
 
@@ -362,14 +421,19 @@ pytest -q -p no:cacheprovider tests/test_matching.py
 | 命令 | 说明 |
 |:-----|:-----|
 | `python -m src.scheduler --run` | 立即执行巡检 |
-| `python -m src.scheduler --check` | 运行健康检测 |
-| `python -m src.scheduler --repair` | 触发修复流程 |
+| `python -m src.scheduler --check` | 运行每日策略巡检 |
+| `python -m src.scheduler --repair` | 输出需要当前 Agent 处理的策略任务 |
 | `python -m src.scheduler --schedule` | 定时模式（系统调用） |
+| `python -m src.scheduler --feishu-push status` | 查看飞书 Wiki/多维表格推送开关 |
+| `python -m src.scheduler --feishu-push on` | 开启每日跑完后的飞书推送 |
+| `python -m src.scheduler --feishu-push off` | 关闭每日跑完后的飞书推送 |
 
 ### 健康监控命令
 
 | 命令 | 说明 |
 |:-----|:-----|
+| `python -m src.health_monitor --inspect-strategies` | 巡检所有公司链接和策略 |
+| `python -m src.health_monitor --inspect-company <id>` | 巡检单个公司链接和策略 |
 | `python -m src.health_monitor --check <id>` | 检测单个爬虫 |
 | `python -m src.health_monitor --check-all` | 检测所有爬虫 |
 | `python -m src.health_monitor --report` | 生成健康报告 |
@@ -460,11 +524,15 @@ pytest -q -p no:cacheprovider tests/test_matching.py
 
 ### 🔧 添加新公司
 
-配置驱动架构，添加新公司无需写代码：
+公司支持从 `config/companies.yaml` 开始，但不是每个官网都能只靠配置完成。当前设计流程是：
 
-1. 编辑 `config/companies.yaml`
-2. 添加 `field_mappings` 配置
-3. 无需修改代码！
+1. 在 `config/companies.yaml` 添加或更新公司官网招聘链接。
+2. 运行每日策略巡检，或只巡检指定公司。
+3. 如果链接是新的、策略未知、页面变化、被拦截或抓取失败，由当前 Claude/Codex Agent 阅读 evidence。
+4. 把可复用方案固化为配置（`api`、`field_mappings`、`url_template`），或固化为 `src/site_strategies/` 下的专用 Python 策略。
+5. 重新运行爬虫测试，通过后再视为已支持。
+
+标准 API/list 页面通常可以只靠配置：
 
 示例：
 
@@ -491,45 +559,47 @@ pytest -q -p no:cacheprovider tests/test_matching.py
     campus: ["校招", "应届"]
 ```
 
-## 🔧 自愈系统
+登录重、反爬强、必须浏览器交互或结构很特殊的网站，需要先完成策略验证。策略巡检证据会写入 `logs/strategy_tasks/`，方便 Agent 说明哪里变了、哪里仍需人工确认。
 
-SmartJobHunter 内置自动自愈系统：
+## 🔧 每日策略巡检
 
-### 架构
+SmartJobHunter 不把 Python 包装成“什么网站都能自动理解”的黑盒。Python 负责采集证据和执行已知策略；当前 Claude/Codex Agent 负责分析失败原因，并把有效方案固化成配置或代码。
 
 ```
-爬取请求 → 爬虫工厂 → 健康监控
-                ↓            ↓
-          自动分析器 ← 诊断结果
-                ↓            ↓
-          配置更新 ← 修复动作
-                ↓
-          通知器 → 用户
+每日任务 → 读取 Profile + 公司官网链接
+        → 策略巡检
+        → 采集证据（页面、DOM、网络请求、截图、错误）
+        → 抓取已知可用公司
+        → 为新链接/变化/失败公司生成 Agent 策略任务
+        → 用户报告 + 可选飞书推送
 ```
 
 ### 组件
 
 | 模块 | 功能 |
 |:-----|:-----|
-| `health_monitor.py` | 检测爬虫健康，诊断失败原因 |
-| `auto_analyzer.py` | 分析新公司，识别招聘系统 |
-| `notifier.py` | 通知用户修复结果 |
-| `crawler_factory.py` | 集成自愈逻辑 |
+| `company_registry.py` | 读取并规范化公司链接 |
+| `site_inspector.py` | 巡检官网页面，识别跳转、登录门槛、阻断和证据 |
+| `crawler_evidence.py` | 采集页面、DOM、网络请求、截图和错误证据 |
+| `strategy_planner.py` | 生成给 Agent 阅读的策略任务 |
+| `health_monitor.py` | 组织每日策略巡检和兼容旧健康检测 |
+| `crawler_factory.py` | 选择配置爬虫或专用 Python 策略 |
 
-### 失败类型
+### 策略结果
 
-| 类型 | 自动修复 | 处理方式 |
-|:-----|:--------:|:---------|
-| 网络错误 | ❌ | 稍后重试 |
-| API 变化 | ✅ | 重新分析 API |
-| URL 失效 | ✅ | 搜索新 URL |
-| 需要登录 | ❌ | 通知用户 |
-| 反爬拦截 | ❌ | 调整频率 |
-| 配置错误 | ❌ | 通知用户 |
+| 结果 | 处理方式 |
+|:-----|:---------|
+| 已知且健康 | 正常继续抓取 |
+| 新链接或未知策略 | 采集 evidence，并创建 Agent 策略任务 |
+| 链接失效或跳转 | 记录最终 URL/状态，交给 Agent 更新配置 |
+| 没抓到岗位 | 不阻断其他公司，采集 evidence 并报告疑似原因 |
+| 需要登录 | 标记为阻断/人工处理，除非允许浏览器操作流程 |
+| 反爬或被拦截 | 记录证据，不假装成功 |
+| 配置或代码错误 | 报告失败策略，修复后重新跑测试 |
 
 ### 招聘系统模板
 
-位于 `config/system_templates.yaml`：
+`config/system_templates.yaml` 仍作为历史模板库和策略提示来源：
 
 | 系统 | API Pattern | 数据路径 | 代表公司 |
 |:-----|:------------|:---------|:---------|
@@ -545,12 +615,15 @@ SmartJobHunter 内置自动自愈系统：
 ### 巡检流程
 
 ```
-1. 加载配置     → 读取意向、公司、简历
-2. 抓取岗位     → Playwright API 拦截
-3. 过滤         → 时间 → 去重 → 语义意向
-4. 评估         → 评分（0-100）+ 有证据的匹配理由
-5. 生成报告     → 按评分排序，应用 threshold_score，写入 Markdown
-6. 更新记忆     → 追加到 seen_jobs.md
+1. 加载配置       → 读取启用的 profile、简历、公司链接和 Agent 设置
+2. 策略巡检       → 检查新链接、变化链接和失败策略，并采集 evidence
+3. 抓取岗位       → 使用配置爬虫或专用 Python 策略
+4. 过滤           → 时间 → 去重 → 语义意向
+5. 评估           → 评分（0-100）+ 有证据的匹配理由和风险
+6. 校验链接       → 生成报告前过滤空链接或不可访问的岗位链接
+7. 生成输出       → 日期归档 Markdown 报告 + Top 3 投递包
+8. 推送/通知      → 可选飞书 Wiki/多维表格推送，可选 Git 自动推送
+9. 更新记忆       → 把接受的岗位 hash 追加到 seen_jobs.md
 ```
 
 ### 过滤管道
@@ -567,6 +640,10 @@ SmartJobHunter 内置自动自愈系统：
 [语义意向过滤] 判断岗位真实职责是否匹配，关键词只作为辅助证据
     ↓
 [简历匹配评分] 打分、排序、按阈值和数量上限生成报告
+    ↓
+[链接校验] 移除空链接或不可访问链接
+    ↓
+[投递包] 为 Top 3 高分岗位生成 Cover Letter
 ```
 
 ## 🤖 Agent 架构
@@ -580,7 +657,8 @@ SmartJobHunter 采用 LLM-Agent 架构：
           │  状态机  │
           └─────────┘
                 ↓
-  INIT → LOADED → CRAWLED → FILTERED → EVALUATED → REPORTED → DONE
+  INIT → LOADED → STRATEGY_INSPECTED → CRAWLED → FILTERED
+       → EVALUATED → URL_VALIDATED → REPORTED → PACKAGED → DONE
 ```
 
 ### Agent Skills
@@ -589,9 +667,13 @@ SmartJobHunter 采用 LLM-Agent 架构：
 
 - `skill.md` - Agent 主入口
 - `tools/*.md` - 工具定义（crawl, filter, load_config）
-- `prompts/*.md` - Agent 提示词（evaluate, report）
+- `prompts/evaluate.md` - 有证据的岗位匹配评分
+- `prompts/report.md` - 报告、链接校验和投递包生成要求
+- `prompts/analyze_crawler_strategy.md` - 新链接、变化链接和失败站点的策略修复指导
 
 ## 📄 输出示例
+
+报告按运行日期保存，同一次运行也会为 Top 3 高分岗位生成投递包。
 
 ```markdown
 # 求职巡检报告
@@ -599,8 +681,9 @@ SmartJobHunter 采用 LLM-Agent 架构：
 ## 基本信息
 - **意向**: 产品经理
 - **类型**: 社招
-- **生成时间**: 2026-04-18 20:00
+- **生成时间**: 2026-05-07 20:00
 - **岗位数**: 15
+- **输出路径**: output/2026-05-07/pm_tob_20260507_2000.md
 
 ## 求职意向
 寻找 TOB SaaS 产品经理岗位...
@@ -626,6 +709,16 @@ SmartJobHunter 采用 LLM-Agent 架构：
 **链接**: [查看岗位](https://careers.tencent.com/position_detail.html?id=xxx)
 
 ---
+```
+
+投递包示例：
+
+```text
+output/2026-05-07/application_packages/pm_tob_20260507_2000/
+├── index.md
+├── cover_letter_1_tencent_ai_product_manager.md
+├── cover_letter_2_bytedance_ai_product_manager.md
+└── cover_letter_3_meituan_marketing_ai_product_manager.md
 ```
 
 ## 📜 许可证

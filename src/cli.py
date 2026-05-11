@@ -11,6 +11,8 @@ import sys
 import yaml
 import argparse
 import json
+import urllib.error
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -40,10 +42,23 @@ def validate_profile(profile: dict) -> bool:
         if not profile.get(field):
             raise ConfigError(f"Profile missing required field: {field}")
 
-    # 检查 keywords 是否为列表
-    keywords = profile.get('keywords')
-    if keywords and not isinstance(keywords, list):
-        raise ConfigError(f"Profile '{profile.get('name')}' keywords must be a list")
+    # 检查列表型字段。旧字段 keywords/exclude_keywords 继续兼容。
+    list_fields = [
+        'keywords',
+        'exclude_keywords',
+        'target_roles',
+        'target_domains',
+        'employment_types',
+        'must_have',
+        'nice_to_have',
+        'avoid',
+        'dealbreakers',
+        'locations',
+    ]
+    for field in list_fields:
+        value = profile.get(field)
+        if value and not isinstance(value, list):
+            raise ConfigError(f"Profile '{profile.get('name')}' {field} must be a list")
 
     return True
 
@@ -96,7 +111,10 @@ def load_config(profile_name: str = None) -> Dict:
                 profiles.append(profile)
 
     if profile_name:
-        profiles = [p for p in profiles if p.get('name') == profile_name]
+        profiles = [
+            p for p in profiles
+            if p.get('name') == profile_name or p.get('_profile_id') == profile_name
+        ]
     else:
         profiles = [p for p in profiles if p.get('enabled', True)]
 
@@ -132,7 +150,9 @@ def _parse_profile_md(file_path: str) -> Dict:
     content = path.read_text(encoding='utf-8')
     profile = {
         'name': path.stem,
-        'enabled': True
+        'enabled': True,
+        '_profile_id': path.stem,
+        '_profile_path': str(path),
     }
 
     # 解析 YAML frontmatter (--- ... ---)
@@ -143,6 +163,8 @@ def _parse_profile_md(file_path: str) -> Dict:
                 fm_data = yaml.safe_load(parts[1].strip())
                 if fm_data:
                     profile.update(fm_data)
+                    profile['_profile_id'] = path.stem
+                    profile['_profile_path'] = str(path)
             except Exception:
                 pass
 
@@ -299,8 +321,20 @@ class JobHunter:
         print("\n[Filter] Cleaning data...")
         jobs = filters.clean_data(jobs, truncate_length)
 
-        # 语义过滤：Python fallback 按 Agent 评分规则判断，不再只做关键词包含
-        if profile.get('keywords') or profile.get('intent'):
+        # 语义过滤：Python fallback 按 Agent 评分规则判断，不再只做关键词包含。
+        # 新版 profile 由 target_roles/must_have/avoid 等字段驱动，旧版 keywords/intent 继续兼容。
+        semantic_fields = [
+            'keywords',
+            'intent',
+            'target_roles',
+            'target_domains',
+            'must_have',
+            'nice_to_have',
+            'avoid',
+            'dealbreakers',
+            'exclude_keywords',
+        ]
+        if any(profile.get(field) for field in semantic_fields):
             decision_level = global_config.get('decision_level', 'moderate')
             semantic_thresholds = global_config.get('semantic_filter', {})
             print(f"\n[Filter] Semantic intent match ({decision_level})...")
@@ -362,6 +396,126 @@ class JobHunter:
         ranked_jobs, ranked_evaluations = zip(*paired)
         return list(ranked_jobs), list(ranked_evaluations)
 
+    def _daily_output_dir(self) -> Path:
+        """Return the date archive directory for generated artifacts."""
+        date_dir = self.output_dir / datetime.now().strftime('%Y-%m-%d')
+        date_dir.mkdir(parents=True, exist_ok=True)
+        return date_dir
+
+    def _url_is_available(self, url: str, timeout: int = 8) -> bool:
+        """Return True only when a report URL is reachable and not 404-like."""
+        if not url or not str(url).startswith(("http://", "https://")):
+            return False
+
+        headers = {"User-Agent": "Mozilla/5.0 SmartJobHunter URL Validator"}
+        for method in ("HEAD", "GET"):
+            request = urllib.request.Request(url, headers=headers, method=method)
+            try:
+                with urllib.request.urlopen(request, timeout=timeout) as response:
+                    return 200 <= response.status < 400
+            except urllib.error.HTTPError as exc:
+                if exc.code == 405 and method == "HEAD":
+                    continue
+                return 200 <= exc.code < 400
+            except Exception:
+                if method == "HEAD":
+                    continue
+                return False
+        return False
+
+    def _filter_live_urls(self, jobs: List[dict], evaluations: List[dict]) -> Tuple[List[dict], List[dict]]:
+        """Drop jobs whose links are missing or not reachable."""
+        valid_pairs = []
+        for job, evaluation in zip(jobs, evaluations):
+            url = job.get('url', '')
+            if self._url_is_available(url):
+                valid_pairs.append((job, evaluation))
+            else:
+                print(f"[URL] Dropped unavailable link: {job.get('company', '')} - {job.get('title', '')} ({url})")
+
+        if not valid_pairs:
+            return [], []
+        valid_jobs, valid_evaluations = zip(*valid_pairs)
+        return list(valid_jobs), list(valid_evaluations)
+
+    def generate_application_package(self, jobs: List[dict], profile: dict, evaluations: List[dict]) -> str:
+        """Generate a Top 3 application package with customized cover letters."""
+        profile_name = profile.get('name', 'unknown')
+        profile_id = profile.get('_profile_id') or profile_name
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        package_dir = self._daily_output_dir() / "application_packages" / f"{profile_id}_{timestamp}"
+        package_dir.mkdir(parents=True, exist_ok=True)
+
+        paired = list(zip(jobs, evaluations))
+        paired.sort(key=lambda item: item[1].get('score', 0), reverse=True)
+        top_pairs = paired[:3]
+
+        index_lines = [
+            "# Application Package",
+            "",
+            f"- Profile: {profile_name}",
+            f"- Profile ID: {profile_id}",
+            f"- Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            "",
+            "## Top 3",
+            "",
+        ]
+
+        for index, (job, evaluation) in enumerate(top_pairs, 1):
+            filename = f"cover_letter_{index:02d}_{self._safe_filename(job.get('company', 'company'))}.md"
+            letter_path = package_dir / filename
+            letter_path.write_text(
+                self._build_cover_letter(job, profile, evaluation),
+                encoding='utf-8',
+            )
+            index_lines.append(
+                f"{index}. {job.get('company', '')} - {job.get('title', '')} "
+                f"({evaluation.get('score', 0)}) -> {filename}"
+            )
+
+        (package_dir / "index.md").write_text("\n".join(index_lines) + "\n", encoding='utf-8')
+        print(f"[Package] Generated: {package_dir}")
+        return str(package_dir)
+
+    def _build_cover_letter(self, job: dict, profile: dict, evaluation: dict) -> str:
+        company = job.get('company', '贵公司')
+        title = job.get('title', '目标岗位')
+        resume_text = profile.get('_resume_content', '') or profile.get('intent', '')
+        resume_evidence = self._brief_text(resume_text, 260)
+        duty = self._brief_text(job.get('duty', ''), 220)
+        requirement = self._brief_text(job.get('requirement', ''), 180)
+        reasons = "；".join(evaluation.get('match_reasons', [])[:4]) or "岗位方向与求职目标匹配"
+        risk = evaluation.get('risk_warning') or "暂无明显风险"
+
+        return f"""# Cover Letter - {company} {title}
+
+尊敬的 {company} 招聘团队：
+
+您好。我正在申请 {title} 岗位。这个岗位吸引我的核心原因是：{reasons}。
+
+结合岗位描述，我理解该岗位重点关注：
+- {duty or title}
+- {requirement or '候选人需要能结合业务目标推进产品落地'}
+
+我的相关经历可以支撑这类工作：
+- {resume_evidence or '我具备产品规划、需求分析和跨团队推进经验，可结合岗位要求补充具体项目案例。'}
+
+如果进入面试，我会重点准备以下内容：
+- 与 {title} 最相关的项目背景、目标、方案和结果
+- 如何把 AI 能力转化为真实业务价值
+- 对岗位风险点的回应：{risk}
+
+感谢您的时间，期待有机会进一步沟通。
+"""
+
+    def _brief_text(self, text: str, limit: int) -> str:
+        text = re.sub(r'\s+', ' ', str(text or '')).strip()
+        return text[:limit]
+
+    def _safe_filename(self, value: str) -> str:
+        value = re.sub(r'[\\/:*?"<>|\s]+', '_', str(value or 'item')).strip('_')
+        return value[:40] or 'item'
+
     def generate_report(self, jobs: List[dict], profile: dict, evaluations: List[dict]) -> str:
         """生成报告
 
@@ -374,15 +528,18 @@ class JobHunter:
             输出文件路径
         """
         profile_name = profile.get('name', 'unknown')
+        profile_id = profile.get('_profile_id') or profile_name
         # 新格式：{简历标识}_{YYYYMMDD_HHMM}.md
         timestamp = datetime.now().strftime('%Y%m%d_%H%M')
-        output_filename = f"{profile_name}_{timestamp}.md"
-        output_path = self.output_dir / output_filename
+        output_filename = f"{profile_id}_{timestamp}.md"
+        output_path = self._daily_output_dir() / output_filename
 
         report = f"""# Job Hunting Report
 
 ## Basic Info
 - **Profile**: {profile_name}
+- **Profile ID**: {profile_id}
+- **Profile File**: {profile.get('_profile_path', 'N/A')}
 - **Job Type**: {profile.get('job_type', 'All')}
 - **Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M')}
 - **Jobs Found**: {len(jobs)}
@@ -481,10 +638,11 @@ class JobHunter:
             resume_result = resume_parser.parse_resume(resume_path)
             if resume_result.get('content', '').startswith("[错误]"):
                 print(f"   {resume_result['content']}")
-            else:
-                print(f"   Resume loaded ({resume_result['length']} chars)")
-                profile['_resume_content'] = resume_result.get('content', '')
-                profile['_ability_profile'] = matching.summarize_resume_ability(profile['_resume_content'])
+                print("   [Profile] Configured resume is unavailable; skip this profile to avoid low-confidence recommendations")
+                return []
+            print(f"   Resume loaded ({resume_result['length']} chars)")
+            profile['_resume_content'] = resume_result.get('content', '')
+            profile['_ability_profile'] = matching.summarize_resume_ability(profile['_resume_content'])
 
         # 获取全局配置
         global_config = self.config.get('global', {}) if self.config else {}
@@ -528,22 +686,31 @@ class JobHunter:
                 self.seen_hashes.add(job.get('hash', ''))
             return []
 
-        # Step 5: 生成报告
-        print("\n[Step 5] Generating report...")
-        report_path = self.generate_report(report_jobs, profile, report_evaluations)
+        # Step 5: URL 校验
+        print("\n[Step 5] Validating job links...")
+        report_jobs, report_evaluations = self._filter_live_urls(report_jobs, report_evaluations)
+        if not report_jobs:
+            print("[Warn] No jobs with reachable URLs after validation")
+            return []
 
-        # Step 6: 推送到飞书
-        print("\n[Step 6] Pushing to Feishu...")
+        # Step 6: 生成报告和投递包
+        print("\n[Step 6] Generating report...")
+        report_path = self.generate_report(report_jobs, profile, report_evaluations)
+        self.generate_application_package(report_jobs, profile, report_evaluations)
+
+        # Step 7: 推送到飞书
+        print("\n[Step 7] Pushing to Feishu...")
+        profile_export_name = profile.get('_profile_id') or profile_name
         try:
             from .feishu_push import push_to_feishu
-            feishu_result = push_to_feishu(report_path, profile_name)
+            feishu_result = push_to_feishu(report_path, profile_export_name)
             report_url = feishu_result.get('url') if feishu_result else None
         except ImportError:
             print("[Feishu] 模块未安装，跳过推送")
             report_url = None
 
-        # Step 7: 添加到多维表格
-        print("\n[Step 7] Adding to Bitable...")
+        # Step 8: 添加到多维表格
+        print("\n[Step 8] Adding to Bitable...")
         try:
             from .feishu_bitable import add_jobs_to_bitable
             # 为岗位添加评分信息
@@ -551,12 +718,12 @@ class JobHunter:
                 if i < len(report_evaluations):
                     job['score'] = report_evaluations[i].get('score', 0)
                 job['job_type'] = job_type or profile.get('job_type', '社招')
-            add_jobs_to_bitable(report_jobs, profile_name, report_url)
+            add_jobs_to_bitable(report_jobs, profile_export_name, report_url)
         except ImportError:
             print("[Bitable] 模块未安装，跳过添加")
 
-        # Step 8: 更新去重数据库
-        print("\n[Step 8] Updating seen jobs...")
+        # Step 9: 更新去重数据库
+        print("\n[Step 9] Updating seen jobs...")
         seen_jobs_path = self.memory_dir / "seen_jobs.md"
         filters.update_memory(jobs, evaluations, str(seen_jobs_path))
         # 更新 hash 集合
@@ -580,6 +747,11 @@ class JobHunter:
         self.load_config()
 
         profiles = self.config.get('profiles', []) if self.config else []
+        if profile_name:
+            profiles = [
+                p for p in profiles
+                if p.get('name') == profile_name or p.get('_profile_id') == profile_name
+            ]
 
         if not profiles:
             print("[Warn] No profiles found")
@@ -587,7 +759,8 @@ class JobHunter:
 
         print(f"\nFound {len(profiles)} profiles to process:")
         for p in profiles:
-            print(f"  - {p.get('name')} ({p.get('job_type', 'All')})")
+            profile_id = p.get('_profile_id') or p.get('name')
+            print(f"  - {p.get('name')} [{profile_id}] ({p.get('job_type', 'All')})")
 
         all_jobs = []
         for profile in profiles:
@@ -652,7 +825,9 @@ def main():
         print("Available profiles:")
         for profile in config.get('profiles', []):
             job_type = profile.get('job_type', 'All')
-            print(f"  - {profile.get('name', 'Unnamed')} [{job_type}]")
+            profile_id = profile.get('_profile_id') or profile.get('name', 'Unnamed')
+            profile_path = profile.get('_profile_path', '')
+            print(f"  - {profile.get('name', 'Unnamed')} [{profile_id}] [{job_type}] {profile_path}")
         print("\nAvailable job types:")
         for type_key, type_config in config.get('job_types', {}).items():
             print(f"  - {type_key}: {type_config.get('name', '')}")
