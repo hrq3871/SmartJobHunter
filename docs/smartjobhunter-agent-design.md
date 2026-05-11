@@ -3,7 +3,7 @@
 > **文档用途**
 > 本文档用于说明 SmartJobHunter 的内部 Agent 架构、状态机、评估体系和规范演进规则。
 > 主要读者是维护本项目的 Claude/Codex Agent、开发者和需要理解系统设计的人。
-> 不用于对外宣传、快速上手，也不作为单次巡检的逐步执行入口；具体执行入口见 `.claude/skills/jobhunter/skill.md`。
+> 不用于对外宣传、快速上手，也不作为 Agent 自动加载的定义文件；Agent 定义见 `CLAUDE.md` / `AGENTS.md`，Skill 路由见 `.claude/skills/jobhunter/skill.md`。
 
 SmartJobHunter 是一个面向公司官网岗位巡检的 Agent 平台项目。Python 负责可复现的工具层，当前 Claude/Codex Agent 负责需要语义判断、证据复核和策略固化的部分。Python 不调用外部 LLM API。
 
@@ -14,13 +14,13 @@ SmartJobHunter 是一个面向公司官网岗位巡检的 Agent 平台项目。P
 | 文件/目录                                     | 作用                                         |
 +----------------------------------------------+----------------------------------------------+
 | README.md / README_CN.md                      | 对外介绍、能力定位、快速开始、常用命令       |
-| CLAUDE.md / AGENTS.md                         | AI 项目级规则、运行架构、Skill/Prompt 路由   |
+| CLAUDE.md / AGENTS.md                         | 自动加载的 SmartJobHunter Agent 定义文件     |
 | docs/smartjobhunter-agent-design.md           | 内部完整架构、状态机、评估体系和演进规则     |
 | evals/evaluation-grader-rubrics.md            | Eval grader 判分标准和 schema                 |
 | evals/eval-case-feedback-loop.md              | 真实失败/反馈沉淀为 eval case 的闭环         |
 | docs/plans/                                   | 历史实施计划，不作为当前运行规则             |
 | docs/optimization-log.md                      | 本地私有优化记录，不提交 Git                 |
-| .claude/skills/jobhunter/skill.md             | JobHunter Agent 具体执行手册                 |
+| .claude/skills/jobhunter/skill.md             | JobHunter Skillmap：触发词和路由索引         |
 | .claude/skills/jobhunter/profile.md           | 候选人画像子流程                             |
 | .claude/skills/jobhunter/match.md             | 候选人-岗位匹配子流程                        |
 | .claude/skills/jobhunter/prompts/*.md         | Agent 判断提示词                             |
@@ -44,8 +44,8 @@ SmartJobHunter 是一个面向公司官网岗位巡检的 Agent 平台项目。P
 维护原则：
 
 - README 只写对外信息；不要塞内部 Agent 运行规则。
-- CLAUDE.md / AGENTS.md 写 AI 执行时必须知道的规则和路由。
-- `.claude/skills/jobhunter/skill.md` 写单次任务如何跑。
+- CLAUDE.md / AGENTS.md 写完整 Agent 定义：身份、目录、状态机、Prompt 路由、评估和边界。
+- `.claude/skills/jobhunter/skill.md` 只写 Skillmap：触发场景、路由索引、常用命令和 eval 锚点。
 - prompts 写具体判断标准，不承担系统分层说明。
 - docs 根目录只保留全局设计、AI 自动维护或历史计划类文档；eval 运行体系文档放 `evals/`。
 - `evals/` 同时放评测集、grader 规则、失败回流流程和候选 case。
@@ -65,7 +65,7 @@ Python 工具层负责：
 - 语义过滤和最终匹配判断。
 - 读取 strategy task 和 evidence，固化公司抓取策略。
 - 复核报告质量、投递包质量和异常结果。
-- 根据真实失败更新 eval case、prompt、Skill 和项目规则。
+- 根据真实失败更新 eval case、prompt、Skillmap 和 Agent 定义。
 
 关键边界：
 
@@ -121,7 +121,7 @@ SmartJobHunter/
 │   ├── eval_graders.py
 │   └── eval_transcript.py
 ├── .claude/skills/jobhunter/
-│   ├── skill.md
+│   ├── skill.md                    # Skillmap：触发词和路由索引
 │   ├── profile.md
 │   ├── match.md
 │   ├── prompts/
@@ -151,10 +151,10 @@ SmartJobHunter/
   |
   v
 CLAUDE.md / AGENTS.md
-  |  项目级规则、边界、什么时候用哪个 Skill/Prompt
+  |  自动加载的 Agent 定义：身份、边界、状态机、Prompt 路由、评估
   v
 .claude/skills/jobhunter/skill.md
-  |  单次求职巡检状态机
+  |  Skillmap：触发词、路由索引、常用命令
   +--> profile.md + build_candidate_profile.md / analyze_resume.md
   +--> match.md + analyze_job.md + match_candidate_job.md / evaluate.md
   +--> analyze_crawler_strategy.md
@@ -174,7 +174,7 @@ output / logs / memory / evals
 | 场景                                 | 使用的 Skill / Prompt                         | Python / 数据入口                            |
 +--------------------------------------+----------------------------------------------+----------------------------------------------+
 | 用户问项目是什么、怎么安装           | README.md / README_CN.md                      | 不进入完整状态机                             |
-| 运行完整巡检                         | jobhunter/skill.md                            | python -m src.cli                            |
+| 运行完整巡检                         | CLAUDE.md / AGENTS.md + jobhunter Skillmap    | python -m src.cli                            |
 | 分析简历、补候选人画像               | profile.md + build_candidate_profile.md       | src.resume_parser.parse_resume               |
 | 需要更偏 HR 的简历深挖               | prompts/analyze_resume.md                     | 简历原文                                     |
 | 单个岗位是否适合                     | match.md + analyze_job.md + match_candidate_job.md | 岗位 JD + candidate_profile + profile   |
@@ -461,7 +461,7 @@ output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/
 | matching_filtering     | 保留目标岗位，拒绝关键词噪音                  |
 | recommendation_quality | 评分和推荐等级边界                            |
 | output_quality         | URL 过滤、报告、Top 3 投递包、memory          |
-| instruction_drift      | AGENTS / CLAUDE / jobhunter skill 一致性      |
+| instruction_drift      | AGENTS / CLAUDE / jobhunter Skillmap 一致性   |
 +------------------------+-----------------------------------------------+
 ```
 
@@ -490,8 +490,8 @@ Code graders 是默认启用的机器判分；model/human grader 只保留 schem
 
 同步更新顺序：
 
-1. `docs/smartjobhunter-agent-design.md`
+1. `CLAUDE.md` 和 `AGENTS.md`
 2. `.claude/skills/jobhunter/skill.md`
-3. `CLAUDE.md` 和 `AGENTS.md`
+3. `docs/smartjobhunter-agent-design.md`
 4. 必要时更新 README 的对外说明
 5. 修改后运行 `python -m src.evaluation --fail-under 1.0`
