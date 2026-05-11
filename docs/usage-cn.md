@@ -1,6 +1,11 @@
-# SmartJobHunter 使用指南
+# SmartJobHunter 操作手册
 
-这份文档给日常使用者看，回答三个问题：能做什么、怎么触发、要改哪些文件。它不是内部 Agent 定义文档；完整运行架构看 `CLAUDE.md` / `AGENTS.md`，设计细节看 `docs/smartjobhunter-agent-design.md`。
+> **文档用途**
+> 本文档用于维护者和高级用户查阅 SmartJobHunter 的完整操作路径、常用命令、配置文件和排障入口。
+> 主要读者是项目开发者、Agent 维护者，以及需要手动修复抓取策略或维护评估体系的人。
+> 不用于普通求职用户第一次上手；最简单的使用方式看根目录 `README_CN.md`。
+
+这份文档回答三个问题：能做什么、怎么触发、要改哪些文件。它不是内部 Agent 定义文档；完整运行架构看 `CLAUDE.md` / `AGENTS.md`，设计细节看 `docs/smartjobhunter-agent-design.md`。
 
 ## 你能用它做什么
 

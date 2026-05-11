@@ -16,7 +16,7 @@
 
 ---
 
-> Daily operation guide in Chinese: [USAGE_CN.md](USAGE_CN.md).
+> Developer/operator manual in Chinese: [docs/usage-cn.md](docs/usage-cn.md).
 
 ## Why This Project
 
@@ -120,6 +120,22 @@ The system can analyze:
 | 📦 **Application Package** | Generate Top 3 JD-specific Cover Letters after link validation |
 | 🗂️ **Date Archives** | Reports and application packages are stored by run date |
 | 🧪 **Agent Evaluation** | Regression dataset and metrics for crawler strategy, matching, output quality, and Agent instructions |
+
+## Quickest Start
+
+1. Put your resume in `resumes/`, for example `resumes/my_resume.md`.
+2. Maintain your target profile in `profiles/`: target roles, keywords, must-haves, exclusions, and the `resume` path.
+3. Maintain company career links in `config/companies.yaml` and enable the companies you want to monitor.
+4. Tell the Agent: "run today's social job scan" or "run only the AI product manager profile".
+5. Read results under `output/{date}/`; Top 3 application packages are under `output/{date}/application_packages/`.
+
+If you prefer commands:
+
+```powershell
+python -m src.cli
+python -m src.cli -t social
+python -m src.cli -p "profile name"
+```
 
 ## 🚀 Quick Start
 

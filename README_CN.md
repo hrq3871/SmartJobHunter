@@ -16,7 +16,7 @@
 
 ---
 
-> 日常使用速查：如果你只想知道“有什么功能、怎么触发、要改什么文件、跑什么命令”，看 [USAGE_CN.md](USAGE_CN.md)。
+> 开发者/维护者操作手册：需要完整命令、策略修复、评估回归时看 [docs/usage-cn.md](docs/usage-cn.md)。
 
 ## 为什么做这个项目
 
@@ -118,6 +118,22 @@
 | 📦 **一键投递包** | 链接校验后为 Top 3 岗位生成定制 Cover Letter |
 | 🗂️ **日期归档** | 报告和投递包按运行日期保存 |
 | 🧪 **Agent 评估** | 用固定评测集衡量抓取策略、匹配过滤、输出质量和 Agent 指令一致性 |
+
+## 最简单使用方式
+
+1. 把简历放到 `resumes/`，例如 `resumes/my_resume.md`。
+2. 在 `profiles/` 里维护求职意向：目标岗位、关键词、必须项、排除项，并把 `resume` 指向你的简历。
+3. 在 `config/companies.yaml` 里维护要巡检的公司官网/招聘链接，启用想看的公司。
+4. 对 Agent 说：“运行今天的社招巡检”或“只跑 AI 产品经理这个意向”。
+5. 结果看 `output/{日期}/`；Top 3 投递包看 `output/{日期}/application_packages/`。
+
+会用命令的话，也可以直接跑：
+
+```powershell
+python -m src.cli
+python -m src.cli -t social
+python -m src.cli -p "意向名称"
+```
 
 ## 🚀 快速开始
 
