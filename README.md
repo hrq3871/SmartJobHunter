@@ -16,6 +16,8 @@
 
 ---
 
+> Daily operation guide in Chinese: [USAGE_CN.md](USAGE_CN.md).
+
 ## Why This Project
 
 SmartJobHunter is an intelligent job-hunting tool for **company career-site monitoring**.
