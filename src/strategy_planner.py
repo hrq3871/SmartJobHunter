@@ -16,6 +16,12 @@ BLOCKING_SIGNALS = {
     "blocked": "anti_crawl",
 }
 
+TASK_TRANSITIONS = {
+    "pending": {"analyzing"},
+    "analyzing": {"repaired", "blocked", "failed", "verification_failed"},
+}
+TERMINAL_TASK_STATUSES = {"repaired", "blocked", "failed", "verification_failed"}
+
 
 def plan_strategy_action(company: Dict[str, Any], inspection: Dict[str, Any]) -> Dict[str, Any]:
     """Return crawl/collect_evidence/blocked decision for one company."""
@@ -40,6 +46,8 @@ def plan_strategy_action(company: Dict[str, Any], inspection: Dict[str, Any]) ->
     old_fingerprint = strategy.get("fingerprint")
 
     if status == "verified" and strategy_type not in {"unknown", "", None}:
+        if not old_fingerprint:
+            return _collect_decision(company, "missing_strategy_fingerprint")
         if old_fingerprint and fingerprint and old_fingerprint != fingerprint:
             return _collect_decision(company, "fingerprint_changed")
         return {
@@ -87,6 +95,34 @@ def write_strategy_task(
     task_path = task_dir / "task.json"
     task_path.write_text(json.dumps(task, ensure_ascii=False, indent=2), encoding="utf-8")
     return task_path
+
+
+def update_strategy_task_status(
+    task_path: str | Path,
+    status: str,
+    *,
+    result: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """Advance one strategy task and persist its auditable result."""
+    path = Path(task_path)
+    task = json.loads(path.read_text(encoding="utf-8"))
+    current_status = task.get("status", "pending")
+    allowed = TASK_TRANSITIONS.get(current_status, set())
+    if status not in allowed:
+        raise ValueError(f"invalid strategy task transition: {current_status} -> {status}")
+
+    now = datetime.now().isoformat()
+    task["status"] = status
+    task.setdefault("status_history", []).append({"from": current_status, "to": status, "at": now})
+    if status == "analyzing":
+        task["started_at"] = now
+    if status in TERMINAL_TASK_STATUSES:
+        task["completed_at"] = now
+    if result is not None:
+        task["result"] = result
+
+    path.write_text(json.dumps(task, ensure_ascii=False, indent=2), encoding="utf-8")
+    return task
 
 
 def _collect_decision(company: Dict[str, Any], reason: str) -> Dict[str, Any]:

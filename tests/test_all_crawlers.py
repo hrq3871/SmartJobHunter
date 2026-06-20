@@ -21,6 +21,7 @@ from src.crawler_factory import (
     create_crawler,
     reload_config,
 )
+from src.crawler_verification import verify_crawler_output
 
 
 def test_single_crawler(company_id: str, keyword: str = '产品经理', max_jobs: int = 5, headless: bool = True):
@@ -40,6 +41,7 @@ def test_single_crawler(company_id: str, keyword: str = '产品经理', max_jobs
         'api_captured': False,
     }
 
+    started_at = time.perf_counter()
     try:
         crawler = create_crawler(company_id)
         if not crawler:
@@ -54,13 +56,19 @@ def test_single_crawler(company_id: str, keyword: str = '产品经理', max_jobs
         )
 
         if jobs:
-            result['status'] = 'success'
             result['jobs_count'] = len(jobs)
+            result['verification'] = verify_crawler_output(
+                jobs,
+                elapsed_ms=round((time.perf_counter() - started_at) * 1000),
+            )
+            result['status'] = 'success' if result['verification']['status'] == 'passed' else 'invalid_jobs'
+            if result['status'] != 'success':
+                result['error'] = result['verification']['failure_reason']
             result['sample_jobs'] = [
                 {
                     'title': j.get('title', ''),
                     'location': j.get('location', ''),
-                    'url': j.get('url', '')[:80] + '...' if len(j.get('url', '')) > 80 else j.get('url', ''),
+                    'url': j.get('url', ''),
                 }
                 for j in jobs[:3]
             ]
@@ -73,6 +81,11 @@ def test_single_crawler(company_id: str, keyword: str = '产品经理', max_jobs
         result['error'] = str(e)[:200]
 
     return result
+
+
+def result_exit_code(result: dict) -> int:
+    """Return a process exit code suitable for automation."""
+    return 0 if result.get('status') == 'success' else 1
 
 
 def test_all_crawlers(
@@ -228,6 +241,7 @@ def main():
         # 测试单个公司
         result = test_single_crawler(args.company, args.keyword, args.max_jobs, headless)
         print(json.dumps(result, ensure_ascii=False, indent=2))
+        return result_exit_code(result)
     else:
         # 测试所有公司
         report = test_all_crawlers(
@@ -244,6 +258,8 @@ def main():
                 json.dump(report, f, ensure_ascii=False, indent=2)
             print(f"\nReport saved to: {args.output}")
 
+        return 0 if report['summary']['success'] == report['summary']['total'] else 1
+
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

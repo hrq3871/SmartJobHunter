@@ -6,7 +6,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.crawler_evidence import build_evidence_manifest, find_job_array_candidates, sanitize_url
+from src.crawler_evidence import (
+    build_evidence_manifest,
+    find_job_array_candidates,
+    sanitize_post_data,
+    sanitize_url,
+)
 
 
 def test_find_job_array_candidates_scores_job_like_arrays():
@@ -57,3 +62,36 @@ def test_evidence_manifest_contains_agent_inputs(tmp_path):
     assert manifest["input"]["job_type"] == "social"
     assert manifest["artifacts"]["network_log"].endswith("network.json")
     assert "config_intercept" in manifest["allowed_strategy_types"]
+
+
+def test_evidence_manifest_records_main_response_timing_and_actions(tmp_path):
+    actions = [
+        {"action": "fill", "selector": "input", "value": "产品经理"},
+        {"action": "press", "selector": "input", "key": "Enter"},
+    ]
+
+    manifest = build_evidence_manifest(
+        company_id="example",
+        company_name="示例公司",
+        url="https://example.com/jobs",
+        keyword="产品经理",
+        job_type="social",
+        output_dir=tmp_path,
+        main_status=200,
+        elapsed_ms=1234,
+        actions=actions,
+    )
+
+    assert manifest["page"]["http_status"] == 200
+    assert manifest["page"]["elapsed_ms"] == 1234
+    assert manifest["artifacts"]["actions"].endswith("actions.json")
+    assert manifest["action_count"] == 2
+
+
+def test_sanitize_post_data_masks_tokens_without_losing_search_terms():
+    sanitized = sanitize_post_data("keyword=产品经理&token=secret&access_token=abc123")
+
+    assert "产品经理" in sanitized
+    assert "secret" not in sanitized
+    assert "abc123" not in sanitized
+    assert "[REDACTED]" in sanitized

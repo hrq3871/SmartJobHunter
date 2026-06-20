@@ -44,7 +44,8 @@ SmartJobHunter 是一个面向公司官网岗位巡检的 Agent 平台项目。P
 维护原则：
 
 - README 只写对外信息；不要塞内部 Agent 运行规则。
-- CLAUDE.md / AGENTS.md 写完整 Agent 定义：身份、目录、状态机、Prompt 路由、评估和边界。
+- CLAUDE.md / AGENTS.md 写主 Agent 定义、状态机、Prompt 路由、委派规则和全局边界。
+- `.claude/agents/crawler-strategy-inspector.md` 保存策略修复子 Agent 的唯一完整定义；主文档不复制其全部提示词。
 - `.claude/skills/jobhunter/skill.md` 只写 Skillmap：触发场景、路由索引、常用命令和 eval 锚点。
 - prompts 写具体判断标准，不承担系统分层说明。
 - docs 根目录只保留全局设计、AI 自动维护或历史计划类文档；eval 运行体系文档放 `evals/`。
@@ -300,11 +301,15 @@ Agent 使用 `prompts/analyze_crawler_strategy.md` 判断：
 - `browser_operation`
 - `unsupported`
 
+本轮全部待修复公司一次性交给一个 `crawler-strategy-inspector` 子 Agent 串行处理，不按公司拆分，也不允许继续嵌套 Agent。Python 负责可复现交互、采证、配置写回和验证；LLM 只分析非固定 API 结构、data path、字段映射和配置无法表达的专用策略。登录、验证码、网络、强反爬、地域限制和不可复现交互必须落为 blocked/failed。
+
 修改策略后必须验证：
 
 ```powershell
 python tests/test_all_crawlers.py --company <company_id> --keyword "<关键词>" --max-jobs 3
 ```
+
+验证命令以非零退出码表示失败，并输出 `verification.json` 所需指标：岗位数、`title/company/url/duty/requirement` 完整率、URL 有效率、耗时和最终状态。只有验证通过并保存 fingerprint 才能标为 verified。
 
 ### CRAWLED
 
@@ -377,8 +382,9 @@ Python 执行：`JobHunter._filter_live_urls()`。
 
 规则：
 
-- 空链接、404、不可访问链接不得进入报告或飞书。
-- 链接校验后无岗位时，不生成报告。
+- 空链接、404、不可访问链接不得进入推荐区、飞书或投递包。
+- 链接校验后无推荐岗位时仍生成报告骨架和全量抓取审计附录。
+- 原始岗位 URL 必须原封不动保存；可见文本和 Markdown href 使用同一个完整字符串，禁止截断或改写查询参数。
 
 ### REPORTED
 
@@ -391,6 +397,8 @@ output/{YYYY-MM-DD}/{profile_id}_{YYYYMMDD_HHMM}.md
 ```
 
 Agent 使用 `prompts/report.md` 复核报告是否包含 recommendation、scoring breakdown、风险、行动建议和可访问链接。
+
+推荐结果之后必须追加 `全量抓取与判断记录`。每条记录包含结构化字段、完整 JD、原始链接、处理状态、判断来源（`agent` / `python_fallback`）、语义判断与引用证据、评分拆解和最终结论。该附录来自本次运行账本，不因过滤、去重或 URL 失效被删除。
 
 ### PACKAGED
 

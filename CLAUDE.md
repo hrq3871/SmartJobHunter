@@ -43,12 +43,15 @@ SmartJobHunter/
 │   ├── eval-case-feedback-loop.md              # 真实失败回流 eval case 的流程
 │   └── candidates/                             # 待提升的真实失败候选 case
 ├── src/                                        # Python 工具层
-└── .claude/skills/jobhunter/
-    ├── skill.md                                # Skillmap：触发词和路由索引
-    ├── profile.md                              # 候选人画像子流程
-    ├── match.md                                # 候选人-岗位匹配子流程
-    ├── prompts/                                # 具体 AI 判断提示词
-    └── tools/                                  # Python 工具入口说明
+└── .claude/
+    ├── agents/
+    │   └── crawler-strategy-inspector.md       # 独立策略巡检/修复子 Agent
+    └── skills/jobhunter/
+        ├── skill.md                            # Skillmap：触发词和路由索引
+        ├── profile.md                          # 候选人画像子流程
+        ├── match.md                            # 候选人-岗位匹配子流程
+        ├── prompts/                            # 具体 AI 判断提示词
+        └── tools/                              # Python 工具入口说明
 ```
 
 维护原则：
@@ -87,6 +90,7 @@ SmartJobHunter/
 | 过滤标题党或关键词噪音岗位            | semantic_filter.md                            | src.matching.match_job_intent                |
 | 对齐旧评分或细化评分拆解              | evaluate.md                                   | src.matching.evaluate_job_fit                |
 | 新链接、链接变化、抓取失败、反爬       | analyze_crawler_strategy.md                   | logs/strategy_tasks + logs/crawler_evidence  |
+| 批量策略巡检与修复                     | crawler-strategy-inspector 子 Agent           | 全部 pending strategy tasks                  |
 | 生成或复核报告                        | report.md                                     | output/{YYYY-MM-DD}/                         |
 | 评估失败或 instruction_drift          | evals/evaluation-grader-rubrics.md            | transcripts/<case_id>.jsonl                  |
 | 真实失败样本回流                      | evals/eval-case-feedback-loop.md              | evals/candidates/                            |
@@ -161,6 +165,10 @@ python -m src.health_monitor --inspect-company <company_id> --keyword "<关键�
 python tests/test_all_crawlers.py --company <company_id> --keyword "<关键词>" --max-jobs 3
 ```
 
+策略任务由主 Agent 一次委派给一个 `crawler-strategy-inspector` 子 Agent 串行处理。完整定义见 `.claude/agents/crawler-strategy-inspector.md`。主 Agent 只接收公司状态、耗时、变更文件、artifact 路径和短原因，不读取完整 DOM、XHR 或截图上下文；子 Agent 不得再嵌套其他 Agent。
+
+Python 优先完成可复现的页面访问、通用点击、Network evidence、配置应用和验证；仅 API 结构、字段映射和非固定页面交互交给大模型分析。
+
 ### CRAWLED
 
 目标：抓取岗位。
@@ -224,6 +232,9 @@ Python 入口：`JobHunter._filter_live_urls()`。
 
 - 空链接、404、不可访问链接不得进入报告或飞书。
 - 链接校验后无岗位时，停止生成报告并说明原因。
+- 岗位 URL 必须原封不动保存和返回；禁止切片、摘要、省略号或改写查询参数。
+- Markdown 的可见链接文本与 href 必须使用同一个完整 URL，保证可以点击。
+- 空链接、非 HTTP(S) 链接或含 `...` / `…` 的截断链接必须标记失败，不得猜测补全。
 
 ### REPORTED
 
@@ -241,6 +252,7 @@ output/{YYYY-MM-DD}/{profile_id}_{YYYYMMDD_HHMM}.md
 - scoring_breakdown 是否存在。
 - 链接是否都已校验可访问。
 - 风险和行动建议是否明确。
+- 全量抓取与判断记录是否保留完整职责、任职要求、语义证据、评分拆解、最终结论和完整可点击 URL。
 
 飞书推送由 `config/agent.yaml` 控制：
 

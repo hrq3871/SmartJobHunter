@@ -33,6 +33,7 @@ description: Use when the user asks to run SmartJobHunter, find or evaluate jobs
 | 语义过滤                             | prompts/semantic_filter.md                    | should_keep / concerns / evidence            |
 | 兼容评分拆解                         | prompts/evaluate.md                           | score + scoring_breakdown                    |
 | 抓取策略分析                         | prompts/analyze_crawler_strategy.md           | strategy type + patch plan + verification    |
+| 批量策略修复                         | .claude/agents/crawler-strategy-inspector.md  | 单个子 Agent 串行处理全部 strategy tasks     |
 | 报告生成/复核                        | prompts/report.md                             | output/{YYYY-MM-DD}/                         |
 | 配置读取                             | tools/load_config.md                          | profiles / companies / agent config          |
 | 抓取                                 | tools/crawl.md                                | raw jobs                                     |
@@ -56,6 +57,8 @@ INIT -> LOADED -> STRATEGY_INSPECTED -> CRAWLED -> FILTERED -> EVALUATED -> URL_
 - `STRATEGY_INSPECTED`：运行策略巡检，读取 strategy task 和 evidence。
 - `URL_VALIDATED`：报告前必须过滤空链接、404、不可访问链接。
 - `PACKAGED`：为 Top 3 岗位生成投递包，Cover Letter 必须结合 JD 证据和简历证据。
+
+岗位 URL 在任何报告或 Agent 回复中都必须完整显示并可点击；禁止使用切片、摘要或省略号截断 URL。
 
 ## 常用命令
 

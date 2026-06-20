@@ -12,6 +12,8 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from playwright.sync_api import sync_playwright, Page, Response, Browser, BrowserContext
 
+from .browser_interactions import click_generic_search_button, perform_generic_search
+
 
 class BaseCrawler:
     """通用爬虫基类
@@ -51,28 +53,11 @@ class BaseCrawler:
         Returns:
             (browser, context) 元组
         """
-        browser = p.chromium.launch(
-            headless=headless,
-            args=[
-                '--disable-blink-features=AutomationControlled',
-                '--disable-dev-shm-usage',
-                '--no-sandbox',
-                '--disable-infobars',
-                '--disable-extensions',
-            ]
-        )
+        browser = p.chromium.launch(headless=headless)
         context = browser.new_context(
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             viewport={'width': 1920, 'height': 1080},
             locale='zh-CN',
         )
-        # 注入反检测脚本
-        context.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-            window.chrome = {runtime: {}};
-            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-            Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'zh', 'en']});
-        """)
         return browser, context
 
     def extract_data(self, response_data: dict, data_path: str) -> list:
@@ -252,51 +237,14 @@ class InterceptCrawler(BaseCrawler):
             page: Playwright Page 对象
             keyword: 搜索关键词
         """
-        search_selectors = [
-            'input[placeholder*="搜索"]',
-            'input[placeholder*="职位"]',
-            'input[placeholder*="关键词"]',
-            'input[type="text"]',
-            '.search-input',
-            '#search-input',
-            '[class*="search"] input',
-        ]
-
-        for selector in search_selectors:
-            try:
-                for element in page.query_selector_all(selector):
-                    if not element or not element.is_visible() or not element.is_enabled():
-                        continue
-                    element.click()
-                    page.wait_for_timeout(300)
-                    element.fill(keyword)
-                    page.wait_for_timeout(300)
-                    element.press('Enter')
-                    self._click_search_button(page)
-                    print(f"  [Search] Searched for: {keyword}", file=sys.stderr)
-                    return True
-            except Exception as e:
-                continue
-
-        return False
+        actions = perform_generic_search(page, keyword)
+        if actions:
+            print(f"  [Search] Searched for: {keyword}", file=sys.stderr)
+        return bool(actions)
 
     def _click_search_button(self, page: Page) -> bool:
         """Click a visible search button when Enter alone is not enough."""
-        button_selectors = [
-            'button[class*="search"]',
-            '[class*="search_btn"]',
-            '[class*="search-button"]',
-            'button:has-text("搜索")',
-        ]
-        for selector in button_selectors:
-            try:
-                for element in page.query_selector_all(selector):
-                    if element and element.is_visible() and element.is_enabled():
-                        element.click()
-                        return True
-            except Exception:
-                continue
-        return False
+        return click_generic_search_button(page)
 
     def crawl_with_intercept(
         self,

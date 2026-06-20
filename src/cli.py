@@ -25,6 +25,13 @@ from . import crawler_factory
 from . import filters
 from . import matching
 from . import resume_parser
+from .reporting import render_full_crawl_audit
+from .run_records import (
+    attach_evaluation,
+    create_run_records,
+    select_record_ids_for_jobs,
+    update_record_stage,
+)
 from .exceptions import ConfigError, ProfileNotFoundError
 
 
@@ -516,7 +523,13 @@ class JobHunter:
         value = re.sub(r'[\\/:*?"<>|\s]+', '_', str(value or 'item')).strip('_')
         return value[:40] or 'item'
 
-    def generate_report(self, jobs: List[dict], profile: dict, evaluations: List[dict]) -> str:
+    def generate_report(
+        self,
+        jobs: List[dict],
+        profile: dict,
+        evaluations: List[dict],
+        run_records: List[dict] | None = None,
+    ) -> str:
         """生成报告
 
         Args:
@@ -584,6 +597,8 @@ class JobHunter:
 ---
 
 """
+
+        report += "\n" + render_full_crawl_audit(run_records or [])
 
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(report)
@@ -662,11 +677,27 @@ class JobHunter:
 
         print(f"   Total: {len(jobs)} jobs")
 
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        run_records = create_run_records(jobs, run_id)
+        for record in run_records:
+            fallback_evaluation = self.evaluate_job(record["raw_job"], profile)
+            attach_evaluation(record, fallback_evaluation, source="python_fallback")
+
         # Step 2-3: 过滤
         jobs = self.filter_jobs(jobs, profile)
+        filtered_record_ids = select_record_ids_for_jobs(run_records, jobs)
+        all_record_ids = {record["run_record_id"] for record in run_records}
+        update_record_stage(
+            run_records,
+            all_record_ids - filtered_record_ids,
+            "filtered_out",
+            "filtered_before_recommendation",
+        )
+        update_record_stage(run_records, filtered_record_ids, "filtered_in")
 
         if not jobs:
             print("[Warn] No jobs after filtering")
+            self.generate_report([], profile, [], run_records=run_records)
             return []
 
         # Step 4: AI 评估
@@ -678,8 +709,17 @@ class JobHunter:
             print(f"   [{job.get('company')}] {job.get('title')[:20]}... -> {eval_result['score']}")
 
         report_jobs, report_evaluations = self._rank_and_filter_results(jobs, evaluations)
+        ranked_record_ids = select_record_ids_for_jobs(run_records, report_jobs)
+        update_record_stage(
+            run_records,
+            filtered_record_ids - ranked_record_ids,
+            "below_threshold",
+            "score_below_threshold_or_report_limit",
+        )
+        update_record_stage(run_records, ranked_record_ids, "ranked_candidate")
         if not report_jobs:
             print("[Warn] No jobs meet threshold_score after evaluation")
+            self.generate_report([], profile, [], run_records=run_records)
             seen_jobs_path = self.memory_dir / "seen_jobs.md"
             filters.update_memory(jobs, evaluations, str(seen_jobs_path))
             for job in jobs:
@@ -689,13 +729,28 @@ class JobHunter:
         # Step 5: URL 校验
         print("\n[Step 5] Validating job links...")
         report_jobs, report_evaluations = self._filter_live_urls(report_jobs, report_evaluations)
+        recommended_record_ids = select_record_ids_for_jobs(run_records, report_jobs)
+        update_record_stage(
+            run_records,
+            ranked_record_ids - recommended_record_ids,
+            "url_rejected",
+            "unreachable_or_invalid_url",
+        )
         if not report_jobs:
             print("[Warn] No jobs with reachable URLs after validation")
+            self.generate_report([], profile, [], run_records=run_records)
             return []
+
+        update_record_stage(run_records, recommended_record_ids, "recommended")
 
         # Step 6: 生成报告和投递包
         print("\n[Step 6] Generating report...")
-        report_path = self.generate_report(report_jobs, profile, report_evaluations)
+        report_path = self.generate_report(
+            report_jobs,
+            profile,
+            report_evaluations,
+            run_records=run_records,
+        )
         self.generate_application_package(report_jobs, profile, report_evaluations)
 
         # Step 7: 推送到飞书

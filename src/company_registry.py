@@ -52,8 +52,10 @@ def normalize_company(raw: Dict[str, Any]) -> Dict[str, Any]:
         elif company.get("legacy_python"):
             strategy["type"] = "legacy_python"
 
-    if strategy["status"] == "unknown" and _has_solidified_config(company, strategy):
-        strategy["status"] = "verified"
+    # A usable configuration is not proof that it still matches the live site.
+    # Only an evidence-backed strategy with a stored page fingerprint is verified.
+    if strategy["status"] == "verified" and not strategy.get("fingerprint"):
+        strategy["status"] = "needs_review"
 
     company["strategy"] = strategy
     return company

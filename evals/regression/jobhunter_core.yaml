@@ -176,6 +176,25 @@ cases:
       requires_agent: true
       reason_contains: "fingerprint_changed"
 
+  - id: strategy_verified_without_fingerprint_should_collect_evidence
+    type: strategy_action
+    attribution: crawler_strategy
+    company:
+      id: "unverified_legacy_company"
+      name: "Unverified Legacy Company"
+      strategy:
+        status: "verified"
+        type: "config_intercept"
+        fingerprint: null
+    inspection:
+      ok: true
+      signals: []
+      fingerprint: "new"
+    expected:
+      action: "collect_evidence"
+      requires_agent: true
+      reason_contains: "missing_strategy_fingerprint"
+
   - id: strategy_login_required_should_block
     type: strategy_action
     attribution: crawler_strategy

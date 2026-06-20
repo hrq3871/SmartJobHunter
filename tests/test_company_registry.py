@@ -45,8 +45,24 @@ def test_old_urls_are_compatible_with_links():
 
     assert company["links"]["social"] == raw["urls"]["social"]
     assert company["strategy"]["type"] == "config_intercept"
-    assert company["strategy"]["status"] == "verified"
-    assert company_needs_strategy(company) is False
+    assert company["strategy"]["status"] == "unknown"
+    assert company_needs_strategy(company) is True
+
+
+def test_explicit_verified_strategy_requires_a_fingerprint():
+    raw = {
+        "id": "legacy",
+        "name": "旧配置",
+        "enabled": True,
+        "strategy": {"status": "verified", "type": "config_intercept"},
+        "api": {"type": "intercept", "pattern": "jobs", "data_path": "data"},
+        "field_mappings": {"title": {"source": "title"}},
+    }
+
+    company = normalize_company(raw)
+
+    assert company["strategy"]["status"] == "needs_review"
+    assert company_needs_strategy(company) is True
 
 
 def test_choose_company_url_prefers_job_type_and_applies_keyword():

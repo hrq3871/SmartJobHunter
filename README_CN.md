@@ -565,6 +565,10 @@ Agent 评估报告会写入 `output/evals/YYYY-MM-DD/`，属于本地运行产�
 
 SmartJobHunter 不把 Python 包装成“什么网站都能自动理解”的黑盒。Python 负责采集证据和执行已知策略；当前 Claude/Codex Agent 负责分析失败原因，并把有效方案固化成配置或代码。
 
+策略修复由一个独立的 `crawler-strategy-inspector` 子 Agent 串行处理本轮全部公司，完整定义位于 `.claude/agents/crawler-strategy-inspector.md`。主 Agent 只接收状态、耗时、变更文件、artifact 路径和短原因，避免把每家公司的 DOM、XHR 和截图带回求职主上下文。
+
+公开页面优先由 Python Playwright 进行可复现的输入、点击、翻页和 Network 采证；非固定页面结构才交给子 Agent 分析。需要用户登录态时必须先得到明确授权才可使用 Chrome；登录、验证码、网络不通、地域限制和强反爬均直接报告，不尝试绕过。
+
 ```
 每日任务 → 读取 Profile + 公司官网链接
         → 策略巡检
@@ -584,6 +588,8 @@ SmartJobHunter 不把 Python 包装成“什么网站都能自动理解”的黑
 | `strategy_planner.py` | 生成给 Agent 阅读的策略任务 |
 | `health_monitor.py` | 组织每日策略巡检和兼容旧健康检测 |
 | `crawler_factory.py` | 选择配置爬虫或专用 Python 策略 |
+| `crawler_verification.py` | 以岗位数、字段完整率、URL 有效率和耗时验收修复结果 |
+| `strategy_applier.py` | 校验 Agent 决策并只写回目标公司的普通配置策略 |
 
 ### 策略结果
 
@@ -625,6 +631,10 @@ SmartJobHunter 不把 Python 包装成“什么网站都能自动理解”的黑
 8. 推送/通知      → 可选飞书 Wiki/多维表格推送，可选 Git 自动推送
 9. 更新记忆       → 把接受的岗位 hash 追加到 seen_jobs.md
 ```
+
+推荐区只展示最终入选岗位；同一文档底部追加 `全量抓取与判断记录`，保留本次抓取的所有结构化岗位、完整职责和任职要求、原始链接、处理状态、判断来源、语义证据、评分拆解与最终结论。定时 Python 链路标记为 `python_fallback`，只有 Agent 实际完成判断时才标记为 `agent`。即使零推荐、全部被过滤或链接校验后无推荐，也必须生成这份审计附录。
+
+岗位链接必须使用抓取到的原始完整字符串：可见文本和 Markdown href 完全一致，禁止切片、摘要、省略号或改写查询参数。
 
 ### 过滤管道
 
@@ -670,6 +680,7 @@ SmartJobHunter 采用 LLM-Agent 架构：
 - `prompts/evaluate.md` - 有证据的岗位匹配评分
 - `prompts/report.md` - 报告、链接校验和投递包生成要求
 - `prompts/analyze_crawler_strategy.md` - 新链接、变化链接和失败站点的策略修复指导
+- `.claude/agents/crawler-strategy-inspector.md` - 独立策略修复子 Agent 的完整角色、输入输出和阻断边界
 
 ## 📄 输出示例
 

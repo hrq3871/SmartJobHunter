@@ -114,6 +114,88 @@ def test_generate_report_uses_profile_id_to_avoid_same_name_overwrite(tmp_path):
     assert path.parent.name.count("-") == 2
 
 
+def test_generate_report_appends_all_run_records(tmp_path):
+    from src.run_records import attach_evaluation, create_run_records
+
+    hunter = JobHunter()
+    hunter.output_dir = tmp_path
+    url = "https://example.com/jobs/123?source=official&keyword=AI%20PM"
+    records = create_run_records(
+        [
+            {
+                "id": "123",
+                "hash": "h123",
+                "title": "AI 产品经理",
+                "company": "示例公司",
+                "duty": "完整职责",
+                "requirement": "完整任职要求",
+                "url": url,
+            }
+        ],
+        run_id="run-audit",
+    )
+    attach_evaluation(
+        records[0],
+        {"score": 80, "recommendation": "apply", "scoring_breakdown": {"target_role_fit": 20}},
+        "python_fallback",
+    )
+
+    report_path = hunter.generate_report(
+        jobs=[],
+        profile={"name": "AI产品经理", "_profile_id": "ai_pm_task"},
+        evaluations=[],
+        run_records=records,
+    )
+
+    report = Path(report_path).read_text(encoding="utf-8")
+    assert "## 全量抓取与判断记录" in report
+    assert f"[{url}]({url})" in report
+    assert "完整职责" in report
+    assert "完整任职要求" in report
+
+
+def test_run_profile_generates_audit_report_when_no_jobs_survive_filtering(monkeypatch, tmp_path):
+    hunter = JobHunter()
+    hunter.memory_dir = tmp_path
+    hunter.output_dir = tmp_path
+    hunter.config = {"global": {"time_filter_days": 30, "threshold_score": 70}, "output": {}}
+    hunter.seen_hashes = set()
+    raw_job = {
+        "id": "raw-1",
+        "hash": "raw-1",
+        "title": "过期岗位",
+        "company": "示例公司",
+        "duty": "职责",
+        "requirement": "要求",
+        "url": "https://example.com/jobs/raw-1",
+    }
+    captured = {}
+
+    monkeypatch.setattr(hunter, "crawl_jobs", lambda *args, **kwargs: [raw_job])
+    monkeypatch.setattr(hunter, "filter_jobs", lambda jobs, profile: [])
+    monkeypatch.setattr(
+        hunter,
+        "evaluate_job",
+        lambda job, profile: {"score": 10, "recommendation": "skip", "scoring_breakdown": {}},
+    )
+
+    def fake_report(jobs, profile, evaluations, run_records=None):
+        captured["jobs"] = jobs
+        captured["records"] = run_records
+        return "output/zero-report.md"
+
+    monkeypatch.setattr(hunter, "generate_report", fake_report)
+
+    result = hunter.run_profile(
+        {"name": "AI产品经理", "_profile_id": "ai_pm_task", "keywords": ["AI产品经理"]}
+    )
+
+    assert result == []
+    assert captured["jobs"] == []
+    assert len(captured["records"]) == 1
+    assert captured["records"][0]["evaluation"]["source"] == "python_fallback"
+
+
 def test_validate_report_urls_drops_unavailable_links(monkeypatch):
     hunter = JobHunter()
     jobs = [
@@ -219,7 +301,11 @@ def test_run_profile_uses_profile_id_for_feishu_and_bitable(monkeypatch, tmp_pat
         "recommendation": "apply",
         "match_reasons": ["目标岗位匹配"],
     })
-    monkeypatch.setattr(hunter, "generate_report", lambda jobs, profile, evaluations: "output/report.md")
+    monkeypatch.setattr(
+        hunter,
+        "generate_report",
+        lambda jobs, profile, evaluations, run_records=None: "output/report.md",
+    )
     monkeypatch.setattr(hunter, "_url_is_available", lambda url: True)
 
     import src.feishu_push as feishu_push

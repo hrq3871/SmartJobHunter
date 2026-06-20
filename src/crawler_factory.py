@@ -219,12 +219,20 @@ def crawl_company(
         return []
 
     try:
-        return crawler.crawl(
+        jobs = crawler.crawl(
             keyword=keyword,
             max_jobs=max_jobs,
             job_type=job_type,
             headless=headless,
         )
+        if not jobs and auto_repair:
+            _write_strategy_needed_task(
+                company_config,
+                keyword,
+                job_type,
+                "zero_jobs_returned",
+            )
+        return jobs
     except Exception as e:
         print(f"[Error] Crawl failed for {company_id}: {e}", file=sys.stderr)
 

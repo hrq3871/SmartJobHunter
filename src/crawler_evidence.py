@@ -6,10 +6,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+from .browser_interactions import perform_generic_search
 
 
 SENSITIVE_QUERY_KEYS = {
@@ -52,6 +56,19 @@ def sanitize_url(url: str) -> str:
         else:
             query.append((key, value))
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def sanitize_post_data(value: str | None) -> str:
+    """Mask obvious credentials while retaining useful search parameters."""
+    text = str(value or "")
+    for key in sorted(SENSITIVE_QUERY_KEYS | {"api_key", "apikey"}, key=len, reverse=True):
+        text = re.sub(
+            rf"(?i)([\"']?{re.escape(key)}[\"']?\s*[:=]\s*[\"']?)([^&\s\"']+)",
+            rf"\1[REDACTED]",
+            text,
+        )
+    text = re.sub(r"(?i)([\"']?[^\s&\"']*token[^\s&\"']*[\"']?\s*[:=]\s*[\"']?)([^&\s\"']+)", r"\1[REDACTED]", text)
+    return text
 
 
 def _field_score(item: Dict[str, Any]) -> tuple[int, List[str]]:
@@ -117,6 +134,9 @@ def build_evidence_manifest(
     final_url: str = "",
     page_title: str = "",
     signals: List[str] | None = None,
+    main_status: int | None = None,
+    elapsed_ms: int | None = None,
+    actions: List[Dict[str, Any]] | None = None,
 ) -> Dict[str, Any]:
     """Build the manifest consumed by the current agent for strategy analysis."""
     output_path = Path(output_dir)
@@ -135,16 +155,21 @@ def build_evidence_manifest(
         "page": {
             "title": page_title,
             "signals": signals or [],
+            "http_status": main_status,
+            "elapsed_ms": elapsed_ms,
         },
         "artifacts": {
             "evidence_json": str(output_path / "evidence.json"),
             "network_log": str(output_path / "network.json"),
+            "actions": str(output_path / "actions.json"),
+            "inspection": str(output_path / "inspection.json"),
             "page_html": str(output_path / "page.html"),
             "page_text": str(output_path / "page.txt"),
             "screenshot": str(output_path / "page.png"),
             "xhr_samples": str(output_path / "xhr_samples"),
         },
         "network_request_count": len(network_requests or []),
+        "action_count": len(actions or []),
         "candidate_job_arrays": candidates or [],
         "allowed_strategy_types": [
             "config_intercept",
@@ -185,6 +210,10 @@ def collect_evidence(
 
     responses: List[Dict[str, Any]] = []
     network_requests: List[Dict[str, Any]] = []
+    actions: List[Dict[str, Any]] = []
+    started_at = time.perf_counter()
+    current_phase = "initial_load"
+    main_status = None
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
@@ -192,12 +221,22 @@ def collect_evidence(
 
         def handle_request(request):
             network_requests.append({
+                "event": "request",
                 "url": sanitize_url(request.url),
                 "method": request.method,
                 "resource_type": request.resource_type,
+                "post_data": sanitize_post_data(getattr(request, "post_data", None)),
+                "trigger_action_id": current_phase,
             })
 
         def handle_response(response):
+            network_requests.append({
+                "event": "response",
+                "url": sanitize_url(response.url),
+                "status": response.status,
+                "content_type": response.headers.get("content-type", ""),
+                "trigger_action_id": current_phase,
+            })
             content_type = response.headers.get("content-type", "")
             if "json" not in content_type.lower():
                 return
@@ -216,8 +255,14 @@ def collect_evidence(
 
         page.on("request", handle_request)
         page.on("response", handle_response)
-        page.goto(url, timeout=60000, wait_until="domcontentloaded")
+        main_response = page.goto(url, timeout=60000, wait_until="domcontentloaded")
+        main_status = main_response.status if main_response else None
         page.wait_for_timeout(5000)
+        if keyword:
+            current_phase = "generic_search"
+            actions = perform_generic_search(page, keyword)
+            if actions:
+                page.wait_for_timeout(5000)
         screenshot_path = output_dir / "page.png"
         page.screenshot(path=str(screenshot_path), full_page=True)
         title = page.title()
@@ -242,6 +287,22 @@ def collect_evidence(
     )
     (output_dir / "page.html").write_text(html, encoding="utf-8")
     (output_dir / "page.txt").write_text(page_text, encoding="utf-8")
+    (output_dir / "actions.json").write_text(
+        json.dumps(actions, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+    inspection = {
+        "initial_url": sanitize_url(url),
+        "final_url": final_url,
+        "http_status": main_status,
+        "elapsed_ms": elapsed_ms,
+        "signals": inspect_html_signals(html, page_text)["signals"],
+    }
+    (output_dir / "inspection.json").write_text(
+        json.dumps(inspection, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     candidates = []
     for response in responses:
         for candidate in response.get("job_array_candidates", []):
@@ -262,6 +323,9 @@ def collect_evidence(
         final_url=final_url,
         page_title=title,
         signals=signals,
+        main_status=main_status,
+        elapsed_ms=elapsed_ms,
+        actions=actions,
     )
     evidence = {
         **manifest,

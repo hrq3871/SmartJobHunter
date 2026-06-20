@@ -61,3 +61,51 @@ def test_try_search_skips_hidden_inputs_and_uses_visible_one():
     assert page.visible_input.filled == "AI产品经理"
     assert page.visible_input.pressed == "Enter"
     assert page.search_button.clicked is True
+
+
+class FakeContext:
+    def __init__(self):
+        self.init_scripts = []
+
+    def add_init_script(self, script):
+        self.init_scripts.append(script)
+
+
+class FakeBrowser:
+    def __init__(self):
+        self.context = FakeContext()
+        self.context_kwargs = None
+
+    def new_context(self, **kwargs):
+        self.context_kwargs = kwargs
+        return self.context
+
+
+class FakeChromium:
+    def __init__(self):
+        self.browser = FakeBrowser()
+        self.launch_kwargs = None
+
+    def launch(self, **kwargs):
+        self.launch_kwargs = kwargs
+        return self.browser
+
+
+class FakePlaywright:
+    def __init__(self):
+        self.chromium = FakeChromium()
+
+
+def test_create_browser_uses_standard_context_without_stealth_overrides():
+    crawler = InterceptCrawler({"api": {"pattern": "jobs", "data_path": "data"}})
+    playwright = FakePlaywright()
+
+    crawler.create_browser(playwright, headless=True)
+
+    launch_text = repr(playwright.chromium.launch_kwargs)
+    scripts = "\n".join(playwright.chromium.browser.context.init_scripts)
+    assert "AutomationControlled" not in launch_text
+    assert "navigator.webdriver" not in scripts
+    assert "window.chrome" not in scripts
+    assert "navigator.plugins" not in scripts
+    assert "navigator.languages" not in scripts

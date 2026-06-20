@@ -2,6 +2,8 @@
 
 你是当前 Claude/Codex Agent，不是 Python 里的外部 LLM API。你的任务是读取 crawler evidence，判断一个公司官网应该如何固化抓取策略。
 
+批量任务必须委派给 `.claude/agents/crawler-strategy-inspector.md` 定义的单个子 Agent，由它串行处理全部公司；不得按公司拆分 Agent，也不得嵌套更多 Agent。主 Agent 只接收最终摘要和 artifact 路径。
+
 ## 输入
 
 请读取并引用以下文件：
@@ -32,6 +34,7 @@ python -m src.crawler_evidence --company <company_id> --keyword "产品经理" -
 5. 如果没有稳定 API，检查 DOM 是否有可复现 selector。
 6. 如果 API/DOM 都不足，但浏览器操作可重复，记录 `browser_operation` 步骤和限制。
 7. 如果必须登录、验证码、强反爬或证据不足，标记 `unsupported` 并写明原因。
+8. 所有输入和输出 URL 必须原封不动，禁止切片、摘要、省略号或改写查询参数。
 
 ## 输出要求
 
