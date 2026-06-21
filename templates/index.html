@@ -242,13 +242,28 @@ function renderHealthPanel(health){
   h+=`</div>`;
   wrap.innerHTML=h;
 }
-window.refreshHealth=async()=>{const h=await api('/api/health');_healthData=h;renderHealthPanel(h);renderCompanyGrid(_sortCompanies(_coData,_coFilter))};
+window.refreshHealth=async()=>{const h=await api('/api/health');_healthData=h;renderHealthPanel(h);_updateCoHealthBadges()};
+window._updateCoHealthBadges=()=>{
+  const map={};if(_healthData)for(const t of _healthData.tasks||[]){map[t.company_id]=t}
+  $$('.company-card').forEach(card=>{
+    const cid=card.dataset.cid;const h=map[cid];const badgeEl=card.querySelector('.health-badge');
+    if(h){const label=({pending:'待修复',blocked:'阻塞',failed:'失败',repaired:'已修复'}[h.status]||h.status);const cls=h.status==='blocked'?'badge-err':h.status==='pending'?'badge-warn':'badge-info';
+      if(badgeEl){badgeEl.className=`badge health-badge ${cls}`;badgeEl.textContent=`\u{1fa79} ${label}`;badgeEl.title=h.reason_label||h.reason||''}
+      else{card.querySelector('.c-name').insertAdjacentHTML('beforeend',`<span class="badge health-badge ${cls}" title="${esc(h.reason_label||'')}">\u{1fa79} ${label}</span>`)}
+    }else{if(badgeEl)badgeEl.remove()}
+  });
+};
 window._selectAllHealth=()=>{if(!_healthData)return;const ids=_healthData.tasks.map(t=>t.company_id);_selCompanies=new Set(ids);$$('.hc-cb').forEach(cb=>{cb.checked=true});updateBatchBtn()};
 window._clearHealthSel=()=>{_selCompanies.clear();$$('.hc-cb').forEach(cb=>{cb.checked=false});updateBatchBtn()};
 window.toggleHcSel=(cid,checked)=>{if(checked)_selCompanies.add(cid);else _selCompanies.delete(cid);updateBatchBtn()};
 window.updateBatchBtn=()=>{const b=$('#batchRepairBtn');if(b){b.disabled=_selCompanies.size===0;b.textContent=`批量修复 (${_selCompanies.size})`}};
 window.batchRepair=async()=>{if(_selCompanies.size===0)return;const n=_selCompanies.size;if(!confirm(`确认对 ${n} 家公司执行策略巡检？后台运行，完成后刷新。`))return;await api('/api/health/repair',{method:'POST',body:JSON.stringify({company_ids:[..._selCompanies],keyword:'',job_type:'social'})});toast(`已触发 ${n} 家公司后台巡检`);_selCompanies.clear();updateBatchBtn()};
-window.retryOne=async(id)=>{try{const r=await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'',job_type:'social'})});toast(r.ok?`${id}: ${r.jobs_count} 岗位`:`${id}: 测试失败`);await refreshHealth()}catch(e){toast('重试失败: '+e.message)}};
+window.retryOne=async(id)=>{
+  const btns=$$(`button[onclick*="retryOne('${id}')"]`);
+  btns.forEach(b=>{b.disabled=true;b.innerHTML='<span class="spinner"></span>'});
+  try{const r=await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'',job_type:'social'})});toast(r.ok?`${id}: ${r.jobs_count} 岗位`:`${id}: 测试失败`);await refreshHealth()}catch(e){toast('重试失败: '+e.message)}
+  btns.forEach(b=>{b.disabled=false;b.innerHTML='&#x1f6e0; 重试'});
+};
 
 function renderCompanyGrid(companies){
   // Build health lookup from _healthData
@@ -267,7 +282,7 @@ function renderCompanyGrid(companies){
               <span>${esc(c.name)}</span><code style="font-size:11px">${esc(c.id)}</code>
               <span class="badge ${c.enabled?'badge-ok':'badge-warn'}">${c.enabled?'已启用':'已禁用'}</span>
               ${c.strategy_type!=='unknown'?`<span class="badge badge-info">${esc(c.strategy_type)}</span>`:''}
-              ${hBadge}
+              ${hBadge?hBadge.replace('badge ','badge health-badge '):''}
             </div>
             <label class="toggle"><input type="checkbox" ${c.enabled?'checked':''} onchange="toggleCo('${esc(c.id)}',this.checked)"><div class="toggle-track"></div></label>
           </div>
@@ -299,8 +314,25 @@ window.applyCoFilters=()=>{
 };
 
 window.filterCompanies=window.applyCoFilters;
-window.toggleCo=async(id,en)=>{await api(`/api/companies/${id}`,{method:'PUT',body:JSON.stringify({enabled:en})});const c=_coData.find(x=>x.id===id);if(c)c.enabled=en;applyCoFilters();toast(en?'已启用 '+id:'已禁用 '+id)};
-window.testCo=async(id)=>{const el=$(`#test-${id}`);el.innerHTML='<span class="spinner"></span>';try{const r=await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'',job_type:'social'})});el.innerHTML=r.ok?`<span style="color:var(--green)">&#x2705; ${r.jobs_count}岗</span>`:`<span style="color:var(--red)">&#x274c; 失败</span>`;if(!r.ok){el.innerHTML+=` <span class="text-sm text-muted">${esc((r.error||'').substring(0,60))}</span>`;await refreshHealth()}}catch(e){el.innerHTML=`<span style="color:var(--red)">&#x274c;</span>`;await refreshHealth()}};
+window.toggleCo=async(id,en)=>{
+  await api(`/api/companies/${id}`,{method:'PUT',body:JSON.stringify({enabled:en})});
+  const c=_coData.find(x=>x.id===id);if(c)c.enabled=en;
+  // 立刻更新卡片外观，不用等重渲染
+  const card=document.querySelector(`.company-card[data-cid="${id}"]`);
+  if(card){card.classList.toggle('disabled',!en);const badge=card.querySelector('.badge');if(badge){badge.className=`badge ${en?'badge-ok':'badge-warn'}`;badge.textContent=en?'已启用':'已禁用'}}
+  applyCoFilters();
+};
+window.testCo=async(id)=>{
+  const el=$(`#test-${id}`);if(!el)return;
+  el.innerHTML='<span class="spinner"></span> 测试中...';
+  try{
+    const r=await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'',job_type:'social'})});
+    el.innerHTML=r.ok?`<span style="color:var(--green)">&#x2705; ${r.jobs_count}岗</span>`:`<span style="color:var(--red)">&#x274c; 失败</span>`;
+    if(!r.ok)el.innerHTML+=` <span class="text-sm text-muted">${esc((r.error||'').substring(0,60))}</span>`;
+    // 无论成败都刷新健康面板和卡片badge
+    await refreshHealth();
+  }catch(e){el.innerHTML=`<span style="color:var(--red)">&#x274c; ${esc(e.message)}</span>`;await refreshHealth()}
+};
 window.deleteCo=async(id)=>{if(!confirm(`确定删除 "${id}"？此操作不可恢复。`))return;await api(`/api/companies/${id}`,{method:'DELETE'});toast('已删除 '+id);renderers.strategy()};
 
 window.showAddModal=()=>{showModal('新增公司',`
