@@ -527,25 +527,12 @@ companies:
     name: 知乎
     enabled: true
     urls:
-      social: "https://app.mokahr.com/apply/zhihu/3819"
-      campus: "https://app.mokahr.com/campus-recruitment/zhihu/68321"
-    api:
-      pattern: "jobs"
-      data_path: "data.jobs"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "name"
-      location:
-        source: "location"
-      category:
-        source: "category"
-      duty:
-        source: "description"
-    url_template: "https://app.mokahr.com/jobs/{id}"
-    note: "API已验证可用"
+      social: "https://app.mokahr.com/apply/zhihu/3819#/jobs"
+      campus: "https://app.mokahr.com/campus-recruitment/zhihu/68321#/jobs"
+    strategy:
+      type: custom_python
+      module: mokahr
+    note: "新版Mokahr加密API,使用Playwright DOM提取策略"
 
   # OPPO
   - id: oppo
@@ -606,25 +593,12 @@ companies:
     name: 中兴通讯
     enabled: true
     urls:
-      social: "https://app.mokahr.com/social-recruitment/zte/47588"
-      campus: "https://app.mokahr.com/campus-recruitment/zte/46903"
-    api:
-      pattern: "jobs"
-      data_path: "data.jobs"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "name"
-      location:
-        source: "location"
-      category:
-        source: "category"
-      duty:
-        source: "description"
-    url_template: "https://app.mokahr.com/jobs/{id}"
-    note: "使用mokahr招聘系统"
+      social: "https://app.mokahr.com/social-recruitment/zte/47588#/jobs"
+      campus: "https://app.mokahr.com/campus-recruitment/zte/46903#/jobs"
+    strategy:
+      type: custom_python
+      module: mokahr
+    note: "新版Mokahr加密API,使用Playwright DOM提取策略"
 
   # 联想
   - id: lenovo
@@ -909,24 +883,11 @@ companies:
     name: 特斯拉中国
     enabled: false
     urls:
-      social: "https://app.mokahr.com/social-recruitment/tesla/44298"
-    api:
-      pattern: "jobs"
-      data_path: "data.jobs"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "name"
-      location:
-        source: "location"
-      category:
-        source: "category"
-      duty:
-        source: "description"
-    url_template: "https://app.mokahr.com/jobs/{id}"
-    note: "使用mokahr招聘系统"
+      social: "https://app.mokahr.com/social-recruitment/tesla/44298#/jobs"
+    strategy:
+      type: custom_python
+      module: mokahr
+    note: "新版Mokahr加密API,使用Playwright DOM提取策略。待验证URL是否可达"
 
   # 英特尔中国
   - id: intel
@@ -1340,28 +1301,17 @@ companies:
       type: "unknown"
     note: "需要分析API结构"
 
-  # 吉利汽车
+  # 吉利汽车 — URL 需要验证(当前返回404)
   - id: geely
     name: 吉利汽车
     enabled: true
     urls:
-      social: "https://app.mokahr.com/social-recruitment/geely/47588"
-      campus: "https://app.mokahr.com/campus-recruitment/geely/46903"
-    api:
-      pattern: "jobs"
-      data_path: "data.jobs"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "name"
-      location:
-        source: "location"
-      category:
-        source: "category"
-    url_template: "https://app.mokahr.com/jobs/{id}"
-    note: "使用mokahr招聘系统"
+      social: "https://app.mokahr.com/social-recruitment/geely/47588#/jobs"
+      campus: "https://app.mokahr.com/campus-recruitment/geely/46903#/jobs"
+    strategy:
+      type: custom_python
+      module: mokahr
+    note: "新版Mokahr策略。社招URL当前404,待确认正确链接"
 
   # 长城汽车
   - id: gwm
@@ -1581,6 +1531,17 @@ companies:
       last_verified_at: '2026-06-21T14:01:31.667731+08:00'
       evidence_dir: logs/crawler_evidence/20260621-five-site-repair-retry/sf_campus/20260621_134357
       fingerprint: a80945a486e03e7e
+
+  # 锐捷网络
+  - id: ruijie
+    name: 锐捷网络
+    enabled: true
+    urls:
+      campus: "https://app.mokahr.com/campus-recruitment/ruijie/136206#/jobs"
+    strategy:
+      type: custom_python
+      module: mokahr
+    note: "新版Mokahr加密API,使用Playwright DOM提取策略"
 
 # 默认抓取配置
 defaults:

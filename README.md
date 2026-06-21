@@ -217,7 +217,6 @@ ls output/2026-05-07/
 SmartJobHunter/
 ├── 📂 src/                  # Python modules
 │   ├── cli.py               # CLI entry point & JobHunter class
-│   ├── crawler.py           # Legacy crawlers (Tencent, ByteDance, etc.)
 │   ├── crawler_factory.py   # Strategy-aware crawler factory
 │   ├── config_crawler.py    # Config-driven crawler
 │   ├── base_crawler.py      # Base crawler class (API intercept)
@@ -226,7 +225,6 @@ SmartJobHunter/
 │   ├── strategy_planner.py  # Strategy task planner
 │   ├── crawler_evidence.py  # Page/network/DOM evidence collector
 │   ├── health_monitor.py    # Daily strategy inspection and diagnosis
-│   ├── auto_analyzer.py     # Legacy recruiting-system template matcher
 │   ├── notifier.py          # User notification system
 │   ├── filters.py           # Filter functions (time, dedup, clean)
 │   ├── matching.py          # Semantic matching fallback and scoring rubric
@@ -235,7 +233,6 @@ SmartJobHunter/
 │   ├── eval_transcript.py   # JSONL transcript recorder for eval cases
 │   ├── resume_parser.py     # Resume parser (txt/md/docx/pdf/image)
 │   ├── scheduler.py         # Job scheduler (daily at 20:00)
-│   ├── health_check.py      # Legacy health-check wrapper
 │   ├── site_strategies/     # Custom Python site strategies
 │   └── git_auto_push.py     # Optional Git auto push
 │

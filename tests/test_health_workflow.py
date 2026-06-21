@@ -98,12 +98,6 @@ def test_strategy_inspection_marks_login_required_and_continues(tmp_path, monkey
     assert {item["company_id"] for item in summary["results"]} == {"loginco", "okco"}
 
 
-def test_health_check_is_legacy_wrapper_without_old_crawler_import():
-    source = Path("src/health_check.py").read_text(encoding="utf-8")
-
-    assert "from src.crawler import" not in source
-
-
 def test_health_monitor_does_not_call_legacy_auto_analyzer_for_repair():
     source = Path("src/health_monitor.py").read_text(encoding="utf-8")
 

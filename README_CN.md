@@ -215,7 +215,6 @@ ls output/2026-05-07/
 SmartJobHunter/
 ├── 📂 src/                  # Python 模块
 │   ├── cli.py               # CLI 入口 & JobHunter 类
-│   ├── crawler.py           # 传统爬虫（腾讯、字节等）
 │   ├── crawler_factory.py   # 爬虫工厂（配置爬虫 + 专用策略）
 │   ├── config_crawler.py    # 配置驱动爬虫
 │   ├── base_crawler.py      # 爬虫基类（API 拦截）
@@ -224,7 +223,6 @@ SmartJobHunter/
 │   ├── strategy_planner.py  # Agent 策略任务生成
 │   ├── crawler_evidence.py  # 页面/网络/DOM 证据采集
 │   ├── health_monitor.py    # 每日策略巡检与诊断
-│   ├── auto_analyzer.py     # 历史招聘系统模板匹配器
 │   ├── notifier.py          # 用户通知系统
 │   ├── filters.py           # 过滤函数（时间、去重、清洗）
 │   ├── matching.py          # 语义匹配 fallback 与评分规则
@@ -233,7 +231,6 @@ SmartJobHunter/
 │   ├── eval_transcript.py   # eval case 的 JSONL 轨迹记录器
 │   ├── resume_parser.py     # 简历解析（txt/md/docx/pdf/图片）
 │   ├── scheduler.py         # 定时调度（每天 20:00）
-│   ├── health_check.py      # 兼容旧命令的健康检测入口
 │   ├── git_auto_push.py     # 可选 Git 自动推送
 │   └── site_strategies/     # 专用公司抓取策略
 │

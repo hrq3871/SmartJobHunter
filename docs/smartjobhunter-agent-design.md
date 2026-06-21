@@ -104,23 +104,33 @@ SmartJobHunter/
 │   ├── candidates/
 │   └── jobhunter_agent_eval.yaml    # legacy/default-compatible copy
 ├── src/
-│   ├── cli.py                       # JobHunter 主流程
-│   ├── crawler_factory.py           # 公司策略选择和抓取入口
-│   ├── config_crawler.py
-│   ├── dom_crawler.py
-│   ├── site_strategies/
-│   ├── health_monitor.py            # 策略巡检
-│   ├── crawler_evidence.py          # 证据采集
-│   ├── strategy_planner.py
-│   ├── filters.py
-│   ├── matching.py
-│   ├── resume_parser.py
-│   ├── feishu_push.py
-│   ├── feishu_bitable.py
-│   ├── scheduler.py
-│   ├── evaluation.py
-│   ├── eval_graders.py
-│   └── eval_transcript.py
+│   ├── cli.py                       # JobHunter 主流程 & CLI 入口
+│   ├── base_crawler.py              # 爬虫基类（API 拦截）
+│   ├── config_crawler.py            # 配置驱动爬虫
+│   ├── dom_crawler.py               # DOM 解析爬虫
+│   ├── crawler_factory.py           # 爬虫工厂（配置 + 策略路由）
+│   ├── company_registry.py          # 公司链接和策略注册表
+│   ├── site_strategies/             # 专用公司 Python 策略
+│   ├── browser_interactions.py      # 可重放浏览器搜索/点击操作
+│   ├── health_monitor.py            # 每日策略巡检协调
+│   ├── site_inspector.py            # 官网链接与策略轻量巡检
+│   ├── crawler_evidence.py          # 页面/网络/DOM 证据采集
+│   ├── strategy_planner.py          # Agent 策略任务生成
+│   ├── strategy_applier.py          # Agent 决策写回配置
+│   ├── crawler_verification.py      # 单站修复验收
+│   ├── filters.py                   # 时间/去重/清洗过滤
+│   ├── matching.py                  # 语义匹配 fallback 与评分
+│   ├── resume_parser.py             # 多格式简历解析
+│   ├── reporting.py                 # 报告生成
+│   ├── run_records.py               # 运行账本记录
+│   ├── feishu_push.py               # 飞书 Wiki 推送
+│   ├── feishu_bitable.py            # 飞书多维表格
+│   ├── notifier.py                  # 用户通知（抓取失败路径）
+│   ├── scheduler.py                 # 定时调度（每天 20:00）
+│   ├── evaluation.py                # Agent 评估 harness
+│   ├── eval_graders.py              # Code/model/human grader
+│   ├── eval_transcript.py           # JSONL 轨迹记录
+│   └── exceptions.py                # 异常类型定义
 ├── .claude/skills/jobhunter/
 │   ├── skill.md                    # Skillmap：触发词和路由索引
 │   ├── profile.md
