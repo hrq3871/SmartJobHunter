@@ -206,13 +206,14 @@ function showModal(title,bodyHtml,width='560px'){
 // ══════════════════════════════════════════════
 // Tab 1: 公司与策略 (companies + health)
 // ══════════════════════════════════════════════
-let _coData=[],_healthData=null,_coFilter='enabled',_selCompanies=new Set();
+let _coData=[],_healthData=null,_coFilter='all',_selCompanies=new Set();
 renderers.strategy=async()=>{
   const[companies,health]=await Promise.all([api('/api/companies'),api('/api/health')]);
   _coData=companies;_healthData=health;_selCompanies=new Set();
   const sorted=_sortCompanies(companies,_coFilter);
-  renderHealthPanel(health);
+  document.getElementById('content').innerHTML='<div id="companyGridSection"></div><div id="healthPanel"></div>';
   renderCompanyGrid(sorted);
+  renderHealthPanel(health);
 };
 
 function _sortCompanies(list,filter){
@@ -224,16 +225,16 @@ function _sortCompanies(list,filter){
 }
 
 function renderHealthPanel(health){
-  const s=health.summary;
+  const s=health.summary||{total:0,pending:0,blocked:0,failed:0};
   const statusClass=st=>st==='blocked'?'badge-err':st==='pending'?'badge-warn':st==='repaired'?'badge-ok':'badge-info';
   const statusLabel=st=>({pending:'待处理',blocked:'阻塞',failed:'失败',repaired:'已修复'}[st]||st);
-  let wrap=$('#healthPanel');
-  if(!wrap){document.getElementById('content').insertAdjacentHTML('afterbegin','<div id="healthPanel"></div>');wrap=$('#healthPanel')}
+  const wrap=document.getElementById('healthPanel');
+  if(!wrap)return;
   if(s.total===0){
     wrap.innerHTML=`<div class="card"><div class="card-header"><h3>&#x1fa79; 策略健康</h3><button class="btn btn-outline btn-sm" onclick="refreshHealth()">&#x21bb; 刷新</button></div><div class="empty-state">&#x2705; 所有已启用公司抓取策略正常</div></div>`;
     return;
   }
-  let h=`<div class="card"><div class="card-header"><h3>&#x1fa79; 策略健康</h3><div class="flex gap-2"><button class="btn btn-outline btn-sm" onclick="$$('.hc-cb').forEach(cb=>{cb.checked=true;_selCompanies=new Set(health.tasks.map(t=>t.company_id));updateBatchBtn()})">全选</button><button class="btn btn-outline btn-sm" onclick="$$('.hc-cb').forEach(cb=>{cb.checked=false});_selCompanies.clear();updateBatchBtn()">取消</button><button class="btn btn-primary btn-sm" id="batchRepairBtn" disabled onclick="batchRepair()">&#x1f6e0; 批量修复 (0)</button><button class="btn btn-outline btn-sm" onclick="refreshHealth()">&#x21bb; 刷新</button></div></div>`;
+  let h=`<div class="card"><div class="card-header"><h3>&#x1fa79; 策略健康</h3><div class="flex gap-2"><button class="btn btn-outline btn-sm" onclick="window._selectAllHealth()">全选</button><button class="btn btn-outline btn-sm" onclick="window._clearHealthSel()">取消</button><button class="btn btn-primary btn-sm" id="batchRepairBtn" disabled onclick="batchRepair()">&#x1f6e0; 批量修复 (0)</button><button class="btn btn-outline btn-sm" onclick="refreshHealth()">&#x21bb; 刷新</button></div></div>`;
   h+=`<div class="health-strip"><div class="hs-card hs-total"><div class="hs-num" style="color:var(--primary)">${s.total}</div><div class="hs-label">总异常</div></div><div class="hs-card hs-pending"><div class="hs-num" style="color:var(--yellow)">${s.pending}</div><div class="hs-label">待处理</div></div><div class="hs-card hs-blocked"><div class="hs-num" style="color:var(--red)">${s.blocked}</div><div class="hs-label">阻塞</div></div><div class="hs-card hs-failed"><div class="hs-num" style="color:var(--text-muted)">${s.failed}</div><div class="hs-label">失败</div></div></div>`;
   for(const t of health.tasks){
     h+=`<div class="row" style="grid-template-columns:auto 1fr auto auto"><input type="checkbox" class="checkbox hc-cb" data-cid="${esc(t.company_id)}" onchange="toggleHcSel('${esc(t.company_id)}',this.checked)"><div><strong>${esc(t.company_name)}</strong> <span class="badge ${statusClass(t.status)}">${statusLabel(t.status)}</span><div class="text-sm mt-1" style="color:var(--text-secondary)">${esc(t.reason_label||t.reason)}</div></div><span class="text-muted text-sm">${(t.created_at||'').slice(0,16)}</span><button class="btn btn-outline btn-sm" onclick="retryOne('${esc(t.company_id)}')">&#x1f6e0; 重试</button></div>`;
@@ -242,6 +243,8 @@ function renderHealthPanel(health){
   wrap.innerHTML=h;
 }
 window.refreshHealth=async()=>{const h=await api('/api/health');_healthData=h;renderHealthPanel(h);renderCompanyGrid(_sortCompanies(_coData,_coFilter))};
+window._selectAllHealth=()=>{if(!_healthData)return;const ids=_healthData.tasks.map(t=>t.company_id);_selCompanies=new Set(ids);$$('.hc-cb').forEach(cb=>{cb.checked=true});updateBatchBtn()};
+window._clearHealthSel=()=>{_selCompanies.clear();$$('.hc-cb').forEach(cb=>{cb.checked=false});updateBatchBtn()};
 window.toggleHcSel=(cid,checked)=>{if(checked)_selCompanies.add(cid);else _selCompanies.delete(cid);updateBatchBtn()};
 window.updateBatchBtn=()=>{const b=$('#batchRepairBtn');if(b){b.disabled=_selCompanies.size===0;b.textContent=`批量修复 (${_selCompanies.size})`}};
 window.batchRepair=async()=>{if(_selCompanies.size===0)return;const n=_selCompanies.size;if(!confirm(`确认对 ${n} 家公司执行策略巡检？后台运行，完成后刷新。`))return;await api('/api/health/repair',{method:'POST',body:JSON.stringify({company_ids:[..._selCompanies],keyword:'',job_type:'social'})});toast(`已触发 ${n} 家公司后台巡检`);_selCompanies.clear();updateBatchBtn()};
@@ -250,7 +253,7 @@ window.retryOne=async(id)=>{try{const r=await api(`/api/companies/${id}/test`,{m
 function renderCompanyGrid(companies){
   // Build health lookup from _healthData
   const healthMap={};if(_healthData)for(const t of _healthData.tasks||[]){healthMap[t.company_id]=t}
-  const searchHtml=`<div class="card"><div class="flex-between flex-wrap gap-2"><div class="flex gap-2" style="align-items:center"><div class="search-bar" style="width:260px"><input type="search" id="coSearch" placeholder="搜索公司..." oninput="applyCoFilters()"></div><select id="coFilter" onchange="_coFilter=this.value;applyCoFilters()" style="width:auto;padding:9px 12px"><option value="enabled">已启用优先</option><option value="all">全部</option><option value="disabled">仅已禁用</option></select></div><button class="btn btn-primary" onclick="showAddModal()">+ 新增公司</button></div></div>`;
+  const searchHtml=`<div class="card"><div class="flex-between flex-wrap gap-2"><div class="flex gap-2" style="align-items:center"><button class="btn btn-primary" onclick="showAddModal()">+ 新增公司</button><select id="coFilter" onchange="_coFilter=this.value;applyCoFilters()" style="width:auto;padding:9px 12px"><option value="all">全部</option><option value="enabled">已启用</option><option value="disabled">已禁用</option></select></div><div class="search-bar" style="width:260px"><input type="search" id="coSearch" placeholder="搜索公司..." oninput="applyCoFilters()"></div></div></div>`;
   const coHtml=`
     <div class="company-grid">
       ${companies.map(c=>{
@@ -279,8 +282,8 @@ function renderCompanyGrid(companies){
         </div>`;
       }).join('')}
     </div>`;
-  let gridEl=$('#companyGridSection');
-  if(!gridEl){document.getElementById('content').insertAdjacentHTML('beforeend','<div id="companyGridSection"></div>');gridEl=$('#companyGridSection')}
+  const gridEl=document.getElementById('companyGridSection');
+  if(!gridEl)return;
   gridEl.innerHTML=searchHtml+coHtml;
   $('#coFilter').value=_coFilter;
 }
