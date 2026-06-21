@@ -192,7 +192,7 @@ const LABEL={'social':'社招','campus':'校招','internship':'实习'};
 
 // ── Tab routing ──
 const renderers={};
-function loadTab(n){const f=renderers[n];if(f)f()}
+function loadTab(n){const f=renderers[n];if(!f)return;document.getElementById('content').innerHTML='<div class="empty-state"><span class="spinner"></span> 加载中...</div>';try{f()}catch(e){document.getElementById('content').innerHTML=`<div class="card" style="border-color:var(--red)"><h3>渲染错误</h3><p>${esc(e.message)}</p><pre class="text-sm" style="margin-top:8px">${esc(e.stack||'')}</pre></div>`}}
 $$('nav button').forEach(b=>b.addEventListener('click',()=>{$$('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');loadTab(b.dataset.tab)}));
 
 // ── Modal helper ──
@@ -374,44 +374,26 @@ window.deleteResume=async(n)=>{if(!confirm(`删除 "${n}"？`))return;const r=aw
 // Tab 3: 任务与结果
 // ══════════════════════════════════════════════
 renderers.tasks=async()=>{
+  try{
   const[cfg,reports]=await Promise.all([api('/api/config'),api('/api/reports')]);
+  if(!cfg){document.getElementById('content').innerHTML='<div class="card"><div class="empty-state">无法加载配置，请检查 config/agent.yaml</div></div>';return}
   const rptByProfile={};for(const r of reports){const k=r.profile||'未知';if(!rptByProfile[k])rptByProfile[k]=[];rptByProfile[k].push(r)}
-  const fs=cfg.feishu||{};
-  let sidebarHtml='<div class="card"><div class="card-header"><h3>&#x1f4e1; 飞书推送 <span class="tooltip-wrap" style="margin-left:6px"><button class="tooltip-trigger">?</button><div class="tooltip-box">在飞书开放平台创建企业自建应用 → 获取 App ID 和 App Secret → 开启机器人能力 → 在知识库中创建知识空间获取 Wiki Token → 在多维表格中获取 Bitable Token 和 Table ID。填入后开启推送开关即可。</div></span></h3></div>';
-  sidebarHtml+=`<label class="toggle" style="margin-bottom:14px"><input type="checkbox" ${fs.enabled?"checked":""} onchange="toggleFs(this.checked)"><div class="toggle-track"></div><span>${fs.enabled?"推送已开启":"推送已关闭"}</span></label>`;
-  sidebarHtml+='<details style="margin-top:8px"><summary class="text-sm" style="cursor:pointer;color:var(--text-secondary);font-weight:500">编辑凭证</summary><div style="margin-top:10px">';
-  sidebarHtml+=`<label class="text-sm">App ID</label><input id="fsAppId" value="${esc(fs.app_id||"")}" placeholder="飞书应用 App ID" style="margin-bottom:8px">`;
-  sidebarHtml+=`<label class="text-sm">App Secret</label><input id="fsAppSecret" type="password" value="${esc(fs.app_secret||"")}" placeholder="飞书应用 Secret" style="margin-bottom:8px">`;
-  sidebarHtml+=`<label class="text-sm">Wiki Node Token</label><input id="fsWiki" value="${esc(fs.wiki_node_token||"")}" placeholder="知识库节点 Token" style="margin-bottom:8px">`;
-  sidebarHtml+=`<label class="text-sm">Bitable Token</label><input id="fsBitable" value="${esc(fs.bitable_token||"")}" placeholder="多维表格 Token" style="margin-bottom:8px">`;
-  sidebarHtml+=`<label class="text-sm">Bitable Table ID</label><input id="fsTableId" value="${esc(fs.bitable_table_id||"")}" placeholder="表格 ID">`;
-  sidebarHtml+='<button class="btn btn-primary btn-sm mt-2" onclick="saveFs()">保存配置</button></div></details></div>';
-  sidebarHtml+='<div class="card"><div class="card-header"><h3>&#x1f916; 求职意向</h3></div>';
-  for(const p of cfg.profiles||[]){
-    const cnt=(rptByProfile[p.name]||[]).length;
-    sidebarHtml+=`<div class="row" style="grid-template-columns:1fr auto auto"><div><div class="flex gap-1" style="align-items:center;flex-wrap:wrap"><strong>${esc(p.name)}</strong><code>${esc(p.job_type||"")}</code>`;
-    if(p.keywords)for(const k of p.keywords)sidebarHtml+=`<span class="kw-tag">${esc(k)}</span>`;
-    sidebarHtml+=`</div>${p.resume?`<div class="text-sm text-muted mt-1">&#x1f4ce; ${esc(p.resume)}</div>`:""}</div><div class="flex gap-1" style="align-items:center">`;
-    if(p.resume)sidebarHtml+=`<button class="btn btn-outline btn-sm" onclick="viewProfileResume('${esc(p.name)}')">简历</button>`;
-    sidebarHtml+=`<label class="toggle"><input type="checkbox" ${p.enabled?"checked":""} onchange="togglePf('${esc(p.name)}',this.checked)"><div class="toggle-track"></div></label></div></div>`;
-  }
-  sidebarHtml+='</div><button class="btn btn-primary" style="width:100%" onclick="toast(\'请在终端运行: python -m src.cli\')">&#x25b6; 立即巡检</button><div class="text-sm text-muted mt-1" style="text-align:center">运行 python -m src.cli 并刷新此页查看结果</div>';
-
-  let mainHtml=`<div class="card"><div class="card-header"><h3>&#x1f4c4; 巡检报告</h3><span class="text-sm text-muted">${reports.length} 份报告</span></div>`;
-  if(reports.length===0){
-    mainHtml+='<div class="empty-state">暂无报告。<br>启用意向后运行 <code>python -m src.cli</code></div>';
-  }else{
-    const entries=Object.entries(rptByProfile);
-    for(const[profile,items]of entries){
-      mainHtml+=`<div style="margin-bottom:14px"><div class="text-sm" style="font-weight:600;color:var(--text-secondary);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border-subtle)">&#x1f4cc; ${esc(profile)} · ${items.length} 份</div>`;
-      for(const r of items){
-        mainHtml+=`<div class="row" style="grid-template-columns:1fr auto;cursor:pointer" onclick="viewReport('${esc(r.relpath)}')"><div><strong>${esc(r.generated||r.modified?.slice(0,10)||"")}</strong><span class="text-muted text-sm" style="margin-left:8px">${r.job_count} 岗位 · 最高 ${r.top_score} 分</span></div><span class="text-sm text-muted">${fs(r.size)}</span></div>`;
-      }
-      mainHtml+='</div>';
-    }
-  }
-  mainHtml+='</div><div id="reportDetail"></div>';
-  document.getElementById('content').innerHTML=`<div class="report-layout"><div class="report-sidebar">${sidebarHtml}</div><div>${mainHtml}</div></div>`;
+  const fconf=cfg.feishu||{};
+  let s='<div class="card"><div class="card-header"><h3>&#x1f4e1; 飞书推送 <span class="tooltip-wrap" style="margin-left:6px"><button class="tooltip-trigger">?</button><div class="tooltip-box">在飞书开放平台创建企业自建应用，获取 App ID 和 App Secret，开启机器人能力，在知识库中创建知识空间获取 Wiki Token，在多维表格中获取 Bitable Token 和 Table ID。填入后开启推送开关即可。</div></span></h3></div>';
+  s+=`<label class="toggle" style="margin-bottom:14px"><input type="checkbox" ${fconf.enabled?"checked":""} onchange="toggleFs(this.checked)"><div class="toggle-track"></div><span>${fconf.enabled?"推送已开启":"推送已关闭"}</span></label>`;
+  s+='<details style="margin-top:8px"><summary class="text-sm" style="cursor:pointer;color:var(--text-secondary);font-weight:500">编辑凭证</summary><div style="margin-top:10px">';
+  s+=`<label class="text-sm">App ID</label><input id="fsAppId" value="${esc(fconf.app_id||"")}" style="margin-bottom:8px"><label class="text-sm">App Secret</label><input id="fsAppSecret" type="password" value="${esc(fconf.app_secret||"")}" style="margin-bottom:8px"><label class="text-sm">Wiki Node Token</label><input id="fsWiki" value="${esc(fconf.wiki_node_token||"")}" style="margin-bottom:8px"><label class="text-sm">Bitable Token</label><input id="fsBitable" value="${esc(fconf.bitable_token||"")}" style="margin-bottom:8px"><label class="text-sm">Bitable Table ID</label><input id="fsTableId" value="${esc(fconf.bitable_table_id||"")}">`;
+  s+='<button class="btn btn-primary btn-sm mt-2" onclick="saveFs()">保存配置</button></div></details></div>';
+  s+='<div class="card"><div class="card-header"><h3>&#x1f916; 求职意向</h3></div>';
+  const profiles=cfg.profiles||[];
+  for(let i=0;i<profiles.length;i++){const p=profiles[i];s+=`<div class="row" style="grid-template-columns:1fr auto auto"><div><div class="flex gap-1" style="align-items:center;flex-wrap:wrap"><strong>${esc(p.name)}</strong><code>${esc(p.job_type||"")}</code>`;if(p.keywords)for(const k of p.keywords)s+=`<span class="kw-tag">${esc(k)}</span>`;s+=`</div>${p.resume?`<div class="text-sm text-muted mt-1">&#x1f4ce; ${esc(p.resume)}</div>`:""}</div><div class="flex gap-1" style="align-items:center">${p.resume?`<button class="btn btn-outline btn-sm" onclick="viewProfileResume('${esc(p.name)}')">简历</button>`:""}<label class="toggle"><input type="checkbox" ${p.enabled?"checked":""} onchange="togglePf('${esc(p.name)}',this.checked)"><div class="toggle-track"></div></label></div></div>`}
+  s+='</div><button class="btn btn-primary" style="width:100%" onclick="toast(\'请在终端运行 python -m src.cli\')">运行巡检</button><div class="text-sm text-muted mt-1" style="text-align:center">运行后刷新此页查看结果</div>';
+  let m=`<div class="card"><div class="card-header"><h3>&#x1f4c4; 巡检报告</h3><span class="text-sm text-muted">${reports.length} 份</span></div>`;
+  if(reports.length===0){m+='<div class="empty-state">暂无报告。启用意向后运行 <code>python -m src.cli</code></div>'}
+  else{const entries=Object.entries(rptByProfile);for(const[pr,items]of entries){m+=`<div style="margin-bottom:14px"><div class="text-sm" style="font-weight:600;color:var(--text-secondary);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border-subtle)">&#x1f4cc; ${esc(pr)} &middot; ${items.length} 份</div>`;for(const r of items){m+=`<div class="row" style="grid-template-columns:1fr auto;cursor:pointer" onclick="viewReport('${esc(r.relpath)}')"><div><strong>${esc(r.generated||"")}</strong><span class="text-muted text-sm" style="margin-left:8px">${r.job_count} 岗位 &middot; 最高 ${r.top_score||0} 分</span></div><span class="text-sm text-muted">${fs(r.size)}</span></div>`}m+='</div>'}}
+  m+='</div><div id="reportDetail"></div>';
+  document.getElementById('content').innerHTML=`<div class="report-layout"><div class="report-sidebar">${s}</div><div>${m}</div></div>`;
+  }catch(e){document.getElementById('content').innerHTML=`<div class="card" style="border-color:var(--red)"><h3>渲染失败</h3><p>${esc(e.message)}</p></div>`}
 };
 
 window.toggleFs=async(en)=>{await api('/api/config',{method:'PUT',body:JSON.stringify({feishu:{enabled:en}})});toast(en?'飞书推送已开启':'飞书推送已关闭')};
