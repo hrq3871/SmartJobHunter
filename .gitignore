@@ -38,6 +38,10 @@ resumes/*
 !resumes/example_resume.md
 !resumes/.gitkeep
 
+# 求职意向（保留 .gitkeep）
+profiles/*
+!profiles/.gitkeep
+
 # 本地私有配置（保留示例）
 config/agent.yaml
 config/resume_intents.yaml
