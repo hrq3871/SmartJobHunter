@@ -129,7 +129,7 @@ companies:
   note: API已验证可用
 - id: baidu
   name: 百度
-  enabled: true
+  enabled: false
   urls:
     social: https://talent.baidu.com/social-list
     campus: https://talent.baidu.com/list
