@@ -173,8 +173,8 @@ code{font-family:var(--font-mono);font-size:12px;background:var(--muted);padding
 <header>
   <h1>&#x1f3af; SmartJobHunter <span>Console</span></h1>
   <nav id="tabs">
-    <button class="active" data-tab="strategy">&#x2699;&#xfe0f; 公司与策略</button>
-    <button data-tab="tasks">&#x1f4ca; 简历与巡检</button>
+    <button class="active" data-tab="tasks">&#x1f4ca; 简历与巡检</button>
+    <button data-tab="strategy">&#x2699;&#xfe0f; 公司与策略</button>
   </nav>
 </header>
 
@@ -506,48 +506,39 @@ function _findResumeForReport(report,profiles){
 async function doUpload(files){
   const s=$('#uploadStatus');if(!s||!files.length)return;
   for(const f of files){
-    s.innerHTML='<span class="spinner"></span> 分析: '+esc(f.name)+'...';
-    const fd=new FormData();fd.append('file',f);
-    try{
-      const r=await fetch('/api/resumes/analyze',{method:'POST',body:fd}).then(r=>r.json());
-      if(!r.ok){s.innerHTML='&#x274c; '+esc(f.name);continue}
-      // Show confirmation modal
-      const kw=r.suggested_keywords||[];
-      showModal('&#x1f4c4; 确认求职意向 — '+esc(r.filename),
-        `<div class="text-sm" style="margin-bottom:12px">已分析简历内容，建议以下配置：</div>
-        <label>意向名称</label><input id="cfmName" value="${esc(r.suggested_name||'')}">
-        <label>岗位类型</label><div style="display:flex;gap:16px;padding:8px 0">${['社招','校招','实习'].map(t=>`<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px"><input type="checkbox" class="cfmJobType" value="${t}" ${r.suggested_job_type===t?'checked':''}> ${t}</label>`).join('')}</div>
-        <label>搜索关键词 <span class="text-muted text-sm">(用逗号或空格分隔)</span></label><input id="cfmKw" value="${esc(kw.join(', '))}" placeholder="例: 产品经理, TOB, SaaS">
-        <div class="text-sm text-muted mt-2">文件: ${esc(r.filename)} · ${fs(r.size)} · ${esc(r.format)}</div>
-        ${r.text_preview?`<div class="text-sm text-muted mt-2" style="max-height:100px;overflow-y:auto;background:var(--bg);padding:8px;border-radius:4px">${esc(r.text_preview)}</div>`:''}
-        <div class="mt-3 flex gap-2"><button class="btn btn-primary" id="cfmBtn">确认上传并创建意向</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove();setTimeout(()=>renderers.tasks(),300)">取消</button></div>`,
-        '520px'
-      );
-      // Bind confirm
-      setTimeout(()=>{
-        const btn=$('#cfmBtn');if(!btn)return;
-        btn.addEventListener('click',async()=>{
-          btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 保存中...';
-          const kwRaw=$('#cfmKw')?.value||kw.join(',');
-          const kwList=kwRaw.split(/[,，\s]+/).map(x=>x.trim()).filter(Boolean);
-          const jobTypes=[...document.querySelectorAll('.cfmJobType:checked')].map(cb=>cb.value);
-          try{
-            const cfm=await api('/api/resumes/confirm',{method:'POST',body:JSON.stringify({
-              filename:r.filename,
-              keywords:kwList,
-              job_types:jobTypes.length?jobTypes:['社招'],
-              profile_name:$('#cfmName')?.value||r.suggested_name
-            })});
-            document.querySelector('.modal-overlay')?.remove();
-            s.innerHTML='&#x2705; '+esc(cfm.filename)+' — 意向「'+esc(cfm.profile_name)+'」已创建';
-            setTimeout(()=>renderers.tasks(),600);
-          }catch(e){s.innerHTML='&#x274c; '+esc(e.message);btn.disabled=false;btn.textContent='确认上传并创建意向'}
-        });
-      },100);
-    }catch(e){s.innerHTML='&#x274c; '+esc(e.message)}
+    const baseName=f.name.replace(/\.[^.]+$/,'');
+    showModal('&#x1f4c4; 填写求职意向 — '+esc(f.name),
+      `<div class="text-sm" style="margin-bottom:8px">为简历设置搜索关键词，Agent 巡检时会用这些词搜索岗位。</div>
+      <label>意向名称</label><input id="cfmName" value="${esc(baseName)}">
+      <label>岗位类型</label><div style="display:flex;gap:16px;padding:8px 0">${['社招','校招','实习'].map(t=>`<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px"><input type="checkbox" class="cfmJobType" value="${t}" ${t==='社招'?'checked':''}> ${t}</label>`).join('')}</div>
+      <label>搜索关键词 <span class="text-muted text-sm">(逗号或空格分隔)</span></label><input id="cfmKw" placeholder="例: 产品经理, TOB, SaaS, AI产品">
+      <div class="text-sm text-muted mt-2">文件: ${esc(f.name)} · ${fs(f.size)}</div>
+      <div class="mt-3 flex gap-2"><button class="btn btn-primary" id="cfmBtn">确认并创建意向</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">取消</button></div>`,
+      '480px'
+    );
+    setTimeout(()=>{
+      const btn=$('#cfmBtn');if(!btn)return;
+      btn.addEventListener('click',async()=>{
+        btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 保存中...';
+        const kwRaw=$('#cfmKw')?.value||'';
+        const kwList=kwRaw.split(/[,，\s]+/).map(x=>x.trim()).filter(Boolean);
+        const jobTypes=[...document.querySelectorAll('.cfmJobType:checked')].map(cb=>cb.value);
+        try{
+          const fd=new FormData();fd.append('file',f);
+          const up=await fetch('/api/resumes',{method:'POST',body:fd}).then(r=>r.json());
+          if(!up.ok){s.innerHTML='&#x274c; 上传失败';btn.disabled=false;return}
+          const cfm=await api('/api/resumes/confirm',{method:'POST',body:JSON.stringify({
+            filename:up.filename, keywords:kwList,
+            job_types:jobTypes.length?jobTypes:['社招'],
+            profile_name:$('#cfmName')?.value||baseName
+          })});
+          document.querySelector('.modal-overlay')?.remove();
+          s.innerHTML='&#x2705; '+esc(cfm.filename)+' — 意向「'+esc(cfm.profile_name)+'」已创建';
+          setTimeout(()=>renderers.tasks(),600);
+        }catch(e){s.innerHTML='&#x274c; '+esc(e.message);btn.disabled=false;btn.textContent='确认并创建意向'}
+      });
+    },100);
   }
-  // Don't auto-refresh — user needs time to fill the confirmation modal.
-  // Page refreshes after confirm/cancel actions instead.
 }
 
 window.deleteResumeAndRefresh=async(name)=>{
@@ -585,7 +576,7 @@ window.viewProfileResumeByName=async(rn)=>{try{const r=await fetch(`/resumes/${e
 window.viewReport=async(rp)=>{const md=await api('/api/reports/'+encodeURIComponent(rp));const reports=await api('/api/reports');const meta=reports.find(r=>r.relpath===rp);const dur=meta?.duration_str?`<span class="text-sm text-muted" style="margin-left:12px">&#x23f1; ${esc(meta.duration_str)}</span>`:'';$('#reportDetail').innerHTML=`<div class="card"><div class="card-header"><h3>&#x1f4c4; ${esc(rp)}${dur}</h3><button class="btn btn-outline btn-sm" onclick="this.closest('#reportDetail').innerHTML=''">关闭</button></div><div class="markdown-body">${marked.parse(md)}</div></div>`;$('#reportDetail').scrollIntoView({behavior:'smooth'})};
 
 // ── Init ──
-loadTab('strategy');
+loadTab('tasks');
 </script>
 </body>
 </html>
