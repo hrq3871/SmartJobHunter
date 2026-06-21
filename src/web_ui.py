@@ -9,6 +9,7 @@ Start:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import shutil
@@ -224,7 +225,9 @@ async def test_company(company_id: str, body: dict):
     keyword = str(body.get("keyword", "") or "").strip() or "产品经理"
     job_type = str(body.get("job_type", "") or "").strip() or "social"
     try:
-        jobs = crawl_company(company_id, keyword=keyword, max_jobs=5, job_type=job_type, headless=True)
+        jobs = await asyncio.to_thread(
+            crawl_company, company_id, keyword=keyword, max_jobs=5, job_type=job_type, headless=True
+        )
     except Exception as exc:
         return {"ok": False, "error": str(exc), "jobs_count": 0, "sample_titles": []}
     return {

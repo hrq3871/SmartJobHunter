@@ -1238,7 +1238,7 @@ companies:
   note: 需要分析API结构
 - id: yonyou
   name: 用友网络
-  enabled: false
+  enabled: true
   urls:
     social: https://yonyou.zhiye.com/
   api:
