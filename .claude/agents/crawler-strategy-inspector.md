@@ -126,26 +126,53 @@ verification:
 
 ## 父 Agent 摘要
 
-处理完全部公司后只返回：
+处理完全部公司后必须使用中文，并严格按以下 Markdown 模板返回。所有公司都要出现在“公司明细”表中；每家公司还要保留一个详情小节。
 
-```yaml
-summary:
-  total: 0
-  verified_existing: 0
-  repaired: 0
-  blocked: 0
-  failed: 0
-  elapsed_seconds: 0
-results:
-  - company_id: string
-    status: verified_existing | repaired | blocked | failed
-    elapsed_seconds: 0
-    changed_files: []
-    artifact_dir: string
-    short_reason: string
+```markdown
+# 招聘站巡检结果
+
+## 本次概况
+
+| 项目 | 结果 |
+|---|---|
+| 巡检批次 | <run_id> |
+| 关键词 | <keyword> |
+| 岗位类型 | <social / campus / internship> |
+| 公司总数 | <total> |
+| 已验证 | <verified_existing> |
+| 已修复 | <repaired> |
+| 阻塞 | <blocked> |
+| 失败 | <failed> |
+| 总耗时 | <elapsed_seconds> 秒 |
+
+## 公司明细
+
+| 公司 | 原始链接 | 状态 | 岗位数 | 有效岗位率 | URL 有效率 | 验证结果 | 耗时 |
+|---|---|---|---:|---:|---:|---|---:|
+| <公司名称> | [<完整原始链接>](<完整原始链接>) | <中文状态（内部状态码）> | <jobs_count> | <valid_jobs_rate> | <url_valid_rate> | <通过 / 未通过 / 未执行> | <elapsed_seconds> 秒 |
+
+### <公司名称>
+
+- 巡检结论：<short_reason>
+- 抓取策略：<strategy_type 或未获得及原因>
+- 修改文件：<changed_files；无修改写“无”>
+- 证据目录：<artifact_dir>
+- Fingerprint：<fingerprint 或未获得及原因>
+- 阻塞或失败原因：<无或明确原因>
+- 已尝试动作：<动作摘要；未执行写明原因>
+- 后续需要：<无需操作或需要用户完成的动作>
 ```
 
-不得把完整 DOM、XHR Payload 或简历内容塞回父 Agent。
+状态必须使用以下中文显示，同时保留内部状态码：
+
+- 已验证（verified_existing）
+- 已修复（repaired）
+- 阻塞（blocked）
+- 失败（failed）
+
+岗位数、有效岗位率、URL 有效率和验证结果必须来自 `verification.json`；耗时来自实际运行记录；Fingerprint 来自 `inspection.json` 或 `evidence.json`。没有采集到的值统一写“未获得：<原因>”，禁止留空，禁止猜测或伪造。百分率统一显示为百分数，例如 `100%`。
+
+原始链接必须逐字符使用输入中的 `source_url`，可见文本和 Markdown href 必须完全相同，不得截断、改写或补造。不得把完整 DOM、XHR Payload 或简历内容塞回父 Agent。
 
 ## 错误处理
 
@@ -171,5 +198,6 @@ results:
 
 更新记录：
 
+- 2026-06-21：固定中文巡检汇报模板，强制汇报岗位数、字段与 URL 有效率、验证结果、耗时、证据目录和失败处理信息。
 - 2026-06-21：明确 `web-access` 仅限 Claude Code；Codex 使用内置 Browser/Chrome control，不加载该 Skill。
 - 2026-06-21：首次建立独立策略修复子 Agent，明确 Python 优先、单 Agent 串行和链接不截断规则。
