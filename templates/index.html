@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx-preview@0.3.7/dist/docx-preview.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 :root {
@@ -407,8 +407,8 @@ window.previewResume=async(n)=>{
       return;
     }
     if(ext==='docx'){
-      showModal('&#x1f4c4; '+esc(n),'<div id="pvContent" style="height:70vh;overflow-y:auto;font-family:var(--font-sans);line-height:1.8;font-size:14px"><span class="spinner"></span> 转换中...</div>','800px');
-      try{const res=await fetch(url);const buf=await res.arrayBuffer();const r=await mammoth.convertToHtml({arrayBuffer:buf});document.getElementById('pvContent').innerHTML=r.value||'转换失败'}catch(e){document.getElementById('pvContent').innerHTML='DOCX 转换失败: '+esc(e.message)}
+      showModal('&#x1f4c4; '+esc(n),'<div id="pvContent" style="height:70vh;overflow-y:auto;background:#fff;padding:20px"><span class="spinner"></span> 渲染中...</div>','900px');
+      try{const res=await fetch(url);const buf=await res.arrayBuffer();await docxPreview.renderAsync(buf,document.getElementById('pvContent'),null,{inWrapper:true,ignoreWidth:true,ignoreHeight:true,ignoreFonts:false,breakPages:true,ignoreLastRenderedPageBreak:true,experimental:false,trimXmlDeclaration:true,useBase64URL:false,useMathMLPolyfill:false,showChanges:false,debug:false})}catch(e){document.getElementById('pvContent').innerHTML='DOCX 渲染失败: '+esc(e.message)}
       return;
     }
     if(['png','jpg','jpeg','gif','webp','bmp'].includes(ext)){
