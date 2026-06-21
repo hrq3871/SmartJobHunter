@@ -40,6 +40,7 @@ resumes/*
 
 # 本地私有配置（保留示例）
 config/agent.yaml
+config/resume_intents.yaml
 !config/agent.sample.yaml
 
 # 输出文件（保留示例）
