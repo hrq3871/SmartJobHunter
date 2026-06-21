@@ -50,14 +50,22 @@ def build_repair_prompt(
     *,
     run_id: str,
     company_ids: Iterable[str],
+    company_sources: dict[str, str] | None = None,
     keyword: str,
     job_type: str,
     result_path: str,
 ) -> str:
-    companies = "、".join(str(item) for item in company_ids)
+    sources = company_sources or {}
+    companies = "\n".join(
+        f"- {company_id} | {sources.get(str(company_id), '未配置原始链接')}"
+        for company_id in company_ids
+    )
     return f"""执行 SmartJobHunter 批量抓取策略巡检与修复，运行 ID：{run_id}。
 
-公司 ID：{companies}。关键词：{keyword}。岗位类型：{job_type}。必须由同一个 Agent 串行处理全部公司，不得再创建子 Agent。按 crawler-strategy-inspector 定义采证、分析 API/字段、应用策略并独立验证；链接必须原封不动。登录、验证码、网络、地域限制和强反爬必须如实报告，不得绕过。把中文汇总和最终状态写入 {result_path}。"""
+公司任务：
+{companies}
+
+关键词：{keyword}。岗位类型：{job_type}。必须由同一个 Agent 串行处理全部公司，不得再创建子 Agent。按 crawler-strategy-inspector 定义采证、分析 API/字段、应用策略并独立验证；链接必须原封不动。登录、验证码、网络、地域限制和强反爬必须如实报告，不得绕过。把中文汇总和最终状态写入 {result_path}。"""
 
 
 def launch_claude(

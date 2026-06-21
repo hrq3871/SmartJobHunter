@@ -45,6 +45,10 @@ def test_build_repair_prompt_contains_all_selected_companies_once():
     prompt = build_repair_prompt(
         run_id="repair-001",
         company_ids=["ruijie_campus", "yonyou_campus"],
+        company_sources={
+            "ruijie_campus": "https://app.mokahr.com/campus-recruitment/ruijie/136206#/jobs",
+            "yonyou_campus": "https://career.yonyou.com/SU67ac41886202cc7916ae3029/pb/school.html",
+        },
         keyword="产品经理",
         job_type="campus",
         result_path="logs/agent_runs/repair-001/result.json",
@@ -52,6 +56,8 @@ def test_build_repair_prompt_contains_all_selected_companies_once():
 
     assert prompt.count("ruijie_campus") == 1
     assert prompt.count("yonyou_campus") == 1
+    assert "https://app.mokahr.com/campus-recruitment/ruijie/136206#/jobs" in prompt
+    assert "https://career.yonyou.com/SU67ac41886202cc7916ae3029/pb/school.html" in prompt
     assert "同一个 Agent" in prompt
     assert "不得再创建子 Agent" in prompt
 

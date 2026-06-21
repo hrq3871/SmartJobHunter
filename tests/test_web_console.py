@@ -1,138 +1,191 @@
-"""Comprehensive web console test suite."""
-from playwright.sync_api import sync_playwright
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""Isolated Web console workflow tests; never mutate the real repository data."""
 
-def test_console():
-    results = []
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page(viewport={"width": 1440, "height": 900})
-        errors = []
-        page.on("pageerror", lambda e: errors.append(str(e)))
+from __future__ import annotations
 
-        # 1. Page load
-        page.goto("http://localhost:8080", wait_until="domcontentloaded")
-        page.wait_for_timeout(3000)
-        label = "Page loads"
-        ok = len(errors) == 0
-        results.append((label, ok, len(errors)))
-        print(f"[{'PASS' if ok else 'FAIL'}] {label} ({len(errors)} errors)")
+import asyncio
+import io
 
-        # 2. Tasks tab renders
-        sidebar = page.query_selector("[class*='sidebar']")
-        label = "Tasks tab renders"
-        ok = bool(sidebar)
-        results.append((label, ok, ""))
-        print(f"[{'PASS' if ok else 'FAIL'}] {label}")
+import pytest
+import yaml
+from fastapi import HTTPException, UploadFile
 
-        # 3. Strategy tab (company cards)
-        page.query_selector("button[data-tab='strategy']").click()
-        page.wait_for_timeout(2000)
-        cards = page.query_selector_all(".cocard")
-        label = "Strategy tab (70+ cards)"
-        ok = len(cards) > 50
-        results.append((label, ok, len(cards)))
-        print(f"[{'PASS' if ok else 'FAIL'}] {label} ({len(cards)} cards)")
-
-        # 4. Filter dropdowns on strategy tab
-        s1 = page.query_selector("#coStatus")
-        s2 = page.query_selector("#coHealth")
-        label = "Filter dropdowns"
-        ok = bool(s1) and bool(s2)
-        results.append((label, ok, ""))
-        print(f"[{'PASS' if ok else 'FAIL'}] {label}")
-
-        # 5. Health tab (standalone)
-        page.query_selector("button[data-tab='health']").click()
-        page.wait_for_timeout(1500)
-        hs = page.query_selector_all(".stat-card")
-        label = "Health panel stats"
-        ok = len(hs) >= 1
-        results.append((label, ok, len(hs)))
-        print(f"[{'PASS' if ok else 'FAIL'}] {label} ({len(hs)} cards)")
-
-        # 7. Modal (must be on strategy tab)
-        page.query_selector("button[data-tab='strategy']").click()
-        page.wait_for_timeout(1500)
-        btns = page.query_selector_all(".btn-primary")
-        for b in btns:
-            if "+" in (b.text_content() or ""):
-                b.click()
-                break
-        page.wait_for_timeout(1500)
-        modal = page.query_selector(".modal-overlay")
-        label = "Add company modal"
-        ok = bool(modal)
-        results.append((label, ok, ""))
-        print(f"[{'PASS' if ok else 'FAIL'}] {label}")
-        if modal:
-            close = page.query_selector(".modal-header button")
-            if close:
-                close.click()
-                page.wait_for_timeout(500)
-
-        # 8. Toggle
-        tg = page.query_selector(".company-card:not(.disabled) .toggle")
-        if tg:
-            cb = tg.query_selector("input")
-            was = cb.is_checked()
-            tg.click()
-            page.wait_for_timeout(1000)
-            label = "Toggle switch"
-            ok = cb.is_checked() != was
-            results.append((label, ok, ""))
-            print(f"[{'PASS' if ok else 'FAIL'}] {label}")
-
-        # 9. Action buttons
-        tb = page.query_selector(".btn-outline")
-        label = "Action buttons exist"
-        ok = bool(tb)
-        results.append((label, ok, ""))
-        print(f"[{'PASS' if ok else 'FAIL'}] {label}")
-
-        # 10. Back to tasks tab, check search
-        page.query_selector("button[data-tab='tasks']").click()
-        page.wait_for_timeout(1500)
-        search = page.query_selector("#coSearch")
-        label = "Search input on tasks"
-        ok = bool(search)
-        results.append((label, ok, ""))
-        print(f"[{'PASS' if ok else 'FAIL'}] {label}")
-
-        # 11. Mobile 375px
-        page.set_viewport_size({"width": 375, "height": 812})
-        page.wait_for_timeout(500)
-        overflow = page.evaluate("() => document.body.scrollWidth > window.innerWidth + 10")
-        label = "Mobile no overflow"
-        ok = not overflow
-        results.append((label, ok, ""))
-        print(f"[{'PASS' if ok else 'FAIL'}] {label}")
-
-        # 12. Tablet 768px
-        page.goto("http://localhost:8080", wait_until="domcontentloaded")
-        page.wait_for_timeout(2000)
-        page.set_viewport_size({"width": 768, "height": 1024})
-        page.wait_for_timeout(500)
-        page.query_selector("button[data-tab='tasks']").click()
-        page.wait_for_timeout(1000)
-        rl = page.query_selector(".report-layout")
-        cols = page.evaluate("el => getComputedStyle(el).gridTemplateColumns", rl) if rl else ""
-        label = "Tablet grid single col"
-        ok = "1fr" in cols or rl is None
-        results.append((label, ok, cols))
-        print(f"[{'PASS' if ok else 'FAIL'}] {label} ({cols})")
-
-        # Summary
-        passed = sum(1 for _, p, _ in results if p)
-        print(f"\n=== {passed}/{len(results)} passed ===")
-        if errors:
-            print(f"\nCONSOLE ERRORS ({len(errors)}):")
-            for e in errors:
-                print(f"  - {e[:200]}")
-
-        browser.close()
-        return passed == len(results)
+from src import web_ui
+from src.claude_launcher import ClaudeLaunchError
+from src.resume_intents import sync_resume_directory, upsert_intent
 
 
-if __name__ == "__main__":
-    ok = test_console()
-    exit(0 if ok else 1)
+@pytest.fixture
+def isolated_web(tmp_path, monkeypatch):
+    paths = {
+        "ROOT": tmp_path,
+        "RESUMES_DIR": tmp_path / "resumes",
+        "PROFILES_DIR": tmp_path / "profiles",
+        "CONFIG_DIR": tmp_path / "config",
+        "OUTPUT_DIR": tmp_path / "output",
+        "LOGS_DIR": tmp_path / "logs",
+    }
+    for path in paths.values():
+        if path is not tmp_path:
+            path.mkdir(parents=True, exist_ok=True)
+    for name, path in paths.items():
+        monkeypatch.setattr(web_ui, name, path)
+    web_ui.app.state._pending_upload = {}
+    return paths
+
+
+def _upload(filename: str, content: bytes = b"resume") -> UploadFile:
+    return UploadFile(filename=filename, file=io.BytesIO(content))
+
+
+def test_resume_upload_rejects_docx_and_images(isolated_web):
+    for filename in ("resume.docx", "resume.png", "resume.jpg", "resume.jpeg"):
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(web_ui.analyze_resume(_upload(filename)))
+        assert exc.value.status_code == 400
+        assert "Unsupported format" in str(exc.value.detail)
+
+
+def test_confirm_resume_saves_intent_without_creating_profile(isolated_web):
+    asyncio.run(web_ui.analyze_resume(_upload("candidate.pdf", b"pdf bytes")))
+
+    result = asyncio.run(web_ui.confirm_resume({
+        "filename": "candidate.pdf",
+        "keywords": ["AI 产品经理", "ToB"],
+        "job_types": ["校招", "实习"],
+        "display_name": "AI 产品",
+    }))
+
+    assert result["profile_status"] == "pending_agent"
+    assert (isolated_web["RESUMES_DIR"] / "candidate.pdf").exists()
+    assert (isolated_web["CONFIG_DIR"] / "resume_intents.yaml").exists()
+    assert not isolated_web["PROFILES_DIR"].exists() or not list(isolated_web["PROFILES_DIR"].glob("*.md"))
+
+
+def test_list_resumes_auto_enables_manual_supported_file(isolated_web):
+    (isolated_web["RESUMES_DIR"] / "manual.md").write_text("开发经历", encoding="utf-8")
+
+    result = asyncio.run(web_ui.list_resumes())
+
+    manual = next(item for item in result["resumes"] if item["filename"] == "manual.md")
+    assert manual["enabled"] is True
+    assert manual["profile_status"] == "pending_agent"
+    assert manual["keywords"] == []
+
+
+def test_run_inspection_launches_claude_after_profile_generation_prompt(isolated_web, monkeypatch):
+    resume = isolated_web["RESUMES_DIR"] / "candidate.pdf"
+    resume.write_bytes(b"pdf")
+    intent_path = isolated_web["CONFIG_DIR"] / "resume_intents.yaml"
+    sync_resume_directory(isolated_web["RESUMES_DIR"], intent_path)
+    entry = upsert_intent(
+        intent_path,
+        resume_dir=isolated_web["RESUMES_DIR"],
+        filename="candidate.pdf",
+        keywords=["AI 产品经理"],
+        job_types=["校招"],
+        display_name="AI 产品",
+    )
+    data = yaml.safe_load(intent_path.read_text(encoding="utf-8"))
+    resume_id = next(iter(data["resumes"]))
+    calls = []
+
+    def fake_launch(**kwargs):
+        calls.append(kwargs)
+        return {"run_id": kwargs["run_dir"].name, "status": "launched", "pid": 1234}
+
+    monkeypatch.setattr(web_ui, "launch_claude", fake_launch, raising=False)
+
+    result = asyncio.run(web_ui.run_inspection({"resume_id": resume_id}))
+
+    assert result["status"] == "launched"
+    assert result["pid"] == 1234
+    assert "生成或更新正式 profile" in calls[0]["prompt"]
+    assert calls[0]["agent"] is None
+    assert entry["filename"] in calls[0]["prompt"]
+
+
+def test_run_inspection_rejects_missing_keywords(isolated_web):
+    resume = isolated_web["RESUMES_DIR"] / "manual.txt"
+    resume.write_text("resume", encoding="utf-8")
+    data = sync_resume_directory(
+        isolated_web["RESUMES_DIR"],
+        isolated_web["CONFIG_DIR"] / "resume_intents.yaml",
+    )
+    resume_id = next(iter(data["resumes"]))
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(web_ui.run_inspection({"resume_id": resume_id}))
+
+    assert exc.value.status_code == 400
+    assert "关键词" in str(exc.value.detail)
+
+
+def test_health_repair_launches_one_agent_with_exact_selected_companies(isolated_web, monkeypatch):
+    companies = {
+        "companies": [
+            {
+                "id": "ruijie_campus",
+                "name": "锐捷",
+                "urls": {"campus": "https://example.com/ruijie/jobs?type=campus"},
+            },
+            {
+                "id": "yonyou_campus",
+                "name": "用友",
+                "urls": {"campus": "https://example.com/yonyou/jobs?type=campus"},
+            },
+        ]
+    }
+    (isolated_web["CONFIG_DIR"] / "companies.yaml").write_text(
+        yaml.safe_dump(companies, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    calls = []
+
+    def fake_launch(**kwargs):
+        calls.append(kwargs)
+        return {"run_id": kwargs["run_dir"].name, "status": "launched", "pid": 5678}
+
+    monkeypatch.setattr(web_ui, "launch_claude", fake_launch, raising=False)
+
+    result = asyncio.run(web_ui.trigger_health_repair({
+        "company_ids": ["ruijie_campus", "yonyou_campus"],
+        "keyword": "产品经理",
+        "job_type": "campus",
+    }))
+
+    assert result["status"] == "launched"
+    assert len(calls) == 1
+    assert calls[0]["agent"] == "crawler-strategy-inspector"
+    assert "https://example.com/ruijie/jobs?type=campus" in calls[0]["prompt"]
+    assert "https://example.com/yonyou/jobs?type=campus" in calls[0]["prompt"]
+
+
+def test_launch_failure_is_returned_instead_of_fake_success(isolated_web, monkeypatch):
+    resume = isolated_web["RESUMES_DIR"] / "candidate.md"
+    resume.write_text("resume", encoding="utf-8")
+    intent_path = isolated_web["CONFIG_DIR"] / "resume_intents.yaml"
+    sync_resume_directory(isolated_web["RESUMES_DIR"], intent_path)
+    upsert_intent(
+        intent_path,
+        resume_dir=isolated_web["RESUMES_DIR"],
+        filename="candidate.md",
+        keywords=["后端工程师"],
+        job_types=["社招"],
+        display_name="后端",
+    )
+    data = yaml.safe_load(intent_path.read_text(encoding="utf-8"))
+    resume_id = next(iter(data["resumes"]))
+    monkeypatch.setattr(
+        web_ui,
+        "launch_claude",
+        lambda **kwargs: (_ for _ in ()).throw(ClaudeLaunchError("cannot launch")),
+        raising=False,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(web_ui.run_inspection({"resume_id": resume_id}))
+
+    assert exc.value.status_code == 500
+    assert "cannot launch" in str(exc.value.detail)

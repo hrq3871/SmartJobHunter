@@ -13,8 +13,7 @@ import asyncio
 import json
 import re
 import shutil
-import subprocess
-import threading
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -24,7 +23,17 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from .resume_intents import SUPPORTED_RESUME_EXTENSIONS
+from .claude_launcher import (
+    ClaudeLaunchError,
+    build_inspection_prompt,
+    build_repair_prompt,
+    launch_claude,
+)
+from .resume_intents import (
+    SUPPORTED_RESUME_EXTENSIONS,
+    sync_resume_directory,
+    upsert_intent,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES = ROOT / "templates"
@@ -37,7 +46,13 @@ LOGS_DIR = ROOT / "logs"
 ALLOWED_RESUME_EXTENSIONS = SUPPORTED_RESUME_EXTENSIONS
 MAX_RESUME_SIZE = 10 * 1024 * 1024  # 10 MB
 
-app = FastAPI(title="SmartJobHunter Console", version="0.2.0")
+@asynccontextmanager
+async def _lifespan(_: FastAPI):
+    sync_resume_directory(RESUMES_DIR, CONFIG_DIR / "resume_intents.yaml")
+    yield
+
+
+app = FastAPI(title="SmartJobHunter Console", version="0.2.0", lifespan=_lifespan)
 
 # Serve resumes as static files for inline preview
 if RESUMES_DIR.exists():
@@ -251,18 +266,26 @@ async def test_company(company_id: str, body: dict):
 
 @app.get("/api/resumes")
 async def list_resumes():
-    RESUMES_DIR.mkdir(parents=True, exist_ok=True)
+    data = sync_resume_directory(RESUMES_DIR, CONFIG_DIR / "resume_intents.yaml")
     files = []
-    for f in sorted(RESUMES_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-        if f.is_file() and not f.name.startswith(".") and f.name != "example_resume.md":
-            st = f.stat()
-            files.append({
-                "name": f.name,
-                "size": st.st_size,
-                "modified": datetime.fromtimestamp(st.st_mtime).isoformat(),
-                "format": f.suffix.lstrip(".").lower(),
-            })
-    return files
+    for resume_id, entry in data["resumes"].items():
+        file_path = RESUMES_DIR / entry["filename"]
+        if not file_path.exists():
+            continue
+        st = file_path.stat()
+        files.append({
+            "resume_id": resume_id,
+            **entry,
+            "name": entry["filename"],
+            "size": st.st_size,
+            "modified": datetime.fromtimestamp(st.st_mtime).isoformat(),
+            "format": file_path.suffix.lstrip(".").lower(),
+        })
+    files.sort(key=lambda item: item["modified"], reverse=True)
+    return {
+        "resumes": files,
+        "unsupported_files": data.get("unsupported_files", []),
+    }
 
 
 def _extract_text_from_bytes(content: bytes, filename: str) -> str:
@@ -286,7 +309,7 @@ def _extract_text_from_bytes(content: bytes, filename: str) -> str:
     return ""
 
 
-def _suggest_profile(filename: str, text_content: str) -> dict:
+def _suggest_search_intent(filename: str, text_content: str) -> dict:
     """Heuristically suggest keywords and job_type from filename + content."""
     combined = (filename + " " + text_content[:2000]).lower()
 
@@ -357,7 +380,7 @@ async def analyze_resume(file: UploadFile = File(...)):
 
     # Extract text and suggest
     text = _extract_text_from_bytes(content, file.filename)
-    suggestion = _suggest_profile(file.filename, text)
+    suggestion = _suggest_search_intent(file.filename, text)
 
     # Store content temporarily for confirm step (simple in-memory, keyed by filename)
     app.state._pending_upload = getattr(app.state, "_pending_upload", {})
@@ -374,7 +397,7 @@ async def analyze_resume(file: UploadFile = File(...)):
 
 @app.post("/api/resumes/confirm")
 async def confirm_resume(body: dict):
-    """Finalize resume upload with user-confirmed keywords, save file + create profile."""
+    """Finalize upload and save search intent; Claude creates the formal profile later."""
     filename = str(body.get("filename", "")).strip()
     if not filename:
         raise HTTPException(status_code=400, detail="filename required")
@@ -384,8 +407,11 @@ async def confirm_resume(body: dict):
     job_types = body.get("job_types") or [str(body.get("job_type", "社招")).strip()]
     if isinstance(job_types, str):
         job_types = [job_types]
-    job_type = job_types[0] if job_types else "社招"
-    profile_name = str(body.get("profile_name", "")).strip() or Path(filename).stem
+    display_name = (
+        str(body.get("display_name", "")).strip()
+        or str(body.get("profile_name", "")).strip()
+        or Path(filename).stem
+    )
 
     # Retrieve pending content
     pending = getattr(app.state, "_pending_upload", {})
@@ -398,28 +424,19 @@ async def confirm_resume(body: dict):
     dest = RESUMES_DIR / filename
     dest.write_bytes(content)
 
-    # Create profile
-    PROFILES_DIR.mkdir(parents=True, exist_ok=True)
-    profile_path = PROFILES_DIR / f"{profile_name}.md"
-    fm = {
-        "name": profile_name,
-        "enabled": True,
-        "job_type": job_type,
-        "job_types": job_types,
-        "resume": f"resumes/{filename}",
-        "keywords": keywords,
-        "target_roles": keywords[:3] if keywords else [],
-    }
-    body_text = f"\n# 求职意向\n\n{profile_name} 的求职意向。\n\n> 关键词: {', '.join(keywords) if keywords else '待设置'}\n> 类型: {', '.join(job_types)}\n"
-    new_fm = yaml.safe_dump(fm, allow_unicode=True, default_flow_style=False, sort_keys=False).strip()
-    profile_path.write_text(f"---\n{new_fm}\n---\n{body_text}", encoding="utf-8")
+    intent = upsert_intent(
+        CONFIG_DIR / "resume_intents.yaml",
+        resume_dir=RESUMES_DIR,
+        filename=filename,
+        keywords=keywords,
+        job_types=job_types,
+        display_name=display_name,
+    )
 
     return {
         "ok": True,
         "filename": filename,
-        "profile_name": profile_name,
-        "keywords": keywords,
-        "job_type": job_type,
+        **intent,
     }
 
 
@@ -435,6 +452,7 @@ async def delete_resume(filename: str):
         if filename in rp:
             warnings.append(f"意向「{pf.stem}」仍引用此简历，删除后需由 Agent 重新关联")
     path.unlink()
+    sync_resume_directory(RESUMES_DIR, CONFIG_DIR / "resume_intents.yaml")
     return {"ok": True, "warnings": warnings}
 
 
@@ -648,28 +666,51 @@ async def update_config(body: dict):
 
 @app.post("/api/run")
 async def run_inspection(body: dict):
-    """Trigger a full CLI inspection for a profile in the background."""
-    profile_name = str(body.get("profile", "")).strip()
-    job_type = str(body.get("job_type", "social")).strip()
-    if not profile_name:
-        raise HTTPException(status_code=400, detail="profile name required")
+    """Open a visible Claude Code session for the full Agent workflow."""
+    resume_id = str(body.get("resume_id", "")).strip()
+    if not resume_id:
+        raise HTTPException(status_code=400, detail="resume_id required")
 
-    def _run():
-        try:
-            cmd = [sys.executable, "-m", "src.cli", "-t", job_type, "-p", profile_name]
-            kwargs: dict = dict(cwd=str(ROOT))
-            if sys.platform == "win32":
-                kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
-                cmd = ["cmd", "/k"] + cmd
-            subprocess.Popen(cmd, **kwargs)
-        except Exception:
-            pass
-    threading.Thread(target=_run, daemon=True).start()
+    intent_path = CONFIG_DIR / "resume_intents.yaml"
+    data = sync_resume_directory(RESUMES_DIR, intent_path)
+    intent = data["resumes"].get(resume_id)
+    if not intent:
+        raise HTTPException(status_code=404, detail=f"搜索意向不存在: {resume_id}")
+    if not intent.get("enabled", True):
+        raise HTTPException(status_code=400, detail="该简历搜索意向未开启")
+    if not intent.get("keywords"):
+        raise HTTPException(status_code=400, detail="请先为简历补充搜索关键词")
+    if not intent.get("job_types"):
+        raise HTTPException(status_code=400, detail="请先选择岗位类型")
+
+    run_id = datetime.now().strftime("inspection-%Y%m%d-%H%M%S-%f")
+    run_dir = LOGS_DIR / "agent_runs" / run_id
+    result_path = run_dir / "result.json"
+    prompt = build_inspection_prompt(
+        run_id=run_id,
+        resume_id=resume_id,
+        resume_path=str(intent["resume_path"]),
+        intent_path=str(intent_path),
+        display_name=str(intent.get("display_name") or Path(intent["filename"]).stem),
+        keywords=intent["keywords"],
+        job_types=intent["job_types"],
+        result_path=str(result_path),
+    )
+    try:
+        launched = launch_claude(
+            prompt=prompt,
+            session_name=f"SmartHunter-巡检-{run_id}",
+            run_dir=run_dir,
+            cwd=ROOT,
+            agent=None,
+        )
+    except ClaudeLaunchError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {
         "ok": True,
-        "message": f"已在新窗口启动 '{profile_name}' ({job_type}) 巡检",
-        "profile": profile_name,
-        "job_type": job_type,
+        "message": "Claude Code 已在新窗口打开",
+        "resume_id": resume_id,
+        **launched,
     }
 
 
@@ -824,25 +865,58 @@ async def clear_health_entry(company_id: str):
 
 @app.post("/api/health/repair")
 async def trigger_health_repair(body: dict):
-    """Launch strategy inspection in a new CMD window (same as CLI)."""
-    company_ids = body.get("company_ids", [])
+    """Launch one dedicated Claude Code Agent for all selected companies."""
+    company_ids = [str(item).strip() for item in body.get("company_ids", []) if str(item).strip()]
+    if not company_ids:
+        raise HTTPException(status_code=400, detail="至少选择一家公司")
     keyword = str(body.get("keyword", "产品经理"))
     job_type = str(body.get("job_type", "social"))
+    config = _read_companies_config()
+    by_id = {str(item.get("id")): item for item in config.get("companies", [])}
+    missing = [company_id for company_id in company_ids if company_id not in by_id]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"公司不存在: {', '.join(missing)}")
 
-    def _run():
-        try:
-            cmd = [sys.executable, "-m", "src.health_monitor", "--inspect-strategies", "--keyword", keyword, "--job-type", job_type]
-            kwargs: dict = dict(cwd=str(ROOT))
-            if sys.platform == "win32":
-                kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
-                cmd = ["cmd", "/k"] + cmd + ["&&", "echo.", "&&", "echo Strategy inspection complete. Refresh web console.", "&&", "pause"]
-            subprocess.Popen(cmd, **kwargs)
-        except Exception:
-            pass
-    threading.Thread(target=_run, daemon=True).start()
+    sources = {}
+    for company_id in company_ids:
+        company = by_id[company_id]
+        links = company.get("links") or company.get("urls") or {}
+        source = (
+            links.get(job_type)
+            or links.get("career_home")
+            or links.get("social")
+            or links.get("campus")
+            or links.get("internship")
+            or ""
+        )
+        sources[company_id] = str(source)
 
-    count = len(company_ids) if company_ids else "all"
-    return {"ok": True, "message": f"已在新窗口启动策略巡检（{count} 家公司），完成后刷新页面查看结果"}
+    run_id = datetime.now().strftime("repair-%Y%m%d-%H%M%S-%f")
+    run_dir = LOGS_DIR / "agent_runs" / run_id
+    prompt = build_repair_prompt(
+        run_id=run_id,
+        company_ids=company_ids,
+        company_sources=sources,
+        keyword=keyword,
+        job_type=job_type,
+        result_path=str(run_dir / "result.json"),
+    )
+    try:
+        launched = launch_claude(
+            prompt=prompt,
+            session_name=f"SmartHunter-策略修复-{run_id}",
+            run_dir=run_dir,
+            cwd=ROOT,
+            agent="crawler-strategy-inspector",
+        )
+    except ClaudeLaunchError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {
+        "ok": True,
+        "message": f"Claude Code 已在新窗口打开，将串行处理 {len(company_ids)} 家公司",
+        "company_ids": company_ids,
+        **launched,
+    }
 
 
 # ---------------------------------------------------------------------------
