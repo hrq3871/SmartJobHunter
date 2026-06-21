@@ -27,7 +27,7 @@ description: Use when the user asks to run SmartJobHunter, find or evaluate jobs
 | 场景                                 | 读取/使用                                    | 输出或命令                                   |
 +--------------------------------------+----------------------------------------------+----------------------------------------------+
 | 完整巡检                             | CLAUDE.md / AGENTS.md                         | python -m src.cli                            |
-| 候选人画像                           | profile.md + prompts/build_candidate_profile.md | candidate_profile JSON                    |
+| 候选人画像                           | profile.md + prompts/build_candidate_profile.md | profiles/<profile_id>.md                  |
 | HR 式简历深挖                        | prompts/analyze_resume.md                     | ability profile / highlights / gaps          |
 | 单岗位匹配                           | match.md + prompts/analyze_job.md + prompts/match_candidate_job.md | match decision         |
 | 语义过滤                             | prompts/semantic_filter.md                    | should_keep / concerns / evidence            |
@@ -57,6 +57,8 @@ INIT -> LOADED -> STRATEGY_INSPECTED -> CRAWLED -> FILTERED -> EVALUATED -> URL_
 - `STRATEGY_INSPECTED`：运行策略巡检，读取 strategy task 和 evidence。
 - `URL_VALIDATED`：报告前必须过滤空链接、404、不可访问链接。
 - `PACKAGED`：为 Top 3 岗位生成投递包，Cover Letter 必须结合 JD 证据和简历证据。
+
+`config/resume_intents.yaml` 中的 `search_intent` 只表示搜索关键词和岗位类型，不是候选人画像。上传简历时不得创建正式 profile；当前 Agent 必须读取完整简历后生成 `profiles/<profile_id>.md`。简历仅支持 PDF、Markdown、TXT，DOCX 和图片不支持。
 
 岗位 URL 在任何报告或 Agent 回复中都必须完整显示并可点击；禁止使用切片、摘要或省略号截断 URL。
 

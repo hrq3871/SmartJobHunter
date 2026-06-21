@@ -109,7 +109,7 @@ The system can analyze:
 | 🤖 **Agent-Driven** | The current Claude/Codex agent builds candidate profiles, job profiles, fit judgments, and explanations |
 | 🎯 **General Profiles** | Supports product, data, engineering, and other target roles; product manager is only an example profile |
 | 🎯 **Multi-Profile** | Support multiple job directions with independent resume inspection |
-| 📄 **Multi-Format Resume** | Support txt, md, docx, pdf, png, jpg formats |
+| 📄 **Resume Formats** | Supports PDF, Markdown, and TXT only; DOCX and images are currently unsupported |
 | 🔍 **Smart Filtering** | Three-layer funnel: Time → Dedup → semantic intent match |
 | 📊 **AI Evaluation** | Agent judgment + Python fallback coarse scoring (0-100) + evidence-based match reasons |
 | 📊 **Job Classification** | Distinguish internship/campus/social recruitment |
@@ -123,10 +123,10 @@ The system can analyze:
 
 ## Quickest Start
 
-1. Put your resume in `resumes/`, for example `resumes/my_resume.md`.
-2. Maintain your target profile in `profiles/`: target roles, keywords, must-haves, exclusions, and the `resume` path.
-3. Maintain company career links in `config/companies.yaml` and enable the companies you want to monitor.
-4. Tell the Agent: "run today's social job scan" or "run only the AI product manager profile".
+1. Put a PDF, Markdown, or TXT resume in `resumes/`, or upload it from the local Web console.
+2. Enter search keywords and job types in the Web console. This creates only a `search_intent`, not a fake candidate profile.
+3. Click Run Inspection. A visible CMD starts Claude Code with `--permission-mode auto`; the Agent reads the full resume and creates the formal profile.
+4. Maintain company career links in `config/companies.yaml` and enable the companies you want to monitor.
 5. Read results under `output/{date}/`; Top 3 application packages are under `output/{date}/application_packages/`.
 
 If you prefer commands:
@@ -145,8 +145,8 @@ python -m src.cli -p "profile name"
 pip install playwright pyyaml
 playwright install chromium
 
-# Optional: Support docx/pdf resumes
-pip install python-docx PyMuPDF
+# Optional: Parse PDF resumes
+pip install PyMuPDF
 ```
 
 ### 2️⃣ Create Local Agent Config
@@ -436,6 +436,22 @@ For the full internal Agent architecture and evaluation design, see `docs/smartj
 | `python -m src.health_monitor --check <id>` | Legacy single crawler check |
 | `python -m src.health_monitor --check-all` | Legacy all-crawler check |
 | `python -m src.health_monitor --report` | Generate health report |
+
+### Local Web Console
+
+The console binds to `127.0.0.1` and is an auxiliary interface for local files and Agent workflows:
+
+```powershell
+python -m uvicorn src.web_ui:app --host 127.0.0.1 --port 8080
+```
+
+Uploading a resume stores only its private `search_intent`. Manually added PDF/MD/TXT files are discovered and enabled by default. Clicking Run Inspection opens a visible Claude Code session:
+
+```powershell
+claude --permission-mode auto --name "SmartHunter-inspection-<run_id>" "<task prompt>"
+```
+
+Claude reads the full resume, creates `profiles/<profile_id>.md`, and performs Agent-side JD matching. Python scores remain fallback results. DOCX and image files are unsupported for upload, preview, parsing, and inspection.
 
 ## 🏢 Supported Companies
 

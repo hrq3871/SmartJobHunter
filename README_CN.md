@@ -107,7 +107,7 @@
 | 🤖 **Agent 驱动** | 当前 Claude/Codex agent 负责简历画像、岗位画像、匹配判断与解释 |
 | 🎯 **通用求职目标** | 支持产品、数据、研发等不同岗位方向；产品经理只是示例 profile |
 | 🎯 **多意向并行** | 支持多个求职方向，每份简历独立巡检 |
-| 📄 **多格式简历** | 支持 txt、md、docx、pdf、png、jpg 格式 |
+| 📄 **简历格式** | 仅支持 PDF、Markdown、TXT；DOCX 和图片暂不支持 |
 | 🔍 **智能过滤** | 三层漏斗：时间 → 去重 → 语义意向匹配 |
 | 📊 **AI 评估** | Agent 主判 + Python fallback 粗评分（0-100分）+ 基于证据的匹配理由 |
 | 📊 **岗位分类** | 区分实习/校招/社招 |
@@ -121,10 +121,10 @@
 
 ## 最简单使用方式
 
-1. 把简历放到 `resumes/`，例如 `resumes/my_resume.md`。
-2. 在 `profiles/` 里维护求职意向：目标岗位、关键词、必须项、排除项，并把 `resume` 指向你的简历。
-3. 在 `config/companies.yaml` 里维护要巡检的公司官网/招聘链接，启用想看的公司。
-4. 对 Agent 说：“运行今天的社招巡检”或“只跑 AI 产品经理这个意向”。
+1. 把 PDF、Markdown 或 TXT 简历放到 `resumes/`，也可以通过 Web 控制台上传。
+2. 在 Web 中填写搜索关键词和岗位类型；这里只保存 `search_intent`，不会伪造正式 profile。
+3. 点击“启动巡检”，可见 CMD 会用 `--permission-mode auto` 启动 Claude Code；Agent 读取完整简历后生成正式 profile。
+4. 在 `config/companies.yaml` 里维护招聘链接并启用目标公司。
 5. 结果看 `output/{日期}/`；Top 3 投递包看 `output/{日期}/application_packages/`。
 
 会用命令的话，也可以直接跑：
@@ -143,8 +143,8 @@ python -m src.cli -p "意向名称"
 pip install playwright pyyaml
 playwright install chromium
 
-# 可选：支持 docx/pdf 简历
-pip install python-docx PyMuPDF
+# 可选：解析 PDF 简历
+pip install PyMuPDF
 ```
 
 ### 2️⃣ 创建本地 Agent 配置
@@ -444,12 +444,20 @@ Agent 评估报告会写入 `output/evals/YYYY-MM-DD/`，属于本地运行产�
 python -m uvicorn src.web_ui:app --host 127.0.0.1 --port 8080
 ```
 
-控制台提供四个管理模块：
-- **简历与巡检** — 上传简历、管理求职意向、启动针对性巡检、查看报告
+控制台提供五个管理模块：
+- **简历与巡检** — 上传简历、管理 `search_intent`、打开可见 Claude Code 巡检窗口、查看报告。手动放入 `resumes/` 的 PDF/MD/TXT 会自动发现并默认启用
 - **策略健康** — 查看所有公司抓取策略状态、单点/批量修复
 - **公司配置** — 管理公司链接、策略类型、启用/禁用
 - **飞书推送** — 配置飞书应用凭证和推送开关
 - **定时任务** — 配置每日自动巡检参数（类型、关键词、推送目标）
+
+上传阶段不会创建 `profiles/*.md`。点击巡检后实际执行：
+
+```powershell
+claude --permission-mode auto --name "SmartHunter-巡检-<run_id>" "<任务 Prompt>"
+```
+
+Claude Code 先读取完整简历并生成正式 profile，再进行 JD 画像和 Agent 语义匹配。Python CLI 的评分只作为 fallback。DOCX 和图片格式不支持上传、预览、解析或巡检。
 
 ## 🏢 支持的公司
 

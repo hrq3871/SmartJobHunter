@@ -13,6 +13,7 @@
 - Python 是可复现工具层，负责抓取、清洗、确定性过滤、fallback 粗评分、URL 校验、报告/投递包落盘和 eval harness。
 - 当前 Agent 是判断层，负责候选人画像、岗位画像、语义过滤、最终匹配判断、策略证据分析、异常归因和规则演进。
 - Python 不调用外部 LLM API。所有需要 AI 判断的步骤由当前 Agent 在会话中完成。
+- `search_intent` 只是用户提供的搜索关键词和岗位类型；正式 profile 必须由 Agent 阅读完整简历后生成，不能把关键词列表冒充候选人画像。
 
 ## 目录结构
 
@@ -27,9 +28,10 @@ SmartJobHunter/
 │   ├── companies.yaml                          # 公司官网链接和抓取策略
 │   ├── agent.sample.yaml                       # 可提交示例配置
 │   ├── agent.yaml                              # 本地私有配置，不提交
+│   ├── resume_intents.yaml                     # Web 搜索意向，本地私有，不提交
 │   └── system_templates.yaml                   # 招聘系统历史模板
-├── profiles/                                   # 求职意向，文件名作为 profile_id
-├── resumes/                                    # 简历文件
+├── profiles/                                   # Agent 生成的正式画像，文件名作为 profile_id
+├── resumes/                                    # 简历文件，仅支持 PDF、Markdown、TXT
 ├── memory/seen_jobs.md                         # 已处理岗位记忆
 ├── logs/
 │   ├── strategy_tasks/                         # 策略任务，给 Agent 读取
@@ -125,10 +127,23 @@ INIT -> LOADED -> STRATEGY_INSPECTED -> CRAWLED -> FILTERED -> EVALUATED -> URL_
 
 规则：
 
+- 上传简历时不得创建正式 profile。Web 只把关键词、岗位类型和启用状态保存为 `config/resume_intents.yaml` 中的 `search_intent`。
+- 简历仅支持 PDF、Markdown、TXT；DOCX 和其他格式不支持，也不得转交视觉能力绕过格式限制。
 - 不要默认套用产品经理；目标岗位必须来自 profile 的 `target_roles`、`must_have`、`avoid`、`keywords` 等字段。
-- 使用 `profile.md` + `prompts/build_candidate_profile.md` 生成 candidate_profile。
+- 使用 `profile.md` + `prompts/build_candidate_profile.md` 读取完整简历和 `search_intent`，生成并保存 `profiles/<profile_id>.md`。
 - 用户要求深挖简历或证据不足时，补充使用 `prompts/analyze_resume.md`。
 - 目标较宽时，选择多个代表关键词抽样。
+
+### Web 启动 Claude Code
+
+Web 控制台的“启动巡检”和“策略修复”必须打开可见 CMD，并启动真实 Claude Code 交互会话：
+
+```powershell
+claude --permission-mode auto --name "SmartHunter-巡检-<run_id>" "<任务 Prompt>"
+claude --permission-mode auto --agent crawler-strategy-inspector --name "SmartHunter-策略修复-<run_id>" "<批量任务 Prompt>"
+```
+
+巡检会话必须先生成正式 profile，再执行抓取、Agent 语义匹配和报告；策略修复一次只启动一个 `crawler-strategy-inspector`，串行处理全部选中公司。启动异常必须返回前端，不得吞掉异常或伪报成功。
 
 ### STRATEGY_INSPECTED
 
@@ -404,6 +419,7 @@ python -m src.scheduler --feishu-push off
 - 禁止直接 push 到 `main`。
 - 功能分支可以推送到远程，合并到 main 前必须等待用户确认。
 - 不提交 `config/agent.yaml`，只提交 `config/agent.sample.yaml`。
+- 不提交 `config/resume_intents.yaml`。
 - 不提交 `output/`、`logs/` 运行产物。
 - `docs/optimization-log.md` 是本地私有文档，不提交。
 - 禁止使用 `rm` 删除文件；需要删除时使用 PowerShell `Remove-Item -LiteralPath ... -Force`。

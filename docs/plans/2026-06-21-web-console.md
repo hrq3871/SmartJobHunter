@@ -12,6 +12,21 @@
 
 ---
 
+## 2026-06-21 实现差异
+
+当前实现已从最初“Web 直接运行 Python CLI”的方案升级为 Agent 驱动链路：
+
+- 上传阶段只保存 `config/resume_intents.yaml` 中的 `search_intent`，不创建正式 profile。
+- 手动放入 `resumes/` 的 PDF、Markdown、TXT 会在服务启动或列表刷新时自动发现并默认启用。
+- 点击巡检打开可见 CMD，以 `claude --permission-mode auto` 启动 Claude Code；Agent 先读取简历生成 `profiles/<profile_id>.md`，再执行匹配。
+- 批量修复以 `--agent crawler-strategy-inspector` 启动一个独立 Agent，串行处理全部选中公司。
+- DOCX 和图片格式全局不支持；前端已移除 JSZip/docx-preview。
+- 进程启动由 `src/claude_launcher.py` 负责，搜索意向由 `src/resume_intents.py` 负责；启动失败不得返回成功。
+
+详细约束见 `docs/superpowers/specs/2026-06-21-agent-driven-web-workflow-design.md`。
+
+---
+
 ## 数据流总览
 
 ```
@@ -745,4 +760,3 @@ python -m uvicorn src.web_ui:app --reload --port 8080
 ```
 
 访问: `http://localhost:8080`
-

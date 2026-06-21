@@ -5,7 +5,9 @@
 ## 输入
 
 - 简历原文: `{resume_text}`
-- 求职目标: `{profile}`
+- 搜索意向: `{search_intent}`
+- 简历路径: `{resume_path}`
+- 简历 SHA256: `{resume_sha256}`
 
 ## 要求
 
@@ -14,33 +16,27 @@
 3. 区分显性技能、领域经验、工具、项目成果和约束条件。
 4. 信息不足时写入 `missing_or_unclear`。
 
-## 输出 JSON
+## 输出与落盘
 
-```json
-{
-  "candidate_summary": "",
-  "role_experience": [
-    {
-      "role_family": "product | data | engineering | design | marketing | operations | finance | legal | other",
-      "years": null,
-      "evidence": []
-    }
-  ],
-  "skills": {
-    "hard_skills": [],
-    "domain_skills": [],
-    "tools": [],
-    "soft_skills": []
-  },
-  "project_evidence": [
-    {
-      "project": "",
-      "actions": [],
-      "impact": [],
-      "evidence_quote": ""
-    }
-  ],
-  "constraints": [],
-  "missing_or_unclear": []
-}
+`search_intent` 只约束目标方向，不能作为简历证据。分析完成后必须创建或更新：
+
+```text
+profiles/<profile_id>.md
 ```
+
+YAML frontmatter 至少包含：`name`、`enabled`、`resume`、`resume_sha256`、`job_types`、`keywords`、`target_roles`、`target_domains`、`must_have`、`nice_to_have`、`avoid`、`locations`、`employment_types`。
+
+Markdown 正文使用以下结构，所有能力都附简历证据：
+
+```markdown
+# 候选人画像
+
+## 候选人摘要
+## 角色经历
+## 技能与领域
+## 项目证据
+## 约束条件
+## 缺失或不明确
+```
+
+生成后返回 `profiles/<profile_id>.md` 的实际路径；不得只在对话中输出而不落盘。

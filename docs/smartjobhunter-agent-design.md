@@ -31,8 +31,9 @@ SmartJobHunter 是一个面向公司官网岗位巡检的 Agent 平台项目。P
 | config/companies.yaml                         | 用户维护的公司官网链接和策略配置             |
 | config/agent.sample.yaml                      | 可提交的本地配置模板                         |
 | config/agent.yaml                             | 本地私有配置，不提交 Git                     |
-| profiles/*.md                                 | 求职意向，文件名作为 profile_id              |
-| resumes/*                                     | 简历原文                                     |
+| config/resume_intents.yaml                    | Web 搜索意向，本地私有，不提交 Git           |
+| profiles/*.md                                 | Agent 读取简历后生成的正式 profile           |
+| resumes/*                                     | 简历原文，仅支持 PDF、Markdown、TXT          |
 | src/                                          | Python 抓取、过滤、报告、评估工具层          |
 | logs/strategy_tasks/                          | 策略任务，给 Agent 读取                      |
 | logs/crawler_evidence/                        | 页面、DOM、网络、截图证据                    |
@@ -85,6 +86,7 @@ SmartJobHunter/
 │   ├── companies.yaml
 │   ├── agent.sample.yaml
 │   ├── agent.yaml                  # ignored, local only
+│   ├── resume_intents.yaml         # ignored, local search intent only
 │   └── system_templates.yaml
 ├── profiles/
 ├── resumes/
@@ -120,7 +122,9 @@ SmartJobHunter/
 │   ├── crawler_verification.py      # 单站修复验收
 │   ├── filters.py                   # 时间/去重/清洗过滤
 │   ├── matching.py                  # 语义匹配 fallback 与评分
-│   ├── resume_parser.py             # 多格式简历解析
+│   ├── resume_parser.py             # PDF/Markdown/TXT 简历解析
+│   ├── resume_intents.py            # 搜索意向持久化和手动文件同步
+│   ├── claude_launcher.py           # 可见 Claude Code CMD 启动器
 │   ├── reporting.py                 # 报告生成
 │   ├── run_records.py               # 运行账本记录
 │   ├── feishu_push.py               # 飞书 Wiki 推送
@@ -275,6 +279,9 @@ INIT
 
 Agent 必须检查：
 
+- `config/resume_intents.yaml` 中的 `search_intent` 只包含用户搜索目标，不能作为候选人能力证据。
+- 上传简历时不得创建正式 profile；Agent 必须读取完整简历后生成 `profiles/<profile_id>.md`。
+- 简历仅支持 PDF、Markdown、TXT；DOCX 和图片不支持上传、预览、解析或巡检。
 - `target_roles`、`target_domains`、`must_have`、`avoid`、`keywords`。
 - 简历是否存在且可解析。
 - 目标宽泛时是否需要多个关键词抽样。
@@ -284,6 +291,22 @@ Agent 必须检查：
 
 - 默认使用 `profile.md` + `prompts/build_candidate_profile.md`。
 - 需要更细 HR 式分析时补充 `prompts/analyze_resume.md`。
+
+### Web Agent 启动链
+
+Web 控制台不直接运行 Python CLI 冒充 Agent。点击“启动巡检”时打开可见 CMD：
+
+```powershell
+claude --permission-mode auto --name "SmartHunter-巡检-<run_id>" "<任务 Prompt>"
+```
+
+Claude Code 必须先读取简历和 `search_intent`、生成正式 profile，再执行抓取、JD 画像、Agent 语义匹配和报告。点击批量修复时使用：
+
+```powershell
+claude --permission-mode auto --agent crawler-strategy-inspector --name "SmartHunter-策略修复-<run_id>" "<批量任务 Prompt>"
+```
+
+一次只启动一个修复 Agent，完整传递全部选中公司 ID 和原始链接。Web 只有取得真实 PID 后才能显示“已启动”；启动异常不得吞掉。
 
 ### STRATEGY_INSPECTED
 
