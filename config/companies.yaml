@@ -129,7 +129,7 @@ companies:
   note: API已验证可用
 - id: baidu
   name: 百度
-  enabled: false
+  enabled: true
   urls:
     social: https://talent.baidu.com/social-list
     campus: https://talent.baidu.com/list
@@ -395,7 +395,7 @@ companies:
   note: API已验证可用
 - id: bilibili
   name: 哔哩哔哩
-  enabled: false
+  enabled: true
   urls:
     social: https://jobs.bilibili.com/position/list
     campus: https://jobs.bilibili.com/campus/position/list
@@ -633,7 +633,7 @@ companies:
     pattern: null
     type: unknown
   note: 需要分析API结构
-- id: 58
+- id: '58'
   name: 58同城
   enabled: false
   urls:

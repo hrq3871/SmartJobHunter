@@ -141,8 +141,8 @@ async def list_companies():
         urls = raw.get("urls", {})
         strategy = raw.get("strategy", {})
         result.append({
-            "id": raw.get("id", ""),
-            "name": raw.get("name", ""),
+            "id": str(raw.get("id", "")),
+            "name": str(raw.get("name", "")),
             "enabled": bool(raw.get("enabled", False)),
             "urls": {k: v for k, v in urls.items() if v},
             "strategy_type": strategy.get("type", "unknown"),

@@ -315,7 +315,7 @@ function renderCompanyGrid(companies){
             <div class="c-name">
               <span>${esc(c.name)}</span><code style="font-size:11px">${esc(c.id)}</code>
               <span class="badge ${c.enabled?'badge-ok':'badge-warn'}">${c.enabled?'已启用':'已禁用'}</span>
-              ${c.strategy_type!=='unknown'?`<span class="badge badge-info">${esc(c.strategy_type)}</span>`:''}
+              ${c.strategy_type&&c.strategy_type!=='config_intercept'&&c.strategy_type!=='unknown'?`<span class="badge badge-info">${esc(c.strategy_type)}</span>`:''}
               ${hBadge?hBadge.replace('badge ','badge health-badge '):''}
             </div>
             <label class="toggle"><input type="checkbox" ${c.enabled?'checked':''} onchange="toggleCo('${esc(c.id)}',this.checked)"><div class="toggle-track"></div></label>
