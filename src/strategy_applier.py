@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from copy import deepcopy
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -73,13 +74,71 @@ def apply_strategy_decision(config_path: str | Path, decision: dict[str, Any]) -
         "status": "needs_verification",
     }
 
+    _replace_company_block(path, original_text, company_id, updated)
+    return updated
+
+
+def finalize_strategy_verification(
+    config_path: str | Path,
+    company_id: str,
+    verification: dict[str, Any],
+    *,
+    fingerprint: str,
+    evidence_dir: str,
+) -> dict[str, Any]:
+    """Mark a strategy verified only after strict deterministic validation."""
+    if verification.get("status") != "passed":
+        raise ValueError("strategy verification status must be passed")
+    if int(verification.get("jobs_count") or 0) <= 0:
+        raise ValueError("strategy verification must contain at least one job")
+    if float(verification.get("valid_jobs_rate") or 0) < 1.0:
+        raise ValueError("strategy verification valid_jobs_rate must be 1.0")
+    if not str(fingerprint or "").strip():
+        raise ValueError("strategy verification requires a fingerprint")
+    if not str(evidence_dir or "").strip():
+        raise ValueError("strategy verification requires an evidence_dir")
+
+    path = Path(config_path)
+    original_text = path.read_text(encoding="utf-8")
+    config = yaml.safe_load(original_text) or {}
+    target = next(
+        (item for item in config.get("companies") or [] if str(item.get("id")) == str(company_id)),
+        None,
+    )
+    if target is None:
+        raise ValueError(f"company not found: {company_id}")
+
+    updated = deepcopy(target)
+    updated["strategy"] = {
+        **(updated.get("strategy") or {}),
+        "status": "verified",
+        "fingerprint": str(fingerprint),
+        "evidence_dir": str(evidence_dir),
+        "last_verified_at": datetime.now().astimezone().isoformat(),
+    }
+    _replace_company_block(path, original_text, str(company_id), updated)
+    return updated
+
+
+def _replace_company_block(
+    path: Path,
+    original_text: str,
+    company_id: str,
+    updated: dict[str, Any],
+) -> None:
+    """Replace one YAML company block while retaining unrelated text/comments."""
     lines = original_text.splitlines(keepends=True)
     start_pattern = re.compile(rf"^  - id:\s*[\"\']?{re.escape(company_id)}[\"\']?\s*$")
     start = next((i for i, line in enumerate(lines) if start_pattern.match(line.rstrip("\r\n"))), None)
     if start is None:
         raise ValueError(f"could not locate company block: {company_id}")
     next_start = next(
-        (i for i in range(start + 1, len(lines)) if re.match(r"^  - id:\s*", lines[i])),
+        (
+            i
+            for i in range(start + 1, len(lines))
+            if re.match(r"^  - id:\s*", lines[i])
+            or (lines[i].strip() and not lines[i][0].isspace())
+        ),
         len(lines),
     )
     end = next_start
@@ -97,4 +156,3 @@ def apply_strategy_decision(config_path: str | Path, decision: dict[str, Any]) -
     replacement = [f"  {line}\n" for line in block_lines]
     new_text = "".join(lines[:start] + replacement + lines[end:])
     path.write_text(new_text, encoding="utf-8")
-    return updated

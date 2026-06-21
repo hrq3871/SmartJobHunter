@@ -1456,6 +1456,132 @@ companies:
       type: "unknown"
     note: "智联招聘系统已失效，需要确认新网站"
 
+  # 懂车帝校招
+  - id: dongchedi_campus
+    name: 懂车帝校招
+    enabled: true
+    urls:
+      social: https://dcar.jobs.feishu.cn/campus/position/list
+      campus: https://dcar.jobs.feishu.cn/campus/position/list
+    note: 飞书招聘校园入口；策略由 20260621-five-site-repair-retry 实证
+    api:
+      type: intercept
+      pattern: search/job/posts
+      data_path: data.job_post_list
+    field_mappings:
+      id:
+        source: id
+      title:
+        source: title
+      location:
+        source: city_list.0.name
+      category:
+        source: job_subject.name.i18n
+      publish_time:
+        source: publish_time
+      duty:
+        source: description
+      requirement:
+        source: requirement
+    url_template: https://dcar.jobs.feishu.cn/campus/position/{id}/detail
+    job_type_detection:
+      internship:
+      - 实习
+      - intern
+      campus:
+      - 校招
+      - 应届
+    strategy:
+      type: config_intercept
+      status: verified
+      last_verified_at: '2026-06-21T14:01:19.208541+08:00'
+      evidence_dir: logs/crawler_evidence/20260621-five-site-repair-retry/dongchedi_campus/20260621_134011
+      fingerprint: 14522347f2043619
+
+  # 中国通用技术校招
+  - id: genertec_campus
+    name: 中国通用技术校招
+    enabled: true
+    urls:
+      social: https://genertec.zhiye.com/custom/813f55cb-8392-5c3d-038e-1f815555e637
+      campus: https://genertec.zhiye.com/custom/813f55cb-8392-5c3d-038e-1f815555e637
+    note: 智联招聘校园入口；策略由 20260621-five-site-repair-retry 实证
+    api:
+      type: intercept
+      pattern: Jobad/GetJobAdPageList
+      data_path: Data
+    field_mappings:
+      id:
+        source: Id
+      title:
+        source: JobAdName
+      location:
+        source: LocNames.0
+      category:
+        source: ClassificationTwo
+      publish_time:
+        source: PostDate
+      duty:
+        source: Duty
+      requirement:
+        source: Require
+    url_template: https://genertec.zhiye.com/custom/2c145520-9dce-0868-c707-e65870a45b86?ct=7a34f1fa-99fc-d287-e761-c9dc230e5baa&jobAdId={id}
+    job_type_detection:
+      internship:
+      - 实习
+      - intern
+      campus:
+      - 校招
+      - 应届
+    strategy:
+      type: config_intercept
+      status: verified
+      last_verified_at: '2026-06-21T14:01:43.860242+08:00'
+      evidence_dir: logs/crawler_evidence/20260621-five-site-repair-retry/genertec_campus/20260621_134832
+      fingerprint: 85aa12d5a1665870
+
+  # 顺丰校招
+  - id: sf_campus
+    name: 顺丰校招
+    enabled: true
+    urls:
+      social: https://campus.sf-express.com/#/positionList
+      campus: https://campus.sf-express.com/#/positionList
+    note: 顺丰校园招聘入口；策略由 20260621-five-site-repair-retry 实证
+    api:
+      type: intercept
+      pattern: /api/web/position/query?
+      data_path: list
+    field_mappings:
+      id:
+        source: id
+      title:
+        source: positionName
+      location:
+        source: demandCity
+      category:
+        source: positionTypeName
+      publish_time:
+        source: createDate
+      duty:
+        source: postDuty
+      requirement:
+        source: jobRequirement
+    url_template: https://campus.sf-express.com/#/postDetail/{id}
+    job_type_detection:
+      internship:
+      - 实习
+      - intern
+      campus:
+      - 校招
+      - 应届
+    strategy:
+      type: config_intercept
+      status: verified
+      last_verified_at: '2026-06-21T14:01:31.667731+08:00'
+      evidence_dir: logs/crawler_evidence/20260621-five-site-repair-retry/sf_campus/20260621_134357
+      fingerprint: a80945a486e03e7e
+
 # 默认抓取配置
 defaults:
   max_jobs: 50

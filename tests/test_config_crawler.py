@@ -47,6 +47,19 @@ class TestCompanyConfig:
         assert config is not None
         assert 'field_mappings' in config
 
+    @pytest.mark.parametrize("company_id", ["dongchedi_campus", "sf_campus", "genertec_campus"])
+    def test_repaired_campus_configs_are_evidence_verified(self, company_id):
+        config = get_company_config(company_id)
+
+        assert config is not None
+        assert config["strategy"]["status"] == "verified"
+        assert config["strategy"]["fingerprint"]
+        assert config["strategy"]["evidence_dir"]
+        assert config["api"]["type"] == "intercept"
+        assert config["field_mappings"]["duty"]["source"]
+        assert config["field_mappings"]["requirement"]["source"]
+        assert config["url_template"].startswith("https://")
+
     def test_get_invalid_config(self):
         """测试获取不存在的公司配置"""
         config = get_company_config('invalid_company')
@@ -93,6 +106,13 @@ class TestCrawlerCreation:
         crawler = create_crawler('meituan')
         assert crawler is not None
         assert crawler.company_name == '美团'
+
+    @pytest.mark.parametrize("company_id", ["dongchedi_campus", "sf_campus", "genertec_campus"])
+    def test_create_repaired_campus_crawlers(self, company_id):
+        crawler = create_crawler(company_id)
+
+        assert crawler is not None
+        assert isinstance(crawler, ConfigCrawler)
 
     def test_create_invalid_crawler(self):
         """测试创建无效公司的爬虫"""

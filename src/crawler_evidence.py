@@ -25,6 +25,12 @@ SENSITIVE_QUERY_KEYS = {
     "sid",
     "cookie",
 }
+SENSITIVE_PAYLOAD_KEYS = SENSITIVE_QUERY_KEYS | {
+    "api_key",
+    "apikey",
+    "password",
+    "refresh_token",
+}
 
 JOB_FIELD_HINTS = {
     "id",
@@ -69,6 +75,22 @@ def sanitize_post_data(value: str | None) -> str:
         )
     text = re.sub(r"(?i)([\"']?[^\s&\"']*token[^\s&\"']*[\"']?\s*[:=]\s*[\"']?)([^&\s\"']+)", r"\1[REDACTED]", text)
     return text
+
+
+def sanitize_payload(value: Any) -> Any:
+    """Recursively redact sensitive values from captured response samples."""
+    if isinstance(value, dict):
+        sanitized = {}
+        for key, child in value.items():
+            key_lower = str(key).lower()
+            if key_lower in SENSITIVE_PAYLOAD_KEYS or "token" in key_lower:
+                sanitized[key] = "[REDACTED]"
+            else:
+                sanitized[key] = sanitize_payload(child)
+        return sanitized
+    if isinstance(value, list):
+        return [sanitize_payload(child) for child in value]
+    return value
 
 
 def _field_score(item: Dict[str, Any]) -> tuple[int, List[str]]:
@@ -137,6 +159,7 @@ def build_evidence_manifest(
     main_status: int | None = None,
     elapsed_ms: int | None = None,
     actions: List[Dict[str, Any]] | None = None,
+    fingerprint: str | None = None,
 ) -> Dict[str, Any]:
     """Build the manifest consumed by the current agent for strategy analysis."""
     output_path = Path(output_dir)
@@ -157,6 +180,7 @@ def build_evidence_manifest(
             "signals": signals or [],
             "http_status": main_status,
             "elapsed_ms": elapsed_ms,
+            "fingerprint": fingerprint,
         },
         "artifacts": {
             "evidence_json": str(output_path / "evidence.json"),
@@ -201,7 +225,7 @@ def collect_evidence(
 ) -> Dict[str, Any]:
     """Visit a URL and capture page/network evidence for agent strategy analysis."""
     from playwright.sync_api import sync_playwright
-    from .site_inspector import inspect_html_signals
+    from .site_inspector import build_page_fingerprint, inspect_html_signals
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     company_slug = company_id or "url"
@@ -250,7 +274,7 @@ def collect_evidence(
                 "status": response.status,
                 "content_type": content_type,
                 "job_array_candidates": candidates[:5],
-                "sample": _truncate_sample(data),
+                "sample": _truncate_sample(sanitize_payload(data)),
             })
 
         page.on("request", handle_request)
@@ -272,6 +296,7 @@ def collect_evidence(
             page_text = page.locator("body").inner_text(timeout=5000)
         except Exception:
             page_text = ""
+        fingerprint = build_page_fingerprint(title, page_text)
         browser.close()
 
     xhr_dir = output_dir / "xhr_samples"
@@ -297,6 +322,7 @@ def collect_evidence(
         "final_url": final_url,
         "http_status": main_status,
         "elapsed_ms": elapsed_ms,
+        "fingerprint": fingerprint,
         "signals": inspect_html_signals(html, page_text)["signals"],
     }
     (output_dir / "inspection.json").write_text(
@@ -326,6 +352,7 @@ def collect_evidence(
         main_status=main_status,
         elapsed_ms=elapsed_ms,
         actions=actions,
+        fingerprint=fingerprint,
     )
     evidence = {
         **manifest,

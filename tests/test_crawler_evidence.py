@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.crawler_evidence import (
     build_evidence_manifest,
     find_job_array_candidates,
+    sanitize_payload,
     sanitize_post_data,
     sanitize_url,
 )
@@ -80,10 +81,12 @@ def test_evidence_manifest_records_main_response_timing_and_actions(tmp_path):
         main_status=200,
         elapsed_ms=1234,
         actions=actions,
+        fingerprint="sha256:abc123",
     )
 
     assert manifest["page"]["http_status"] == 200
     assert manifest["page"]["elapsed_ms"] == 1234
+    assert manifest["page"]["fingerprint"] == "sha256:abc123"
     assert manifest["artifacts"]["actions"].endswith("actions.json")
     assert manifest["action_count"] == 2
 
@@ -95,3 +98,20 @@ def test_sanitize_post_data_masks_tokens_without_losing_search_terms():
     assert "secret" not in sanitized
     assert "abc123" not in sanitized
     assert "[REDACTED]" in sanitized
+
+
+def test_sanitize_payload_recursively_masks_sensitive_response_fields():
+    payload = {
+        "data": {
+            "jobs": [{"title": "产品经理"}],
+            "token": "secret-token",
+            "nested": {"access_token": "secret-access", "keyword": "产品经理"},
+        }
+    }
+
+    sanitized = sanitize_payload(payload)
+
+    assert sanitized["data"]["token"] == "[REDACTED]"
+    assert sanitized["data"]["nested"]["access_token"] == "[REDACTED]"
+    assert sanitized["data"]["nested"]["keyword"] == "产品经理"
+    assert sanitized["data"]["jobs"][0]["title"] == "产品经理"

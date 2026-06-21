@@ -3,7 +3,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from src.strategy_applier import apply_strategy_decision, validate_strategy_decision
+from src.strategy_applier import (
+    apply_strategy_decision,
+    finalize_strategy_verification,
+    validate_strategy_decision,
+)
 
 
 def _valid_decision():
@@ -72,3 +76,45 @@ companies:
     assert alpha["url_template"] == "https://alpha.example/jobs/{id}"
     assert content.split("  # keep beta comment", 1)[1] == before_beta
 
+
+def test_finalize_strategy_verification_requires_pass_and_persists_fingerprint(tmp_path):
+    path = tmp_path / "companies.yaml"
+    path.write_text(
+        """companies:
+  - id: alpha
+    name: Alpha
+    strategy:
+      type: config_intercept
+      status: needs_verification
+
+# keep defaults comment
+defaults:
+  max_jobs: 50
+""",
+        encoding="utf-8",
+    )
+
+    updated = finalize_strategy_verification(
+        path,
+        "alpha",
+        {"status": "passed", "jobs_count": 3, "valid_jobs_rate": 1.0},
+        fingerprint="abc123",
+        evidence_dir="logs/evidence/alpha",
+    )
+
+    assert updated["strategy"]["status"] == "verified"
+    assert updated["strategy"]["fingerprint"] == "abc123"
+    assert updated["strategy"]["evidence_dir"] == "logs/evidence/alpha"
+    assert updated["strategy"]["last_verified_at"]
+    saved = path.read_text(encoding="utf-8")
+    assert "# keep defaults comment" in saved
+    assert "defaults:\n  max_jobs: 50" in saved
+
+    with pytest.raises(ValueError, match="passed"):
+        finalize_strategy_verification(
+            path,
+            "alpha",
+            {"status": "failed"},
+            fingerprint="abc123",
+            evidence_dir="logs/evidence/alpha",
+        )
