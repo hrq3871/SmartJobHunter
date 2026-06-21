@@ -209,7 +209,7 @@ function showModal(title,bodyHtml,width='560px'){
 // ══════════════════════════════════════════════
 // Tab 1: 公司与策略 (sub-tabs: companies | health)
 // ══════════════════════════════════════════════
-let _coData=[],_healthData=null,_coFilter='all',_selCompanies=new Set(),_strategySubTab='companies';
+let _coData=[],_healthData=null,_coFilter='all',_coHealthFilter='all',_selCompanies=new Set(),_strategySubTab='companies';
 renderers.strategy=()=>{renderStrategyLayout()};
 
 async function renderStrategyLayout(){
@@ -233,17 +233,16 @@ window.renderStrategyContent=()=>{
 };
 window.switchStrategySubTab=(tab)=>{_strategySubTab=tab;renderStrategyLayout()};
 
-function _sortCompanies(list,filter){
+function _sortCompanies(list,statusFilter){
   let out=[...list];
   out.sort((a,b)=>(b.enabled-a.enabled)||a.name.localeCompare(b.name,'zh'));
-  if(_healthData){
+  // Status filter
+  if(statusFilter==='enabled') out=out.filter(c=>c.enabled);
+  else if(statusFilter==='disabled') out=out.filter(c=>!c.enabled);
+  // Health filter (independent)
+  if(_coHealthFilter==='pending'&&_healthData){
     const pendingIds=new Set((_healthData.tasks||[]).filter(t=>t.status==='pending').map(t=>t.company_id));
-    if(filter==='pending'){out=out.filter(c=>pendingIds.has(c.id));out.sort((a,b)=>(b.enabled-a.enabled)||a.name.localeCompare(b.name,'zh'))}
-    else if(filter==='enabled') out=out.filter(c=>c.enabled);
-    else if(filter==='disabled') out=out.filter(c=>!c.enabled);
-  }else{
-    if(filter==='enabled') out=out.filter(c=>c.enabled);
-    else if(filter==='disabled') out=out.filter(c=>!c.enabled);
+    out=out.filter(c=>pendingIds.has(c.id));
   }
   return out;
 }
@@ -302,7 +301,7 @@ window.retryOne=async(id)=>{
 function renderCompanyGrid(companies){
   const container=document.getElementById('strategyContent');if(!container)return;
   const healthMap={};if(_healthData)for(const t of _healthData.tasks||[]){healthMap[t.company_id]=t}
-  const searchHtml=`<div class="card"><div class="flex-between flex-wrap gap-2"><div class="flex gap-2" style="align-items:center"><button class="btn btn-primary" onclick="showAddModal()">+ 新增公司</button><select id="coFilter" onchange="_coFilter=this.value;renderCompanyGrid(_sortCompanies(_coData,_coFilter))" style="width:auto;padding:9px 12px"><option value="all">全部</option><option value="enabled">已启用</option><option value="disabled">已禁用</option><option value="pending">待修复</option></select></div><div class="search-bar" style="width:260px"><input type="search" id="coSearch" placeholder="搜索公司..." oninput="applyCoFilters()"></div></div></div>`;
+  const searchHtml=`<div class="card"><div class="flex-between flex-wrap gap-2"><div class="flex gap-2" style="align-items:center"><button class="btn btn-primary" onclick="showAddModal()">+ 新增公司</button><select id="coStatus" onchange="_coFilter=this.value;renderCompanyGrid(_sortCompanies(_coData,_coFilter))" style="width:auto;padding:9px 12px"><option value="all">全部状态</option><option value="enabled">已启用</option><option value="disabled">已禁用</option></select><select id="coHealth" onchange="_coHealthFilter=this.value;renderCompanyGrid(_sortCompanies(_coData,_coFilter))" style="width:auto;padding:9px 12px"><option value="all">全部健康</option><option value="pending">待修复</option></select></div><div class="search-bar" style="width:260px"><input type="search" id="coSearch" placeholder="搜索公司..." oninput="applyCoFilters()"></div></div></div>`;
   const coHtml=`
     <div class="company-grid">
       ${companies.map(c=>{
@@ -333,7 +332,8 @@ function renderCompanyGrid(companies){
     </div>`;
   container.innerHTML=`<div id="companyGridSection"></div>`;
   document.getElementById('companyGridSection').innerHTML=searchHtml+coHtml;
-  $('#coFilter').value=_coFilter;
+  $('#coStatus').value=_coFilter;
+  $('#coHealth').value=_coHealthFilter;
 }
 window.applyCoFilters=()=>{
   const q=$('#coSearch')?.value?.toLowerCase()||'';
