@@ -34,6 +34,9 @@ nav button{background:transparent;color:var(--text-secondary);border:none;paddin
 nav button:hover{background:var(--muted);color:var(--text)}
 nav button.active{background:var(--primary-bg);color:var(--primary);font-weight:600}
 nav button.active::after{content:'';position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);width:24px;height:2px;background:var(--primary);border-radius:1px}
+.sub-tab{font-size:13px;padding:7px 18px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;transition:all var(--transition);font-family:var(--font-sans)}
+.sub-tab:hover{background:var(--muted)}
+.sub-tab.active{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
 
 main{max-width:1500px;margin:0 auto;padding:28px}
 
@@ -213,11 +216,10 @@ async function renderStrategyLayout(){
   const[companies,health]=await Promise.all([api('/api/companies'),api('/api/health')]);
   _coData=companies;_healthData=health;
   // Build sub-nav
-  const subActive=(t)=>_strategySubTab===t?'active':'';
   const html=`
     <div class="card" style="padding:8px 20px;margin-bottom:16px"><div style="display:flex;gap:8px;align-items:center">
-      <button class="btn btn-sm ${subActive('companies')}" style="${_strategySubTab==='companies'?'background:var(--primary-bg);color:var(--primary);font-weight:600':'background:transparent;color:var(--text-secondary)'}" onclick="_strategySubTab='companies';renderStrategyContent()">&#x1f4cb; 公司列表 (${companies.length})</button>
-      <button class="btn btn-sm ${subActive('health')}" style="${_strategySubTab==='health'?'background:var(--primary-bg);color:var(--primary);font-weight:600':'background:transparent;color:var(--text-secondary)'}" onclick="_strategySubTab='health';renderStrategyContent()">&#x1fa79; 策略健康 (${health.summary.total})</button>
+      <button class="sub-tab ${_strategySubTab==='companies'?'active':''}" onclick="_strategySubTab='companies';renderStrategyContent()">&#x1f4cb; 公司列表 (${companies.length})</button>
+      <button class="sub-tab ${_strategySubTab==='health'?'active':''}" onclick="_strategySubTab='health';renderStrategyContent()">&#x1fa79; 策略健康 (${health.summary.total})</button>
     </div></div>
     <div id="strategyContent"></div>`;
   document.getElementById('content').innerHTML=html;
@@ -255,8 +257,9 @@ function renderHealthPanel(health){
     sc.innerHTML=`<div class="card"><div class="card-header"><h3>&#x1fa79; 策略健康</h3><button class="btn btn-outline btn-sm" onclick="refreshHealth()">&#x21bb; 刷新</button></div><div class="empty-state">&#x2705; 所有已启用公司抓取策略正常</div></div>`;
     return;
   }
-  let h=`<div class="card"><div class="card-header"><h3>&#x1fa79; 策略健康</h3><div class="flex gap-2"><button class="btn btn-outline btn-sm" onclick="window._selectAllHealth()">全选</button><button class="btn btn-outline btn-sm" onclick="window._clearHealthSel()">取消</button><button class="btn btn-primary btn-sm" id="batchRepairBtn" disabled onclick="batchRepair()">&#x1f6e0; 批量修复 (0)</button><button class="btn btn-outline btn-sm" onclick="refreshHealth()">&#x21bb; 刷新</button></div></div>`;
+  let h=`<div class="card"><div class="card-header"><h3>&#x1fa79; 策略健康</h3><button class="btn btn-outline btn-sm" onclick="refreshHealth()">&#x21bb; 刷新</button></div>`;
   h+=`<div class="health-strip"><div class="hs-card hs-total"><div class="hs-num" style="color:var(--primary)">${s.total}</div><div class="hs-label">总异常</div></div><div class="hs-card hs-pending"><div class="hs-num" style="color:var(--yellow)">${s.pending}</div><div class="hs-label">待处理</div></div><div class="hs-card hs-blocked"><div class="hs-num" style="color:var(--red)">${s.blocked}</div><div class="hs-label">阻塞</div></div><div class="hs-card hs-failed"><div class="hs-num" style="color:var(--text-muted)">${s.failed}</div><div class="hs-label">失败</div></div></div>`;
+  h+=`<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><button class="btn btn-outline btn-sm" onclick="window._selectAllHealth()">全选</button><button class="btn btn-outline btn-sm" onclick="window._clearHealthSel()">取消</button><button class="btn btn-primary btn-sm" id="batchRepairBtn" disabled onclick="batchRepair()">&#x1f6e0; 批量修复 (0)</button></div>`;
   for(const t of health.tasks){
     h+=`<div class="row" style="grid-template-columns:auto 1fr auto auto"><input type="checkbox" class="checkbox hc-cb" data-cid="${esc(t.company_id)}" onchange="toggleHcSel('${esc(t.company_id)}',this.checked)"><div><strong>${esc(t.company_name)}</strong> <span class="badge ${statusClass(t.status)}">${statusLabel(t.status)}</span><div class="text-sm mt-1" style="color:var(--text-secondary)">${esc(t.reason_label||t.reason)}</div></div><span class="text-muted text-sm">${(t.created_at||'').slice(0,16)}</span><button class="btn btn-outline btn-sm" onclick="retryOne('${esc(t.company_id)}')">&#x1f6e0; 重试</button></div>`;
   }
