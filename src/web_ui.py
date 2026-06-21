@@ -624,6 +624,21 @@ def _extract_report_meta(path: Path) -> Optional[dict]:
                 top_score = score
         except ValueError:
             pass
+    # Compute duration from report header to file save time
+    duration = None
+    duration_str = ""
+    if generated:
+        try:
+            gen_dt = datetime.strptime(generated.strip(), "%Y-%m-%d %H:%M")
+            file_dt = datetime.fromtimestamp(path.stat().st_mtime)
+            diff = (file_dt - gen_dt).total_seconds()
+            if 0 < diff < 7200:  # up to 2 hours, filters out git-touched files from old runs
+                duration = int(diff)
+                mins, secs = divmod(duration, 60)
+                duration_str = f"{mins}分{secs}秒" if mins > 0 else f"{secs}秒"
+        except ValueError:
+            pass
+
     return {
         "filename": path.name,
         "relpath": str(path.relative_to(OUTPUT_DIR)).replace("\\", "/"),
@@ -634,6 +649,8 @@ def _extract_report_meta(path: Path) -> Optional[dict]:
         "top_score": top_score,
         "size": path.stat().st_size,
         "modified": datetime.fromtimestamp(path.stat().st_mtime).isoformat(),
+        "duration": duration,
+        "duration_str": duration_str,
     }
 
 

@@ -474,7 +474,7 @@ renderers.tasks=async()=>{
     right+='</div>';
     if(rr.length===0){right+='<div class="text-sm text-muted">暂无巡检结果</div>'}
     else for(const rpt of rr){
-      right+=`<div class="row" style="grid-template-columns:1fr auto;cursor:pointer" onclick="viewReport('${esc(rpt.relpath)}')"><div><strong>${esc(rpt.generated||"")}</strong><span class="text-muted text-sm" style="margin-left:8px">${rpt.job_count} 岗位 · 最高 ${rpt.top_score||0} 分</span></div><span class="text-sm text-muted">${fs(rpt.size)}</span></div>`;
+      right+=`<div class="row" style="grid-template-columns:1fr auto;cursor:pointer" onclick="viewReport('${esc(rpt.relpath)}')"><div><strong>${esc(rpt.generated||"")}</strong><span class="text-muted text-sm" style="margin-left:8px">${rpt.job_count} 岗位 · 最高 ${rpt.top_score||0} 分</span>${rpt.duration_str?`<span class="text-sm text-muted" style="margin-left:8px">⏱ ${esc(rpt.duration_str)}</span>`:''}</div><span class="text-sm text-muted">${fs(rpt.size)}</span></div>`;
     }
   }else{
     right+='<div class="text-sm text-muted">请先上传简历，Agent 运行巡检后将在此显示结果。</div>';
@@ -582,7 +582,7 @@ window.copyAgentCmd=async()=>{
 window.runInspect=()=>{toast('请在终端运行: python -m src.cli')};
 window.viewProfileResume=async(n)=>{try{const r=await api(`/api/profiles/${encodeURIComponent(n)}/resume`);showModal(`&#x1f4c4; ${n} — ${esc(r.filename)}`,r.format==='md'?`<div class="markdown-body">${marked.parse(r.content)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:60vh;overflow-y:auto">${esc(r.content)}</pre>`,'700px')}catch(e){toast('无法加载: '+e.message)}};
 window.viewProfileResumeByName=async(rn)=>{try{const r=await fetch(`/resumes/${encodeURIComponent(rn)}`).then(r=>r.text());const ext=rn.split('.').pop()?.toLowerCase();showModal(`&#x1f4c4; ${esc(rn)}`,ext==='md'?`<div class="markdown-body">${marked.parse(r)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:60vh;overflow-y:auto">${esc(r)}</pre>`,'700px')}catch(e){toast('无法预览: '+e.message)}};
-window.viewReport=async(rp)=>{const md=await api('/api/reports/'+encodeURIComponent(rp));$('#reportDetail').innerHTML=`<div class="card"><div class="card-header"><h3>&#x1f4c4; ${esc(rp)}</h3><button class="btn btn-outline btn-sm" onclick="this.closest('#reportDetail').innerHTML=''">关闭</button></div><div class="markdown-body">${marked.parse(md)}</div></div>`;$('#reportDetail').scrollIntoView({behavior:'smooth'})};
+window.viewReport=async(rp)=>{const md=await api('/api/reports/'+encodeURIComponent(rp));const reports=await api('/api/reports');const meta=reports.find(r=>r.relpath===rp);const dur=meta?.duration_str?`<span class="text-sm text-muted" style="margin-left:12px">&#x23f1; ${esc(meta.duration_str)}</span>`:'';$('#reportDetail').innerHTML=`<div class="card"><div class="card-header"><h3>&#x1f4c4; ${esc(rp)}${dur}</h3><button class="btn btn-outline btn-sm" onclick="this.closest('#reportDetail').innerHTML=''">关闭</button></div><div class="markdown-body">${marked.parse(md)}</div></div>`;$('#reportDetail').scrollIntoView({behavior:'smooth'})};
 
 // ── Init ──
 loadTab('strategy');
