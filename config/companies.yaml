@@ -39,7 +39,7 @@ companies:
     social: []
 - id: bytedance
   name: 字节跳动
-  enabled: true
+  enabled: false
   urls:
     social: https://jobs.bytedance.com/campus/position?keyword={keyword}
     campus: https://jobs.bytedance.com/campus/position?keyword={keyword}
@@ -74,7 +74,7 @@ companies:
     social: []
 - id: bytedance_social
   name: 字节跳动(社招)
-  enabled: true
+  enabled: false
   urls:
     social: https://jobs.bytedance.com/experienced/position?keyword={keyword}
   api:
@@ -189,7 +189,7 @@ companies:
   note: API已验证可用
 - id: didi
   name: 滴滴出行
-  enabled: true
+  enabled: false
   urls:
     social: https://talent.didiglobal.com/social
     campus: http://campus.didiglobal.com
@@ -212,7 +212,7 @@ companies:
   note: API已验证可用
 - id: jd
   name: 京东
-  enabled: true
+  enabled: false
   urls:
     social: https://campus.jd.com/#/jobs?to=present&type=present
     campus: https://campus.jd.com/#/jobs?to=present&type=present
@@ -264,7 +264,7 @@ companies:
   note: API已验证可用
 - id: huawei
   name: 华为
-  enabled: true
+  enabled: false
   urls:
     social: https://career.huawei.com/socRecruitment/
     campus: https://career.huawei.com/cn/campus-recruitment
@@ -287,7 +287,7 @@ companies:
   note: 需要进一步分析API
 - id: xiaomi
   name: 小米
-  enabled: true
+  enabled: false
   urls:
     social: https://hr.xiaomi.com/m/job
     campus: https://hr.xiaomi.com/campus
@@ -341,7 +341,7 @@ companies:
   note: API已验证可用，需浏览器环境请求
 - id: netease
   name: 网易
-  enabled: true
+  enabled: false
   urls:
     social: https://hr.163.com/job-list.html
     campus: https://hr.163.com/campus-list.html
@@ -395,7 +395,7 @@ companies:
   note: API已验证可用
 - id: bilibili
   name: 哔哩哔哩
-  enabled: true
+  enabled: false
   urls:
     social: https://jobs.bilibili.com/position/list
     campus: https://jobs.bilibili.com/campus/position/list
@@ -443,7 +443,7 @@ companies:
   note: 需要进一步分析API
 - id: ctrip
   name: 携程
-  enabled: true
+  enabled: false
   urls:
     social: https://job.ctrip.com/#/experienced
     campus: https://campus.ctrip.com/
@@ -466,7 +466,7 @@ companies:
   note: 需要进一步分析API
 - id: weibo
   name: 微博
-  enabled: true
+  enabled: false
   urls:
     social: https://career.sina.com.cn/portal/social
     campus: https://career.sina.com.cn/portal/campus
@@ -487,7 +487,7 @@ companies:
   note: 需要进一步分析API
 - id: zhihu
   name: 知乎
-  enabled: true
+  enabled: false
   urls:
     social: https://app.mokahr.com/apply/zhihu/3819#/jobs
     campus: https://app.mokahr.com/campus-recruitment/zhihu/68321#/jobs
@@ -497,7 +497,7 @@ companies:
   note: 新版Mokahr加密API,使用Playwright DOM提取策略
 - id: oppo
   name: OPPO
-  enabled: true
+  enabled: false
   urls:
     social: https://career.oppo.com/official/oppo/recruitment/post
     campus: https://career.oppo.com/campus/oppo/recruitment/post
@@ -524,7 +524,7 @@ companies:
   note: API已验证可用
 - id: vivo
   name: vivo
-  enabled: true
+  enabled: false
   urls:
     social: https://hr.vivo.com/position/list
     campus: https://hr.vivo.com/campus/list
@@ -547,7 +547,7 @@ companies:
   note: API已验证可用
 - id: zte
   name: 中兴通讯
-  enabled: true
+  enabled: false
   urls:
     social: https://app.mokahr.com/social-recruitment/zte/47588#/jobs
     campus: https://app.mokahr.com/campus-recruitment/zte/46903#/jobs
@@ -676,7 +676,7 @@ companies:
   note: 使用网易招聘系统
 - id: mihoyo
   name: 米哈游
-  enabled: true
+  enabled: false
   urls:
     social: https://jobs.mihoyo.com/#/position
     campus: https://jobs.mihoyo.com/#/campus
@@ -734,7 +734,7 @@ companies:
   note: 需要分析API结构
 - id: 37games
   name: 三七互娱
-  enabled: true
+  enabled: false
   urls:
     social: https://zhaopin.37.com/index.php?m=Home&c=recruit&a=recruit&recruit=1
     campus: https://app.mokahr.com/campus-recruitment/37/58016?locale=zh-CN#/
@@ -766,7 +766,7 @@ companies:
   note: 使用Phenom招聘系统
 - id: apple
   name: 苹果中国
-  enabled: true
+  enabled: false
   urls:
     social: https://jobs.apple.com/zh-cn/search
   api:
@@ -844,7 +844,7 @@ companies:
   note: 使用Workday招聘系统，需DOM解析
 - id: sensetime
   name: 商汤科技
-  enabled: true
+  enabled: false
   urls:
     social: https://sensetime.jobs.feishu.cn/
   api:
@@ -870,7 +870,7 @@ companies:
   note: 使用飞书招聘系统
 - id: keep
   name: Keep
-  enabled: true
+  enabled: false
   urls:
     social: https://keep.jobs.feishu.cn/
   api:
@@ -896,7 +896,7 @@ companies:
   note: 使用飞书招聘系统
 - id: shein
   name: SHEIN
-  enabled: true
+  enabled: false
   urls:
     social: https://shein.jobs.feishu.cn/social
   api:
@@ -948,7 +948,7 @@ companies:
   note: 使用飞书招聘系统
 - id: lixiang
   name: 理想汽车
-  enabled: true
+  enabled: false
   urls:
     social: https://li.jobs.feishu.cn/
   api:
@@ -974,7 +974,7 @@ companies:
   note: 使用飞书招聘系统
 - id: xpeng
   name: 小鹏汽车
-  enabled: true
+  enabled: false
   urls:
     social: https://xpeng.jobs.feishu.cn/
   api:
@@ -1000,7 +1000,7 @@ companies:
   note: 使用飞书招聘系统
 - id: icbc
   name: 工商银行
-  enabled: true
+  enabled: false
   urls:
     social: https://job.icbc.com.cn/
     campus: https://job.icbc.com.cn/
@@ -1071,7 +1071,7 @@ companies:
   note: 需要分析API结构
 - id: hikvision
   name: 海康威视
-  enabled: true
+  enabled: false
   urls:
     social: https://talent.hikvision.com/society/sHome
     campus: https://campushr.hikvision.com/home
@@ -1160,7 +1160,7 @@ companies:
   note: 需要分析API结构
 - id: geely
   name: 吉利汽车
-  enabled: true
+  enabled: false
   urls:
     social: https://app.mokahr.com/social-recruitment/geely/47588#/jobs
     campus: https://app.mokahr.com/campus-recruitment/geely/46903#/jobs
@@ -1170,7 +1170,7 @@ companies:
   note: 新版Mokahr策略。社招URL当前404,待确认正确链接
 - id: gwm
   name: 长城汽车
-  enabled: true
+  enabled: false
   urls:
     social: https://zhaopin.gwm.cn/
     campus: https://zhaopin.gwm.cn/
@@ -1238,7 +1238,7 @@ companies:
   note: 需要分析API结构
 - id: yonyou
   name: 用友网络
-  enabled: true
+  enabled: false
   urls:
     social: https://yonyou.zhiye.com/
   api:
@@ -1247,7 +1247,7 @@ companies:
   note: 智联招聘系统已失效，需要确认新网站
 - id: dongchedi_campus
   name: 懂车帝校招
-  enabled: true
+  enabled: false
   urls:
     social: https://dcar.jobs.feishu.cn/campus/position/list
     campus: https://dcar.jobs.feishu.cn/campus/position/list
@@ -1287,7 +1287,7 @@ companies:
     fingerprint: 14522347f2043619
 - id: genertec_campus
   name: 中国通用技术校招
-  enabled: true
+  enabled: false
   urls:
     social: https://genertec.zhiye.com/custom/813f55cb-8392-5c3d-038e-1f815555e637
     campus: https://genertec.zhiye.com/custom/813f55cb-8392-5c3d-038e-1f815555e637

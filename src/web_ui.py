@@ -573,20 +573,18 @@ async def run_inspection(body: dict):
 
     def _run():
         try:
-            subprocess.run(
-                [sys.executable, "-m", "src.cli", "-t", job_type, "-p", profile_name],
-                cwd=str(ROOT),
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
+            cmd = [sys.executable, "-m", "src.cli", "-t", job_type, "-p", profile_name]
+            kwargs: dict = dict(cwd=str(ROOT))
+            if sys.platform == "win32":
+                kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
+                cmd = ["cmd", "/k"] + cmd
+            subprocess.Popen(cmd, **kwargs)
         except Exception:
             pass
-
     threading.Thread(target=_run, daemon=True).start()
     return {
         "ok": True,
-        "message": f"已启动 '{profile_name}' ({job_type}) 后台巡检，完成后刷新页面查看报告",
+        "message": f"已在新窗口启动 '{profile_name}' ({job_type}) 巡检",
         "profile": profile_name,
         "job_type": job_type,
     }
