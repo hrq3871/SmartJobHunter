@@ -270,6 +270,8 @@ async def upload_resume(file: UploadFile = File(...)):
     RESUMES_DIR.mkdir(parents=True, exist_ok=True)
     dest = RESUMES_DIR / file.filename
     dest.write_bytes(content)
+    # Profiles are managed by the Agent, not auto-created here.
+    # Report which profiles already reference this resume for user visibility.
     referenced_by = []
     for pf in PROFILES_DIR.glob("*.md"):
         fm = _parse_profile_frontmatter(pf)
@@ -289,9 +291,10 @@ async def delete_resume(filename: str):
         fm = _parse_profile_frontmatter(pf)
         rp = fm.get("resume", "")
         if filename in rp:
-            warnings.append(f"Still referenced by profile '{pf.stem}'")
+            warnings.append(f"意向「{pf.stem}」仍引用此简历，删除后需由 Agent 重新关联")
     path.unlink()
     return {"ok": True, "warnings": warnings}
+
 
 
 # ---------------------------------------------------------------------------
