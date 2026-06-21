@@ -1,5 +1,7 @@
 # 公司列表更新与自愈系统实现计划
 
+> 平台说明（2026-06-21）：本文中的 `web-access` 仅限 Claude Code。Claude Code 未安装时执行 `npx skills add eze-is/web-access`；Codex 不加载该 Skill，使用内置 Browser/Chrome control。
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** 完成两件事：1) 更新所有公司的招聘官网配置 2) 设计自愈系统实现新公司自动分析和爬虫健康检测

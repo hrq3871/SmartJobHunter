@@ -58,6 +58,17 @@ tasks:
 
 原始 URL 必须完整传递，禁止截断、改写查询参数或添加省略号。
 
+## 分平台联网工具
+
+- `web-access 仅限 Claude Code`。Claude Code 运行本 Agent 时应加载该 Skill；如果 `~/.claude/skills/web-access/SKILL.md` 不存在，先安装：
+
+```bash
+npx skills add eze-is/web-access
+```
+
+- Codex 不加载、安装或触发 `web-access`，也不得把该 Skill 缺失视为阻塞。Codex 探索公开页面时使用 Codex 内置 Browser；只有用户明确授权登录态时才使用 Chrome control。
+- Python Playwright 始终是可复现执行层，负责 Network 采证、策略重放、产物落盘和验证；平台浏览器只负责探索尚未固化的交互。
+
 ## 工作流程
 
 对任务队列中的每家公司依次执行：
@@ -76,8 +87,8 @@ python -m src.crawler_evidence --company <company_id> --keyword "<关键词>" --
 ```
 
 4. 优先分析 `actions.json`、`network.json`、`xhr_samples/`、页面文本和截图。
-5. Python 通用交互无法找到关键请求时，才使用 Codex `@Browser` 探索公开页面控件；形成可重复 action plan 后，回到 Python Playwright 重放并落盘响应。
-6. 默认不使用登录态；需要登录时返回 `login_required`。只有用户明确授权时才可考虑 `@Chrome`。
+5. Python 通用交互无法找到关键请求时，Claude Code 通过 `web-access` 探索，Codex 通过内置 Browser 探索；形成可重复 action plan 后，回到 Python Playwright 重放并落盘响应。
+6. 默认不使用登录态；需要登录时返回 `login_required`。只有用户明确授权时，Claude Code 才可通过 `web-access` 的 CDP 路径、Codex 才可通过 Chrome control 使用现有登录态。
 7. 输出 `strategy_decision.yaml`，选择 config_intercept、config_dom、legacy_python、custom_python、browser_operation 或 unsupported。
 8. 普通配置由 Python 校验并应用；专用策略才修改 `src/site_strategies/`。
 9. 运行目标公司验证：
@@ -160,4 +171,5 @@ results:
 
 更新记录：
 
+- 2026-06-21：明确 `web-access` 仅限 Claude Code；Codex 使用内置 Browser/Chrome control，不加载该 Skill。
 - 2026-06-21：首次建立独立策略修复子 Agent，明确 Python 优先、单 Agent 串行和链接不截断规则。

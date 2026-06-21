@@ -62,27 +62,27 @@ Python Playwright 是可复现的浏览器执行和 Network Evidence 采集层�
 - 保存请求 URL、响应状态、脱敏 Payload、响应样本和截图。
 - 在策略固化后稳定重复执行。
 
-### Codex Browser 与 Chrome
+### Claude Code 与 Codex 浏览器能力
 
-- `@Browser`：Codex 内置浏览器，适合公开页面的点击、输入、DOM 检查和截图。
-- `@Chrome`：Codex Chrome 插件，适合必须使用用户现有 Cookie、登录态、扩展或已打开标签页的场景。
-- 两者暴露受限的 Playwright 风格交互接口，但当前文档没有证明它们对完整 XHR 响应体提供与 Python Playwright 等价的稳定落盘接口。
+- `web-access 仅限 Claude Code`；Claude Code 用户未安装时先执行 `npx skills add eze-is/web-access`。
+- Codex 不加载、安装或触发 `web-access`；公开页面使用 Codex 内置 Browser，登录态仅在用户明确授权时使用 Chrome control。
+- 平台浏览器用于探索未知交互，但当前文档没有证明它们对完整 XHR 响应体提供与 Python Playwright 等价的稳定落盘接口。
 
 推荐组合：
 
 ```text
 Python Playwright 通用交互 + Network Evidence
   -> evidence 不足
-Codex @Browser 探索未知控件和交互路径
+Claude Code web-access / Codex 内置 Browser 探索未知控件和交互路径
   -> 形成可重复 action plan
 Python Playwright 按 action plan 重放并落盘真实响应
 ```
 
-默认不使用登录态。必须登录时输出 `login_required`；只有用户明确授权时才考虑 `@Chrome`。
+默认不使用登录态。必须登录时输出 `login_required`；只有用户明确授权时才考虑 Claude Code CDP 或 Codex Chrome control。
 
 准确表述：
 
-> Python Playwright 负责可复现的网页交互和接口响应采集；独立策略子 Agent 在遇到非固定页面结构时使用 Codex Browser 探索交互路径，并由当前大模型分析 API 结构、字段映射和固化方案。
+> Python Playwright 负责可复现的网页交互和接口响应采集；独立策略子 Agent 在遇到非固定页面结构时，Claude Code 使用 web-access、Codex 使用内置 Browser 探索交互路径，并由当前大模型分析 API 结构、字段映射和固化方案。
 
 ## 5. Python 与 LLM 的职责边界
 

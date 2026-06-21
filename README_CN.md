@@ -569,6 +569,17 @@ SmartJobHunter 不把 Python 包装成“什么网站都能自动理解”的黑
 
 公开页面优先由 Python Playwright 进行可复现的输入、点击、翻页和 Network 采证；非固定页面结构才交给子 Agent 分析。需要用户登录态时必须先得到明确授权才可使用 Chrome；登录、验证码、网络不通、地域限制和强反爬均直接报告，不尝试绕过。
 
+### Claude Code 与 Codex 的联网工具
+
+- `web-access 仅限 Claude Code`。建议使用 Claude Code 运行本项目的人安装该 Skill；Claude Code 的联网巡检如未安装，应先执行：
+
+```bash
+npx skills add eze-is/web-access
+```
+
+- Codex 不加载、安装或触发 `web-access`。Codex 使用内置 Browser 探索公开页面；只有用户明确授权时才使用 Chrome control 复用登录态。
+- 两个平台探索出的稳定规则最终都必须回到 Python Playwright 重放并通过单站验证。
+
 ```
 每日任务 → 读取 Profile + 公司官网链接
         → 策略巡检

@@ -169,6 +169,18 @@ python tests/test_all_crawlers.py --company <company_id> --keyword "<关键词>"
 
 Python 优先完成可复现的页面访问、通用点击、Network evidence、配置应用和验证；仅 API 结构、字段映射和非固定页面交互交给大模型分析。
 
+### 分平台联网工具规则
+
+- `web-access 仅限 Claude Code`。它不是 SmartJobHunter 在 Codex 中的依赖，也不得因 Codex 执行联网任务而自动触发。
+- Claude Code 执行网页访问、搜索、抓取或浏览器交互前，应检查 `~/.claude/skills/web-access/SKILL.md`。如未安装，先执行：
+
+```bash
+npx skills add eze-is/web-access
+```
+
+- Codex 不加载、安装或触发 `web-access`；公开页面探索使用 Codex 内置 Browser，必须复用用户登录态时才在用户明确授权后使用 Chrome control。
+- 无论在哪个平台，已确认的交互、接口和字段规则最终都由 Python Playwright 重放、落盘和验证。
+
 ### CRAWLED
 
 目标：抓取岗位。

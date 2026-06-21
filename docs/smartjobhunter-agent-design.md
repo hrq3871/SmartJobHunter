@@ -303,6 +303,8 @@ Agent 使用 `prompts/analyze_crawler_strategy.md` 判断：
 
 本轮全部待修复公司一次性交给一个 `crawler-strategy-inspector` 子 Agent 串行处理，不按公司拆分，也不允许继续嵌套 Agent。Python 负责可复现交互、采证、配置写回和验证；LLM 只分析非固定 API 结构、data path、字段映射和配置无法表达的专用策略。登录、验证码、网络、强反爬、地域限制和不可复现交互必须落为 blocked/failed。
 
+平台工具分流：`web-access 仅限 Claude Code`。Claude Code 未安装时先运行 `npx skills add eze-is/web-access`；Codex 不加载该 Skill，使用内置 Browser 探索公开页面，并仅在用户明确授权时使用 Chrome control。两者最终都回到 Python Playwright 重放和验证。
+
 修改策略后必须验证：
 
 ```powershell
