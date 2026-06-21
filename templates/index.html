@@ -457,7 +457,7 @@ renderers.tasks=async()=>{
   left+='<details><summary class="text-sm" style="cursor:pointer;color:var(--text-secondary)">编辑凭证</summary><div style="margin-top:8px">';
   left+=`<input id="fsAppId" class="text-sm" value="${esc(fconf.app_id||"")}" placeholder="App ID" style="margin-bottom:4px"><input id="fsAppSecret" type="password" class="text-sm" value="${esc(fconf.app_secret||"")}" placeholder="App Secret" style="margin-bottom:4px"><input id="fsWiki" class="text-sm" value="${esc(fconf.wiki_node_token||"")}" placeholder="Wiki Token" style="margin-bottom:4px"><input id="fsBitable" class="text-sm" value="${esc(fconf.bitable_token||"")}" placeholder="Bitable Token" style="margin-bottom:4px"><input id="fsTableId" class="text-sm" value="${esc(fconf.bitable_table_id||"")}" placeholder="Table ID">`;
   left+='<button class="btn btn-primary btn-sm mt-2" onclick="saveFs()">保存</button></div></details></div>';
-  left+=`<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="copyAgentCmd()">&#x25b6; 复制巡检指令</button><div class="text-sm text-muted mt-1" style="text-align:center">粘贴到 Claude Code 对话中运行</div>`;
+  left+=`<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="copyAgentCmd()">&#x25b6; 启动巡检</button><div class="text-sm text-muted mt-1" style="text-align:center">后台运行 python -m src.cli，完成后刷新查看报告</div>`;
 
   // Right: selected resume details
   let right='<div class="card"><div class="card-header"><h3>&#x1f4c4; 巡检结果</h3></div>';
@@ -570,15 +570,14 @@ window.copyAgentCmd=async()=>{
   if(!rn)return toast('请先在左侧选择一份简历');
   const pf=profiles.find(p=>p.resume&&p.resume.includes(rn));
   if(!pf)return toast('该简历尚未关联意向，请先上传并确认');
-  const kw=pf.keywords?.join(' ')||'';
   const types=pf.job_types||[pf.job_type||'社招'];
-  const lines=['对简历「'+pf.name+'」运行巡检：'];
-  for(const t of types)lines.push('  python -m src.cli -t '+(t==='社招'?'social':t==='校招'?'campus':'internship')+' -p "'+pf.name+'"');
-  lines.push('');
-  lines.push('搜索关键词：'+kw);
-  const cmd=lines.join('\n');
-  await navigator.clipboard.writeText(cmd);
-  toast('已复制巡检指令，请粘贴到 Claude Code 对话中运行');
+  const typeMap={'社招':'social','校招':'campus','实习':'internship'};
+  for(const t of types){
+    try{
+      const r=await api('/api/run',{method:'POST',body:JSON.stringify({profile:pf.name,job_type:typeMap[t]||'social'})});
+      toast(r.message);
+    }catch(e){toast('启动失败: '+e.message)}
+  }
 };
 window.runInspect=()=>{toast('请在终端运行: python -m src.cli')};
 window.viewProfileResume=async(n)=>{try{const r=await api(`/api/profiles/${encodeURIComponent(n)}/resume`);showModal(`&#x1f4c4; ${n} — ${esc(r.filename)}`,r.format==='md'?`<div class="markdown-body">${marked.parse(r.content)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:60vh;overflow-y:auto">${esc(r.content)}</pre>`,'700px')}catch(e){toast('无法加载: '+e.message)}};

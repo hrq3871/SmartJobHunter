@@ -13,6 +13,7 @@ import asyncio
 import json
 import re
 import shutil
+import subprocess
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -560,6 +561,35 @@ async def update_config(body: dict):
             _write_profile_frontmatter(pf_path, fm)
 
     return {"ok": True}
+
+
+@app.post("/api/run")
+async def run_inspection(body: dict):
+    """Trigger a full CLI inspection for a profile in the background."""
+    profile_name = str(body.get("profile", "")).strip()
+    job_type = str(body.get("job_type", "social")).strip()
+    if not profile_name:
+        raise HTTPException(status_code=400, detail="profile name required")
+
+    def _run():
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "src.cli", "-t", job_type, "-p", profile_name],
+                cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+        except Exception:
+            pass
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {
+        "ok": True,
+        "message": f"已启动 '{profile_name}' ({job_type}) 后台巡检，完成后刷新页面查看报告",
+        "profile": profile_name,
+        "job_type": job_type,
+    }
 
 
 # ---------------------------------------------------------------------------
