@@ -1,1549 +1,1379 @@
-# SmartJobHunter 公司列表配置
-# 爬虫会从这里读取要抓取的公司
-# enabled: true 表示已实现爬虫，false 表示待开发
-
 companies:
-  # ============================================================
-  # 第一梯队 - BAT + TMD 核心大厂
-  # ============================================================
-
-  # 腾讯
-  - id: tencent
-    name: 腾讯
-    enabled: true
-    urls:
-      social: "https://careers.tencent.com/search.html?query={keyword}"
-      campus: "https://careers.tencent.com/search.html?query={keyword}"
-    api:
-      pattern: "tencentcareer/api/post/Query"
-      data_path: "Data.Posts"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "PostId"
-      title:
-        source: "RecruitPostName"
-      location:
-        source: "LocationName"
-      category:
-        source: "CategoryName"
-      publish_time:
-        source: "LastUpdateTime"
-      duty:
-        source: "Responsibility"
-      product:
-        source: "ProductName"
-      bg:
-        source: "BGName"
-      work_years:
-        source: "RequireWorkYearsName"
-    url_template: "https://careers.tencent.com/position_detail.html?id={id}"
-    job_type_detection:
-      internship: ["实习", "intern"]
-      campus: ["校招", "应届"]
-      social: []
-
-  # 字节跳动 - 校招/实习
-  - id: bytedance
-    name: 字节跳动
-    enabled: true
-    urls:
-      social: "https://jobs.bytedance.com/campus/position?keyword={keyword}"
-      campus: "https://jobs.bytedance.com/campus/position?keyword={keyword}"
-    api:
-      pattern: "search/job/posts"
-      data_path: "data.job_post_list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "title"
-      location:
-        source: "city_info.name"
-      category:
-        source: "job_category.name"
-      publish_time:
-        source: "publish_time"
-      duty:
-        source: "description"
-      requirement:
-        source: "requirement"
-    url_template: "https://jobs.bytedance.com/campus/position/detail/{id}"
-    job_type_detection:
-      internship: ["实习", "intern"]
-      campus: ["校招", "应届", "ByteIntern"]
-      social: []
-
-  # 字节跳动 - 社招
-  - id: bytedance_social
-    name: 字节跳动(社招)
-    enabled: true
-    urls:
-      social: "https://jobs.bytedance.com/experienced/position?keyword={keyword}"
-    api:
-      pattern: "search/job/posts"
-      data_path: "data.job_post_list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "title"
-      location:
-        source: "city_info.name"
-      category:
-        source: "job_category.name"
-      publish_time:
-        source: "publish_time"
-      duty:
-        source: "description"
-      requirement:
-        source: "requirement"
-    url_template: "https://jobs.bytedance.com/experienced/position/detail/{id}"
-    job_type_detection:
-      internship: ["实习", "intern"]
-      social: []
-
-  # 阿里巴巴
-  - id: alibaba
-    name: 阿里巴巴
-    enabled: true
-    urls:
-      social: "https://campus-talent.alibaba.com/campus/position?batchId=100000540002"
-      campus: "https://campus-talent.alibaba.com/campus/position?batchId=100000540002"
-    api:
-      pattern: "position/search"
-      data_path: "content.datas"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "name"
-      location:
-        source: "workLocations.0"
-      category:
-        source: "categoryName"
-      duty:
-        source: "description"
-      requirement:
-        source: "requirement"
-    url_template: "https://campus-talent.alibaba.com/campus/position/detail?id={id}"
-    note: "API已验证可用"
-
-  # 百度
-  - id: baidu
-    name: 百度
-    enabled: true
-    urls:
-      social: "https://talent.baidu.com/social-list"
-      campus: "https://talent.baidu.com/list"
-    api:
-      pattern: "hcm-backend/api/v1/job/list"
-      data_path: "listDetailData"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "jobId"
-      title:
-        source: "name"
-      location:
-        source: "workPlace"
-      category:
-        source: "postType"
-      duty:
-        source: "workContent"
-      requirement:
-        source: "serviceCondition"
-      publish_time:
-        source: "publishDate"
-      project_type:
-        source: "projectType"
-    url_template: "https://talent.baidu.com/job/detail/{id}"
-    note: "API需要登录态，通过页面注入数据提取"
-
-  # 美团
-  - id: meituan
-    name: 美团
-    enabled: true
-    urls:
-      social: "https://zhaopin.meituan.com/jobs"
-      campus: "https://zhaopin.meituan.com/campus"
-    api:
-      pattern: "getJobList"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "jobUnionId"
-      title:
-        source: "name"
-      location:
-        source: "cityList"
-      category:
-        source: "jobFamily"
-      publish_time:
-        source: "refreshTime"
-      duty:
-        source: "jobDuty"
-      requirement:
-        source: "jobRequirement"
-      product:
-        source: "department"
-      work_years:
-        source: "workYear"
-    url_template: "https://zhaopin.meituan.com/jobs/{id}"
-    note: "API已验证可用"
-
-  # 滴滴出行
-  - id: didi
-    name: 滴滴出行
-    enabled: true
-    urls:
-      social: "https://talent.didiglobal.com/social"
-      campus: "http://campus.didiglobal.com"
-    api:
-      pattern: "job/front/list"
-      data_path: "data.items"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "jdId"
-      title:
-        source: "jobName"
-      location:
-        source: "workArea"
-      category:
-        source: "deptName"
-      publish_time:
-        source: "refreshTime"
-    url_template: "https://talent.didiglobal.com/job/{id}"
-    note: "API已验证可用"
-
-  # 京东
-  - id: jd
-    name: 京东
-    enabled: true
-    urls:
-      social: "https://campus.jd.com/#/jobs?to=present&type=present"
-      campus: "https://campus.jd.com/#/jobs?to=present&type=present"
-    api:
-      pattern: "position/page"
-      data_path: "body.items"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "publishId"
-      title:
-        source: "positionName"
-      location:
-        source: "requirementVoList.0.workCity"
-      category:
-        source: "jobDirection"
-      duty:
-        source: "workContent"
-      requirement:
-        source: "qualification"
-    url_template: "https://campus.jd.com/#/jobs/detail/{id}"
-    note: "API已验证可用"
-
-  # 拼多多
-  - id: pinduoduo
-    name: 拼多多
-    enabled: true
-    urls:
-      social: "https://careers.pinduoduo.com/jobs"
-      campus: "https://careers.pinduoduo.com/campus"
-    api:
-      pattern: "job/query/list"
-      data_path: "result.infoList"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "jobCode"
-      title:
-        source: "jobName"
-      location:
-        source: "workPlace"
-      category:
-        source: "jobCategory"
-      publish_time:
-        source: "publishDate"
-      duty:
-        source: "jobDesc"
-      requirement:
-        source: "jobRequire"
-    url_template: "https://careers.pinduoduo.com/jobs/{id}"
-    note: "API已验证可用"
-
-  # 华为
-  - id: huawei
-    name: 华为
-    enabled: true
-    urls:
-      social: "https://career.huawei.com/socRecruitment/"
-      campus: "https://career.huawei.com/cn/campus-recruitment"
-    api:
-      pattern: "queryJobList"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "jobId"
-      title:
-        source: "jobName"
-      location:
-        source: "workPlace"
-      category:
-        source: "jobCategory"
-      duty:
-        source: "jobDesc"
-    url_template: "https://career.huawei.com/job/{id}"
-    note: "需要进一步分析API"
-
-  # 小米
-  - id: xiaomi
-    name: 小米
-    enabled: true
-    urls:
-      social: "https://hr.xiaomi.com/m/job"
-      campus: "https://hr.xiaomi.com/campus"
-    api:
-      pattern: "api/job/list"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "jobId"
-      title:
-        source: "jobName"
-      location:
-        source: "workPlace"
-      category:
-        source: "jobCategory"
-      publish_time:
-        source: "publishDate"
-      duty:
-        source: "jobDesc"
-      requirement:
-        source: "jobRequire"
-    url_template: "https://hr.xiaomi.com/job/{id}"
-    note: "需要验证API结构"
-
-  # 深信服
-  - id: sangfor
-    name: 深信服
-    enabled: true
-    urls:
-      social: "https://hr.sangfor.com/Sociology"
-      campus: "https://hr.sangfor.com/campuszp"
-    api:
-      pattern: "api/Jobs"
-      data_path: "data.listData"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "positionId"
-      title:
-        source: "title"
-      location:
-        source: "workPlaceText"
-      category:
-        source: "functionName"
-      duty:
-        source: "description"
-      education:
-        source: "education"
-      publish_time:
-        source: "openedAt"
-    url_template: "https://hr.sangfor.com/Delivery/{id}"
-    note: "API已验证可用，需浏览器环境请求"
-
-  # ============================================================
-  # 第二梯队 - 知名互联网公司
-  # ============================================================
-
-  # 网易
-  - id: netease
-    name: 网易
-    enabled: true
-    urls:
-      social: "https://hr.163.com/job-list.html"
-      campus: "https://hr.163.com/campus-list.html"
-    api:
-      pattern: "position/queryPage"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "name"
-      location:
-        source: "workPlaceNameList"
-      category:
-        source: "firstPostTypeName"
-      publish_time:
-        source: "updateTime"
-      duty:
-        source: "description"
-      requirement:
-        source: "requirement"
-      product:
-        source: "productName"
-      work_years:
-        source: "reqWorkYearsName"
-    url_template: "https://hr.163.com/job-detail.html?id={id}"
-    note: "API已验证可用"
-
-  # 快手
-  - id: kuaishou
-    name: 快手
-    enabled: true
-    urls:
-      social: "https://zhaopin.kuaishou.cn/recruit/e/#/official/social/"
-      campus: "https://zhaopin.kuaishou.cn/recruit/e/#/official/campus/"
-    api:
-      pattern: "positions/simple"
-      data_path: "result.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "name"
-      location:
-        source: "workLocationCode"
-      category:
-        source: "positionCategoryCode"
-      duty:
-        source: "description"
-    url_template: "https://zhaopin.kuaishou.cn/recruit/e/#/official/social/detail/{id}"
-    note: "API已验证可用"
-
-  # 哔哩哔哩
-  - id: bilibili
-    name: 哔哩哔哩
-    enabled: true
-    urls:
-      social: "https://jobs.bilibili.com/position/list"
-      campus: "https://jobs.bilibili.com/campus/position/list"
-    api:
-      pattern: "positionList"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "positionName"
-      location:
-        source: "workLocation"
-      category:
-        source: "postCodeName"
-      publish_time:
-        source: "pushTime"
-      duty:
-        source: "positionDescription"
-    url_template: "https://jobs.bilibili.com/position/detail/{id}"
-    note: "API已验证可用"
-
-  # 小红书
-  - id: xiaohongshu
-    name: 小红书
-    enabled: true
-    urls:
-      social: "https://job.xiaohongshu.com/social"
-      campus: "https://campus.xiaohongshu.com"
-    api:
-      pattern: "position/list"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "positionId"
-      title:
-        source: "positionName"
-      location:
-        source: "workCity"
-      category:
-        source: "positionCategory"
-      duty:
-        source: "positionDescription"
-    url_template: "https://job.xiaohongshu.com/position/detail/{id}"
-    note: "需要进一步分析API"
-
-  # 携程
-  - id: ctrip
-    name: 携程
-    enabled: true
-    urls:
-      social: "https://job.ctrip.com/#/experienced"
-      campus: "https://campus.ctrip.com/"
-    api:
-      pattern: "getJobList"
-      data_path: "retValue.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "jobId"
-      title:
-        source: "jobName"
-      location:
-        source: "workPlace"
-      category:
-        source: "jobCategory"
-      duty:
-        source: "jobDescription"
-    url_template: "https://job.ctrip.com/jobs/{id}"
-    note: "需要进一步分析API"
-
-  # 微博
-  - id: weibo
-    name: 微博
-    enabled: true
-    urls:
-      social: "https://career.sina.com.cn/portal/social"
-      campus: "https://career.sina.com.cn/portal/campus"
-    api:
-      pattern: "job/list"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "jobId"
-      title:
-        source: "jobName"
-      location:
-        source: "workPlace"
-      duty:
-        source: "jobDescription"
-    url_template: "https://career.sina.com.cn/job/{id}"
-    note: "需要进一步分析API"
-
-  # 知乎
-  - id: zhihu
-    name: 知乎
-    enabled: true
-    urls:
-      social: "https://app.mokahr.com/apply/zhihu/3819#/jobs"
-      campus: "https://app.mokahr.com/campus-recruitment/zhihu/68321#/jobs"
-    strategy:
-      type: custom_python
-      module: mokahr
-    note: "新版Mokahr加密API,使用Playwright DOM提取策略"
-
-  # OPPO
-  - id: oppo
-    name: OPPO
-    enabled: true
-    urls:
-      social: "https://career.oppo.com/official/oppo/recruitment/post"
-      campus: "https://career.oppo.com/campus/oppo/recruitment/post"
-    api:
-      pattern: "queryPositionList"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "positionId"
-      title:
-        source: "publishName"
-      location:
-        source: "workCityName"
-      category:
-        source: "jobType"
-      duty:
-        source: "jobDuty"
-      requirement:
-        source: "workRequire"
-      publish_time:
-        source: "publishDate"
-    url_template: "https://career.oppo.com/official/oppo/recruitment/post/detail?positionId={id}"
-    note: "API已验证可用"
-
-  # vivo
-  - id: vivo
-    name: vivo
-    enabled: true
-    urls:
-      social: "https://hr.vivo.com/position/list"
-      campus: "https://hr.vivo.com/campus/list"
-    api:
-      pattern: "portal/page"
-      data_path: "data"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "job_id"
-      title:
-        source: "job_title"
-      location:
-        source: "job_location_list"
-      category:
-        source: "requirement_org_name"
-      duty:
-        source: "job_responsibility"
-    url_template: "https://hr.vivo.com/position/detail/{id}"
-    note: "API已验证可用"
-
-  # 中兴通讯
-  - id: zte
-    name: 中兴通讯
-    enabled: true
-    urls:
-      social: "https://app.mokahr.com/social-recruitment/zte/47588#/jobs"
-      campus: "https://app.mokahr.com/campus-recruitment/zte/46903#/jobs"
-    strategy:
-      type: custom_python
-      module: mokahr
-    note: "新版Mokahr加密API,使用Playwright DOM提取策略"
-
-  # 联想
-  - id: lenovo
-    name: 联想
-    enabled: true
-    urls:
-      social: "https://jobs.lenovo.com/zh_CN/careers/SearchJobs"
-      campus: "https://jobs.lenovo.com/zh_CN/careers/SearchJobs"
-    api:
-      pattern: "SearchJobs"
-      data_path: "article.article--result"
-      type: "dom"
-    field_mappings:
-      id:
-        source: "jobId"
-      title:
-        source: "title"
-      location:
-        source: "location"
-      category:
-        source: "department"
-      publish_time:
-        source: "published"
-    url_template: "https://jobs.lenovo.com/zh_CN/careers/JobDetail/{id}"
-    note: "服务端渲染，需DOM解析"
-
-  # 蚂蚁集团
-  - id: antgroup
-    name: 蚂蚁集团
-    enabled: false
-    urls:
-      social: "https://talent.antgroup.com/off-campus/position-list"
-      campus: "https://talent.antgroup.com/campus/position-list"
-    api:
-      pattern: "api/position/list"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "positionId"
-      title:
-        source: "name"
-      location:
-        source: "workLocationList"
-      category:
-        source: "categoryName"
-      duty:
-        source: "description"
-    url_template: "https://talent.antgroup.com/position/{id}"
-    note: "类似阿里巴巴架构"
-
-  # 菜鸟网络
-  - id: cainiao
-    name: 菜鸟网络
-    enabled: false
-    urls:
-      social: "https://talent.cainiao.com/position/list"
-      campus: "https://talent.cainiao.com/campus/list"
-    api:
-      pattern: "api/position/list"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "positionId"
-      title:
-        source: "name"
-      location:
-        source: "workLocation"
-      category:
-        source: "categoryName"
-      duty:
-        source: "description"
-    url_template: "https://talent.cainiao.com/position/{id}"
-    note: "需要验证API结构"
-
-  # 唯品会
-  - id: vip
-    name: 唯品会
-    enabled: false
-    urls:
-      social: "https://job.vip.com/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # 58同城
-  - id: 58
-    name: 58同城
-    enabled: false
-    urls:
-      social: "https://zhaopin.58.com/joblist"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # 搜狐
-  - id: sohu
-    name: 搜狐
-    enabled: false
-    urls:
-      social: "https://hr.sohu.com/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "使用mokahr系统"
-
-  # ============================================================
-  # 游戏公司专项
-  # ============================================================
-
-  # 网易游戏
-  - id: netease-game
-    name: 网易游戏
-    enabled: false
-    urls:
-      social: "https://game.163.com/hr/"
-      campus: "https://game.163.com/campus/"
-    api:
-      pattern: "position/queryPage"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "name"
-      location:
-        source: "workPlaceNameList"
-      category:
-        source: "firstPostTypeName"
-      duty:
-        source: "description"
-    url_template: "https://game.163.com/job-detail.html?id={id}"
-    note: "使用网易招聘系统"
-
-  # 米哈游
-  - id: mihoyo
-    name: 米哈游
-    enabled: true
-    urls:
-      social: "https://jobs.mihoyo.com/#/position"
-      campus: "https://jobs.mihoyo.com/#/campus"
-    api:
-      pattern: "job/list"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "title"
-      location:
-        source: "addressDetailList.0.addressDetail"
-      category:
-        source: "competencyType"
-      product:
-        source: "objectName"
-    url_template: "https://jobs.mihoyo.com/#/position/detail/{id}"
-    note: "API已验证可用"
-
-  # 莉莉丝游戏
-  - id: lilith
-    name: 莉莉丝游戏
-    enabled: true
-    urls:
-      social: "https://lilithgames.jobs.feishu.cn/social"
-      campus: "https://lilithgames.jobs.feishu.cn/campus"
-    api:
-      pattern: "search/job/posts"
-      data_path: "data.job_post_list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "title"
-      location:
-        source: "city_list.0.name"
-      category:
-        source: "job_category.name"
-      duty:
-        source: "description"
-      requirement:
-        source: "requirement"
-    url_template: "https://lilithgames.jobs.feishu.cn/job/{id}"
-    note: "使用飞书招聘系统"
-
-  # 完美世界
-  - id: perfectworld
-    name: 完美世界
-    enabled: false
-    urls:
-      social: "https://hr.pwrd.com/job/list"
-      campus: "https://hr.pwrd.com/campus/list"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # 三七互娱
-  - id: 37games
-    name: 三七互娱
-    enabled: true
-    urls:
-      social: "https://zhaopin.37.com/index.php?m=Home&c=recruit&a=recruit&recruit=1"
-      campus: "https://app.mokahr.com/campus-recruitment/37/58016?locale=zh-CN#/"
-    api:
-      pattern: "getIndexPage"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "name"
-      title:
-        source: "name"
-      location:
-        source: "work_place"
-      category:
-        source: "pname"
-      duty:
-        source: "duty"
-    url_template: "https://zhaopin.37.com"
-    note: "API已验证可用"
-
-  # ============================================================
-  # 外资科技公司中国区
-  # ============================================================
-
-  # 微软中国
-  - id: microsoft
-    name: 微软中国
-    enabled: false
-    urls:
-      social: "https://careers.microsoft.com/v2/global/en/search.html"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "使用Phenom招聘系统"
-
-  # 苹果中国
-  - id: apple
-    name: 苹果中国
-    enabled: true
-    urls:
-      social: "https://jobs.apple.com/zh-cn/search"
-    api:
-      pattern: "api/v1/search"
-      data_path: "res.searchResults"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "postingTitle"
-      location:
-        source: "locations.0.name"
-      category:
-        source: "team.teamName"
-      duty:
-        source: "jobSummary"
-      publish_time:
-        source: "postingDate"
-    url_template: "https://jobs.apple.com/zh-cn/details/{id}"
-    note: "API已验证可用"
-
-  # 英伟达中国
-  - id: nvidia
-    name: 英伟达中国
-    enabled: false
-    urls:
-      social: "https://www.nvidia.com/en-us/about-nvidia/careers/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # 特斯拉中国
-  - id: tesla
-    name: 特斯拉中国
-    enabled: false
-    urls:
-      social: "https://app.mokahr.com/social-recruitment/tesla/44298#/jobs"
-    strategy:
-      type: custom_python
-      module: mokahr
-    note: "新版Mokahr加密API,使用Playwright DOM提取策略。待验证URL是否可达"
-
-  # 英特尔中国
-  - id: intel
-    name: 英特尔中国
-    enabled: false
-    urls:
-      social: "https://jobs.intel.com/search-jobs"
-    api:
-      pattern: null
-      type: "dom"
-    note: "使用Workday招聘系统，需DOM解析"
-
-  # AMD中国
-  - id: amd
-    name: AMD中国
-    enabled: false
-    urls:
-      social: "https://jobs.amd.com/search-jobs"
-    api:
-      pattern: null
-      type: "dom"
-    note: "使用Workday招聘系统，需DOM解析"
-
-  # 思科中国
-  - id: cisco
-    name: 思科中国
-    enabled: false
-    urls:
-      social: "https://jobs.cisco.com/"
-    api:
-      pattern: null
-      type: "dom"
-    note: "使用Workday招聘系统，需DOM解析"
-
-  # SAP中国
-  - id: sap
-    name: SAP中国
-    enabled: false
-    urls:
-      social: "https://careers.sap.com/"
-    api:
-      pattern: null
-      type: "dom"
-    note: "使用Workday招聘系统，需DOM解析"
-
-  # ============================================================
-  # 新增公司 - 使用飞书招聘系统
-  # ============================================================
-
-  # 商汤科技
-  - id: sensetime
-    name: 商汤科技
-    enabled: true
-    urls:
-      social: "https://sensetime.jobs.feishu.cn/"
-    api:
-      pattern: "search/job/posts"
-      data_path: "data.job_post_list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "title"
-      location:
-        source: "city_list.0.name"
-      category:
-        source: "job_category.name"
-      duty:
-        source: "description"
-      requirement:
-        source: "requirement"
-      publish_time:
-        source: "publish_time"
-    url_template: "https://sensetime.jobs.feishu.cn/job/{id}"
-    note: "使用飞书招聘系统"
-
-  # Keep
-  - id: keep
-    name: Keep
-    enabled: true
-    urls:
-      social: "https://keep.jobs.feishu.cn/"
-    api:
-      pattern: "search/job/posts"
-      data_path: "data.job_post_list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "title"
-      location:
-        source: "city_list.0.name"
-      category:
-        source: "job_category.name"
-      duty:
-        source: "description"
-      requirement:
-        source: "requirement"
-      publish_time:
-        source: "publish_time"
-    url_template: "https://keep.jobs.feishu.cn/job/{id}"
-    note: "使用飞书招聘系统"
-
-  # SHEIN
-  - id: shein
-    name: SHEIN
-    enabled: true
-    urls:
-      social: "https://shein.jobs.feishu.cn/social"
-    api:
-      pattern: "search/job/posts"
-      data_path: "data.job_post_list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "title"
-      location:
-        source: "city_list.0.name"
-      category:
-        source: "job_category.name"
-      duty:
-        source: "description"
-      requirement:
-        source: "requirement"
-      publish_time:
-        source: "publish_time"
-    url_template: "https://shein.jobs.feishu.cn/job/{id}"
-    note: "使用飞书招聘系统"
-
-  # 蔚来汽车
-  - id: nio
-    name: 蔚来汽车
-    enabled: true
-    urls:
-      social: "https://nio.jobs.feishu.cn/social"
-    api:
-      pattern: "search/job/posts"
-      data_path: "data.job_post_list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "title"
-      location:
-        source: "city_list.0.name"
-      category:
-        source: "job_category.name"
-      duty:
-        source: "description"
-      requirement:
-        source: "requirement"
-      publish_time:
-        source: "publish_time"
-    url_template: "https://nio.jobs.feishu.cn/job/{id}"
-    note: "使用飞书招聘系统"
-
-  # 理想汽车
-  - id: lixiang
-    name: 理想汽车
-    enabled: true
-    urls:
-      social: "https://li.jobs.feishu.cn/"
-    api:
-      pattern: "search/job/posts"
-      data_path: "data.job_post_list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "title"
-      location:
-        source: "city_list.0.name"
-      category:
-        source: "job_category.name"
-      duty:
-        source: "description"
-      requirement:
-        source: "requirement"
-      publish_time:
-        source: "publish_time"
-    url_template: "https://li.jobs.feishu.cn/job/{id}"
-    note: "使用飞书招聘系统"
-
-  # 小鹏汽车
-  - id: xpeng
-    name: 小鹏汽车
-    enabled: true
-    urls:
-      social: "https://xpeng.jobs.feishu.cn/"
-    api:
-      pattern: "search/job/posts"
-      data_path: "data.job_post_list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "title"
-      location:
-        source: "city_list.0.name"
-      category:
-        source: "job_category.name"
-      duty:
-        source: "description"
-      requirement:
-        source: "requirement"
-      publish_time:
-        source: "publish_time"
-    url_template: "https://xpeng.jobs.feishu.cn/job/{id}"
-    note: "使用飞书招聘系统"
-
-  # ============================================================
-  # 国央企
-  # ============================================================
-
-  # 工商银行
-  - id: icbc
-    name: 工商银行
-    enabled: true
-    urls:
-      social: "https://job.icbc.com.cn/"
-      campus: "https://job.icbc.com.cn/"
-    api:
-      pattern: "qryPostType"
-      data_path: "data.dataList"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "postTypeId"
-      title:
-        source: "postName"
-    url_template: "https://job.icbc.com.cn/"
-    note: "银行招聘系统"
-
-  # 建设银行
-  - id: ccb
-    name: 建设银行
-    enabled: false
-    urls:
-      social: "https://job.ccb.com/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # 中国移动
-  - id: cmcc
-    name: 中国移动
-    enabled: false
-    urls:
-      social: "https://job.10086.cn/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # 中国电信
-  - id: chinatelecom
-    name: 中国电信
-    enabled: false
-    urls:
-      social: "https://job.chinatelecom.com.cn/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # 中国银行
-  - id: boc
-    name: 中国银行
-    enabled: false
-    urls:
-      social: "https://careers.boc.cn/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # 招商银行
-  - id: cmb
-    name: 招商银行
-    enabled: false
-    urls:
-      social: "https://career.cmbchina.com/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # 平安集团
-  - id: pingan
-    name: 平安集团
-    enabled: false
-    urls:
-      social: "https://recruit.pingan.com/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # ============================================================
-  # 科技公司 - 自建招聘系统
-  # ============================================================
-
-  # 海康威视
-  - id: hikvision
-    name: 海康威视
-    enabled: true
-    urls:
-      social: "https://talent.hikvision.com/society/sHome"
-      campus: "https://campushr.hikvision.com/home"
-    api:
-      pattern: "api/ats/official/officialPostPosition"
-      data_path: "data"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "positionId"
-      title:
-        source: "positionName"
-      location:
-        source: "workPlace"
-      category:
-        source: "positionCategory"
-    url_template: "https://talent.hikvision.com/position/{id}"
-    note: "自建招聘系统，API已验证"
-
-  # 科大讯飞
-  - id: iflytek
-    name: 科大讯飞
-    enabled: true
-    urls:
-      social: "https://campus.iflytek.com/official-pc/jobList"
-      campus: "https://campus.iflytek.com/official-pc/jobList"
-    api:
-      pattern: "jobList"
-      data_path: "data"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "positionId"
-      title:
-        source: "positionName"
-      location:
-        source: "workPlace"
-      category:
-        source: "positionCategory"
-    url_template: "https://campus.iflytek.com/position/{id}"
-    note: "自建招聘系统"
-
-  # 浪潮集团
-  - id: inspur
-    name: 浪潮集团
-    enabled: false
-    urls:
-      social: "https://inspur.beisen.com/"
-    api:
-      pattern: null
-      type: "dom"
-    note: "使用北森招聘系统，需DOM解析"
-
-  # 大疆
-  - id: dji
-    name: 大疆
-    enabled: true
-    urls:
-      social: "https://we.dji.com/zh-CN/social"
-      campus: "https://we.dji.com/zh-CN/campus"
-    api:
-      pattern: "queryPositionCardList"
-      data_path: "data.datas"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "positionId"
-      title:
-        source: "jobTitle"
-      location:
-        source: "locationDescription"
-      category:
-        source: "positionCategory"
-      duty:
-        source: "duty"
-      requirement:
-        source: "requirement"
-      team:
-        source: "team"
-      publish_time:
-        source: "approveTime"
-    url_template: "https://we.dji.com/zh-CN/position/{id}"
-    note: "API已验证可用"
-
-  # ============================================================
-  # 汽车行业
-  # ============================================================
-
-  # 比亚迪
-  - id: byd
-    name: 比亚迪
-    enabled: false
-    urls:
-      social: "https://job.byd.com/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # 吉利汽车 — URL 需要验证(当前返回404)
-  - id: geely
-    name: 吉利汽车
-    enabled: true
-    urls:
-      social: "https://app.mokahr.com/social-recruitment/geely/47588#/jobs"
-      campus: "https://app.mokahr.com/campus-recruitment/geely/46903#/jobs"
-    strategy:
-      type: custom_python
-      module: mokahr
-    note: "新版Mokahr策略。社招URL当前404,待确认正确链接"
-
-  # 长城汽车
-  - id: gwm
-    name: 长城汽车
-    enabled: true
-    urls:
-      social: "https://zhaopin.gwm.cn/"
-      campus: "https://zhaopin.gwm.cn/"
-    api:
-      pattern: "api/job/list"
-      data_path: "data.list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "jobId"
-      title:
-        source: "jobName"
-      location:
-        source: "workPlace"
-      category:
-        source: "jobCategory"
-    url_template: "https://zhaopin.gwm.cn/job/{id}"
-    note: "自建招聘系统，需验证API"
-
-  # ============================================================
-  # 其他知名公司
-  # ============================================================
-
-  # 旷视科技
-  - id: megvii
-    name: 旷视科技
-    enabled: false
-    urls:
-      social: "https://megvii.jobs.feishu.cn/"
-    api:
-      pattern: "search/job/posts"
-      data_path: "data.job_post_list"
-      type: "intercept"
-    field_mappings:
-      id:
-        source: "id"
-      title:
-        source: "title"
-      location:
-        source: "city_list.0.name"
-      category:
-        source: "job_category.name"
-    url_template: "https://megvii.jobs.feishu.cn/job/{id}"
-    note: "使用飞书招聘系统"
-
-  # 得物
-  - id: dewu
-    name: 得物
-    enabled: false
-    urls:
-      social: "https://careers.dewu.com/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "使用字节招聘系统"
-
-  # 货拉拉
-  - id: huolala
-    name: 货拉拉
-    enabled: false
-    urls:
-      social: "https://talent.huolala.cn/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # 金山软件
-  - id: kingsoft
-    name: 金山软件
-    enabled: false
-    urls:
-      social: "https://job.kingsoft.com/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "需要分析API结构"
-
-  # 用友网络
-  - id: yonyou
-    name: 用友网络
-    enabled: false
-    urls:
-      social: "https://yonyou.zhiye.com/"
-    api:
-      pattern: null
-      type: "unknown"
-    note: "智联招聘系统已失效，需要确认新网站"
-
-  # 懂车帝校招
-  - id: dongchedi_campus
-    name: 懂车帝校招
-    enabled: true
-    urls:
-      social: https://dcar.jobs.feishu.cn/campus/position/list
-      campus: https://dcar.jobs.feishu.cn/campus/position/list
-    note: 飞书招聘校园入口；策略由 20260621-five-site-repair-retry 实证
-    api:
-      type: intercept
-      pattern: search/job/posts
-      data_path: data.job_post_list
-    field_mappings:
-      id:
-        source: id
-      title:
-        source: title
-      location:
-        source: city_list.0.name
-      category:
-        source: job_subject.name.i18n
-      publish_time:
-        source: publish_time
-      duty:
-        source: description
-      requirement:
-        source: requirement
-    url_template: https://dcar.jobs.feishu.cn/campus/position/{id}/detail
-    job_type_detection:
-      internship:
-      - 实习
-      - intern
-      campus:
-      - 校招
-      - 应届
-    strategy:
-      type: config_intercept
-      status: verified
-      last_verified_at: '2026-06-21T14:01:19.208541+08:00'
-      evidence_dir: logs/crawler_evidence/20260621-five-site-repair-retry/dongchedi_campus/20260621_134011
-      fingerprint: 14522347f2043619
-
-  # 中国通用技术校招
-  - id: genertec_campus
-    name: 中国通用技术校招
-    enabled: true
-    urls:
-      social: https://genertec.zhiye.com/custom/813f55cb-8392-5c3d-038e-1f815555e637
-      campus: https://genertec.zhiye.com/custom/813f55cb-8392-5c3d-038e-1f815555e637
-    note: 智联招聘校园入口；策略由 20260621-five-site-repair-retry 实证
-    api:
-      type: intercept
-      pattern: Jobad/GetJobAdPageList
-      data_path: Data
-    field_mappings:
-      id:
-        source: Id
-      title:
-        source: JobAdName
-      location:
-        source: LocNames.0
-      category:
-        source: ClassificationTwo
-      publish_time:
-        source: PostDate
-      duty:
-        source: Duty
-      requirement:
-        source: Require
-    url_template: https://genertec.zhiye.com/custom/2c145520-9dce-0868-c707-e65870a45b86?ct=7a34f1fa-99fc-d287-e761-c9dc230e5baa&jobAdId={id}
-    job_type_detection:
-      internship:
-      - 实习
-      - intern
-      campus:
-      - 校招
-      - 应届
-    strategy:
-      type: config_intercept
-      status: verified
-      last_verified_at: '2026-06-21T14:01:43.860242+08:00'
-      evidence_dir: logs/crawler_evidence/20260621-five-site-repair-retry/genertec_campus/20260621_134832
-      fingerprint: 85aa12d5a1665870
-
-  # 顺丰校招
-  - id: sf_campus
-    name: 顺丰校招
-    enabled: true
-    urls:
-      social: https://campus.sf-express.com/#/positionList
-      campus: https://campus.sf-express.com/#/positionList
-    note: 顺丰校园招聘入口；策略由 20260621-five-site-repair-retry 实证
-    api:
-      type: intercept
-      pattern: /api/web/position/query?
-      data_path: list
-    field_mappings:
-      id:
-        source: id
-      title:
-        source: positionName
-      location:
-        source: demandCity
-      category:
-        source: positionTypeName
-      publish_time:
-        source: createDate
-      duty:
-        source: postDuty
-      requirement:
-        source: jobRequirement
-    url_template: https://campus.sf-express.com/#/postDetail/{id}
-    job_type_detection:
-      internship:
-      - 实习
-      - intern
-      campus:
-      - 校招
-      - 应届
-    strategy:
-      type: config_intercept
-      status: verified
-      last_verified_at: '2026-06-21T14:01:31.667731+08:00'
-      evidence_dir: logs/crawler_evidence/20260621-five-site-repair-retry/sf_campus/20260621_134357
-      fingerprint: a80945a486e03e7e
-
-  # 锐捷网络
-  - id: ruijie
-    name: 锐捷网络
-    enabled: true
-    urls:
-      campus: "https://app.mokahr.com/campus-recruitment/ruijie/136206#/jobs"
-    strategy:
-      type: custom_python
-      module: mokahr
-    note: "新版Mokahr加密API,使用Playwright DOM提取策略"
-
-# 默认抓取配置
+- id: tencent
+  name: 腾讯
+  enabled: true
+  urls:
+    social: https://careers.tencent.com/search.html?query={keyword}
+    campus: https://careers.tencent.com/search.html?query={keyword}
+  api:
+    pattern: tencentcareer/api/post/Query
+    data_path: Data.Posts
+    type: intercept
+  field_mappings:
+    id:
+      source: PostId
+    title:
+      source: RecruitPostName
+    location:
+      source: LocationName
+    category:
+      source: CategoryName
+    publish_time:
+      source: LastUpdateTime
+    duty:
+      source: Responsibility
+    product:
+      source: ProductName
+    bg:
+      source: BGName
+    work_years:
+      source: RequireWorkYearsName
+  url_template: https://careers.tencent.com/position_detail.html?id={id}
+  job_type_detection:
+    internship:
+    - 实习
+    - intern
+    campus:
+    - 校招
+    - 应届
+    social: []
+- id: bytedance
+  name: 字节跳动
+  enabled: true
+  urls:
+    social: https://jobs.bytedance.com/campus/position?keyword={keyword}
+    campus: https://jobs.bytedance.com/campus/position?keyword={keyword}
+  api:
+    pattern: search/job/posts
+    data_path: data.job_post_list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: title
+    location:
+      source: city_info.name
+    category:
+      source: job_category.name
+    publish_time:
+      source: publish_time
+    duty:
+      source: description
+    requirement:
+      source: requirement
+  url_template: https://jobs.bytedance.com/campus/position/detail/{id}
+  job_type_detection:
+    internship:
+    - 实习
+    - intern
+    campus:
+    - 校招
+    - 应届
+    - ByteIntern
+    social: []
+- id: bytedance_social
+  name: 字节跳动(社招)
+  enabled: true
+  urls:
+    social: https://jobs.bytedance.com/experienced/position?keyword={keyword}
+  api:
+    pattern: search/job/posts
+    data_path: data.job_post_list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: title
+    location:
+      source: city_info.name
+    category:
+      source: job_category.name
+    publish_time:
+      source: publish_time
+    duty:
+      source: description
+    requirement:
+      source: requirement
+  url_template: https://jobs.bytedance.com/experienced/position/detail/{id}
+  job_type_detection:
+    internship:
+    - 实习
+    - intern
+    social: []
+- id: alibaba
+  name: 阿里巴巴
+  enabled: true
+  urls:
+    social: https://campus-talent.alibaba.com/campus/position?batchId=100000540002
+    campus: https://campus-talent.alibaba.com/campus/position?batchId=100000540002
+  api:
+    pattern: position/search
+    data_path: content.datas
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: name
+    location:
+      source: workLocations.0
+    category:
+      source: categoryName
+    duty:
+      source: description
+    requirement:
+      source: requirement
+  url_template: https://campus-talent.alibaba.com/campus/position/detail?id={id}
+  note: API已验证可用
+- id: baidu
+  name: 百度
+  enabled: true
+  urls:
+    social: https://talent.baidu.com/social-list
+    campus: https://talent.baidu.com/list
+  api:
+    pattern: hcm-backend/api/v1/job/list
+    data_path: listDetailData
+    type: intercept
+  field_mappings:
+    id:
+      source: jobId
+    title:
+      source: name
+    location:
+      source: workPlace
+    category:
+      source: postType
+    duty:
+      source: workContent
+    requirement:
+      source: serviceCondition
+    publish_time:
+      source: publishDate
+    project_type:
+      source: projectType
+  url_template: https://talent.baidu.com/job/detail/{id}
+  note: API需要登录态，通过页面注入数据提取
+- id: meituan
+  name: 美团
+  enabled: true
+  urls:
+    social: https://zhaopin.meituan.com/jobs
+    campus: https://zhaopin.meituan.com/campus
+  api:
+    pattern: getJobList
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: jobUnionId
+    title:
+      source: name
+    location:
+      source: cityList
+    category:
+      source: jobFamily
+    publish_time:
+      source: refreshTime
+    duty:
+      source: jobDuty
+    requirement:
+      source: jobRequirement
+    product:
+      source: department
+    work_years:
+      source: workYear
+  url_template: https://zhaopin.meituan.com/jobs/{id}
+  note: API已验证可用
+- id: didi
+  name: 滴滴出行
+  enabled: true
+  urls:
+    social: https://talent.didiglobal.com/social
+    campus: http://campus.didiglobal.com
+  api:
+    pattern: job/front/list
+    data_path: data.items
+    type: intercept
+  field_mappings:
+    id:
+      source: jdId
+    title:
+      source: jobName
+    location:
+      source: workArea
+    category:
+      source: deptName
+    publish_time:
+      source: refreshTime
+  url_template: https://talent.didiglobal.com/job/{id}
+  note: API已验证可用
+- id: jd
+  name: 京东
+  enabled: true
+  urls:
+    social: https://campus.jd.com/#/jobs?to=present&type=present
+    campus: https://campus.jd.com/#/jobs?to=present&type=present
+  api:
+    pattern: position/page
+    data_path: body.items
+    type: intercept
+  field_mappings:
+    id:
+      source: publishId
+    title:
+      source: positionName
+    location:
+      source: requirementVoList.0.workCity
+    category:
+      source: jobDirection
+    duty:
+      source: workContent
+    requirement:
+      source: qualification
+  url_template: https://campus.jd.com/#/jobs/detail/{id}
+  note: API已验证可用
+- id: pinduoduo
+  name: 拼多多
+  enabled: true
+  urls:
+    social: https://careers.pinduoduo.com/jobs
+    campus: https://careers.pinduoduo.com/campus
+  api:
+    pattern: job/query/list
+    data_path: result.infoList
+    type: intercept
+  field_mappings:
+    id:
+      source: jobCode
+    title:
+      source: jobName
+    location:
+      source: workPlace
+    category:
+      source: jobCategory
+    publish_time:
+      source: publishDate
+    duty:
+      source: jobDesc
+    requirement:
+      source: jobRequire
+  url_template: https://careers.pinduoduo.com/jobs/{id}
+  note: API已验证可用
+- id: huawei
+  name: 华为
+  enabled: true
+  urls:
+    social: https://career.huawei.com/socRecruitment/
+    campus: https://career.huawei.com/cn/campus-recruitment
+  api:
+    pattern: queryJobList
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: jobId
+    title:
+      source: jobName
+    location:
+      source: workPlace
+    category:
+      source: jobCategory
+    duty:
+      source: jobDesc
+  url_template: https://career.huawei.com/job/{id}
+  note: 需要进一步分析API
+- id: xiaomi
+  name: 小米
+  enabled: true
+  urls:
+    social: https://hr.xiaomi.com/m/job
+    campus: https://hr.xiaomi.com/campus
+  api:
+    pattern: api/job/list
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: jobId
+    title:
+      source: jobName
+    location:
+      source: workPlace
+    category:
+      source: jobCategory
+    publish_time:
+      source: publishDate
+    duty:
+      source: jobDesc
+    requirement:
+      source: jobRequire
+  url_template: https://hr.xiaomi.com/job/{id}
+  note: 需要验证API结构
+- id: sangfor
+  name: 深信服
+  enabled: true
+  urls:
+    social: https://hr.sangfor.com/Sociology
+    campus: https://hr.sangfor.com/campuszp
+  api:
+    pattern: api/Jobs
+    data_path: data.listData
+    type: intercept
+  field_mappings:
+    id:
+      source: positionId
+    title:
+      source: title
+    location:
+      source: workPlaceText
+    category:
+      source: functionName
+    duty:
+      source: description
+    education:
+      source: education
+    publish_time:
+      source: openedAt
+  url_template: https://hr.sangfor.com/Delivery/{id}
+  note: API已验证可用，需浏览器环境请求
+- id: netease
+  name: 网易
+  enabled: true
+  urls:
+    social: https://hr.163.com/job-list.html
+    campus: https://hr.163.com/campus-list.html
+  api:
+    pattern: position/queryPage
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: name
+    location:
+      source: workPlaceNameList
+    category:
+      source: firstPostTypeName
+    publish_time:
+      source: updateTime
+    duty:
+      source: description
+    requirement:
+      source: requirement
+    product:
+      source: productName
+    work_years:
+      source: reqWorkYearsName
+  url_template: https://hr.163.com/job-detail.html?id={id}
+  note: API已验证可用
+- id: kuaishou
+  name: 快手
+  enabled: true
+  urls:
+    social: https://zhaopin.kuaishou.cn/recruit/e/#/official/social/
+    campus: https://zhaopin.kuaishou.cn/recruit/e/#/official/campus/
+  api:
+    pattern: positions/simple
+    data_path: result.list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: name
+    location:
+      source: workLocationCode
+    category:
+      source: positionCategoryCode
+    duty:
+      source: description
+  url_template: https://zhaopin.kuaishou.cn/recruit/e/#/official/social/detail/{id}
+  note: API已验证可用
+- id: bilibili
+  name: 哔哩哔哩
+  enabled: true
+  urls:
+    social: https://jobs.bilibili.com/position/list
+    campus: https://jobs.bilibili.com/campus/position/list
+  api:
+    pattern: positionList
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: positionName
+    location:
+      source: workLocation
+    category:
+      source: postCodeName
+    publish_time:
+      source: pushTime
+    duty:
+      source: positionDescription
+  url_template: https://jobs.bilibili.com/position/detail/{id}
+  note: API已验证可用
+- id: xiaohongshu
+  name: 小红书
+  enabled: true
+  urls:
+    social: https://job.xiaohongshu.com/social
+    campus: https://campus.xiaohongshu.com
+  api:
+    pattern: position/list
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: positionId
+    title:
+      source: positionName
+    location:
+      source: workCity
+    category:
+      source: positionCategory
+    duty:
+      source: positionDescription
+  url_template: https://job.xiaohongshu.com/position/detail/{id}
+  note: 需要进一步分析API
+- id: ctrip
+  name: 携程
+  enabled: true
+  urls:
+    social: https://job.ctrip.com/#/experienced
+    campus: https://campus.ctrip.com/
+  api:
+    pattern: getJobList
+    data_path: retValue.list
+    type: intercept
+  field_mappings:
+    id:
+      source: jobId
+    title:
+      source: jobName
+    location:
+      source: workPlace
+    category:
+      source: jobCategory
+    duty:
+      source: jobDescription
+  url_template: https://job.ctrip.com/jobs/{id}
+  note: 需要进一步分析API
+- id: weibo
+  name: 微博
+  enabled: true
+  urls:
+    social: https://career.sina.com.cn/portal/social
+    campus: https://career.sina.com.cn/portal/campus
+  api:
+    pattern: job/list
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: jobId
+    title:
+      source: jobName
+    location:
+      source: workPlace
+    duty:
+      source: jobDescription
+  url_template: https://career.sina.com.cn/job/{id}
+  note: 需要进一步分析API
+- id: zhihu
+  name: 知乎
+  enabled: true
+  urls:
+    social: https://app.mokahr.com/apply/zhihu/3819#/jobs
+    campus: https://app.mokahr.com/campus-recruitment/zhihu/68321#/jobs
+  strategy:
+    type: custom_python
+    module: mokahr
+  note: 新版Mokahr加密API,使用Playwright DOM提取策略
+- id: oppo
+  name: OPPO
+  enabled: true
+  urls:
+    social: https://career.oppo.com/official/oppo/recruitment/post
+    campus: https://career.oppo.com/campus/oppo/recruitment/post
+  api:
+    pattern: queryPositionList
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: positionId
+    title:
+      source: publishName
+    location:
+      source: workCityName
+    category:
+      source: jobType
+    duty:
+      source: jobDuty
+    requirement:
+      source: workRequire
+    publish_time:
+      source: publishDate
+  url_template: https://career.oppo.com/official/oppo/recruitment/post/detail?positionId={id}
+  note: API已验证可用
+- id: vivo
+  name: vivo
+  enabled: true
+  urls:
+    social: https://hr.vivo.com/position/list
+    campus: https://hr.vivo.com/campus/list
+  api:
+    pattern: portal/page
+    data_path: data
+    type: intercept
+  field_mappings:
+    id:
+      source: job_id
+    title:
+      source: job_title
+    location:
+      source: job_location_list
+    category:
+      source: requirement_org_name
+    duty:
+      source: job_responsibility
+  url_template: https://hr.vivo.com/position/detail/{id}
+  note: API已验证可用
+- id: zte
+  name: 中兴通讯
+  enabled: true
+  urls:
+    social: https://app.mokahr.com/social-recruitment/zte/47588#/jobs
+    campus: https://app.mokahr.com/campus-recruitment/zte/46903#/jobs
+  strategy:
+    type: custom_python
+    module: mokahr
+  note: 新版Mokahr加密API,使用Playwright DOM提取策略
+- id: lenovo
+  name: 联想
+  enabled: true
+  urls:
+    social: https://jobs.lenovo.com/zh_CN/careers/SearchJobs
+    campus: https://jobs.lenovo.com/zh_CN/careers/SearchJobs
+  api:
+    pattern: SearchJobs
+    data_path: article.article--result
+    type: dom
+  field_mappings:
+    id:
+      source: jobId
+    title:
+      source: title
+    location:
+      source: location
+    category:
+      source: department
+    publish_time:
+      source: published
+  url_template: https://jobs.lenovo.com/zh_CN/careers/JobDetail/{id}
+  note: 服务端渲染，需DOM解析
+- id: antgroup
+  name: 蚂蚁集团
+  enabled: false
+  urls:
+    social: https://talent.antgroup.com/off-campus/position-list
+    campus: https://talent.antgroup.com/campus/position-list
+  api:
+    pattern: api/position/list
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: positionId
+    title:
+      source: name
+    location:
+      source: workLocationList
+    category:
+      source: categoryName
+    duty:
+      source: description
+  url_template: https://talent.antgroup.com/position/{id}
+  note: 类似阿里巴巴架构
+- id: cainiao
+  name: 菜鸟网络
+  enabled: false
+  urls:
+    social: https://talent.cainiao.com/position/list
+    campus: https://talent.cainiao.com/campus/list
+  api:
+    pattern: api/position/list
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: positionId
+    title:
+      source: name
+    location:
+      source: workLocation
+    category:
+      source: categoryName
+    duty:
+      source: description
+  url_template: https://talent.cainiao.com/position/{id}
+  note: 需要验证API结构
+- id: vip
+  name: 唯品会
+  enabled: false
+  urls:
+    social: https://job.vip.com/
+  api:
+    pattern: null
+    type: unknown
+  note: 需要分析API结构
+- id: 58
+  name: 58同城
+  enabled: false
+  urls:
+    social: https://zhaopin.58.com/joblist
+  api:
+    pattern: null
+    type: unknown
+  note: 需要分析API结构
+- id: sohu
+  name: 搜狐
+  enabled: false
+  urls:
+    social: https://hr.sohu.com/
+  api:
+    pattern: null
+    type: unknown
+  note: 使用mokahr系统
+- id: netease-game
+  name: 网易游戏
+  enabled: false
+  urls:
+    social: https://game.163.com/hr/
+    campus: https://game.163.com/campus/
+  api:
+    pattern: position/queryPage
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: name
+    location:
+      source: workPlaceNameList
+    category:
+      source: firstPostTypeName
+    duty:
+      source: description
+  url_template: https://game.163.com/job-detail.html?id={id}
+  note: 使用网易招聘系统
+- id: mihoyo
+  name: 米哈游
+  enabled: true
+  urls:
+    social: https://jobs.mihoyo.com/#/position
+    campus: https://jobs.mihoyo.com/#/campus
+  api:
+    pattern: job/list
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: title
+    location:
+      source: addressDetailList.0.addressDetail
+    category:
+      source: competencyType
+    product:
+      source: objectName
+  url_template: https://jobs.mihoyo.com/#/position/detail/{id}
+  note: API已验证可用
+- id: lilith
+  name: 莉莉丝游戏
+  enabled: true
+  urls:
+    social: https://lilithgames.jobs.feishu.cn/social
+    campus: https://lilithgames.jobs.feishu.cn/campus
+  api:
+    pattern: search/job/posts
+    data_path: data.job_post_list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: title
+    location:
+      source: city_list.0.name
+    category:
+      source: job_category.name
+    duty:
+      source: description
+    requirement:
+      source: requirement
+  url_template: https://lilithgames.jobs.feishu.cn/job/{id}
+  note: 使用飞书招聘系统
+- id: perfectworld
+  name: 完美世界
+  enabled: false
+  urls:
+    social: https://hr.pwrd.com/job/list
+    campus: https://hr.pwrd.com/campus/list
+  api:
+    pattern: null
+    type: unknown
+  note: 需要分析API结构
+- id: 37games
+  name: 三七互娱
+  enabled: true
+  urls:
+    social: https://zhaopin.37.com/index.php?m=Home&c=recruit&a=recruit&recruit=1
+    campus: https://app.mokahr.com/campus-recruitment/37/58016?locale=zh-CN#/
+  api:
+    pattern: getIndexPage
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: name
+    title:
+      source: name
+    location:
+      source: work_place
+    category:
+      source: pname
+    duty:
+      source: duty
+  url_template: https://zhaopin.37.com
+  note: API已验证可用
+- id: microsoft
+  name: 微软中国
+  enabled: false
+  urls:
+    social: https://careers.microsoft.com/v2/global/en/search.html
+  api:
+    pattern: null
+    type: unknown
+  note: 使用Phenom招聘系统
+- id: apple
+  name: 苹果中国
+  enabled: true
+  urls:
+    social: https://jobs.apple.com/zh-cn/search
+  api:
+    pattern: api/v1/search
+    data_path: res.searchResults
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: postingTitle
+    location:
+      source: locations.0.name
+    category:
+      source: team.teamName
+    duty:
+      source: jobSummary
+    publish_time:
+      source: postingDate
+  url_template: https://jobs.apple.com/zh-cn/details/{id}
+  note: API已验证可用
+- id: nvidia
+  name: 英伟达中国
+  enabled: false
+  urls:
+    social: https://www.nvidia.com/en-us/about-nvidia/careers/
+  api:
+    pattern: null
+    type: unknown
+  note: 需要分析API结构
+- id: tesla
+  name: 特斯拉中国
+  enabled: false
+  urls:
+    social: https://app.mokahr.com/social-recruitment/tesla/44298#/jobs
+  strategy:
+    type: custom_python
+    module: mokahr
+  note: 新版Mokahr加密API,使用Playwright DOM提取策略。待验证URL是否可达
+- id: intel
+  name: 英特尔中国
+  enabled: false
+  urls:
+    social: https://jobs.intel.com/search-jobs
+  api:
+    pattern: null
+    type: dom
+  note: 使用Workday招聘系统，需DOM解析
+- id: amd
+  name: AMD中国
+  enabled: false
+  urls:
+    social: https://jobs.amd.com/search-jobs
+  api:
+    pattern: null
+    type: dom
+  note: 使用Workday招聘系统，需DOM解析
+- id: cisco
+  name: 思科中国
+  enabled: false
+  urls:
+    social: https://jobs.cisco.com/
+  api:
+    pattern: null
+    type: dom
+  note: 使用Workday招聘系统，需DOM解析
+- id: sap
+  name: SAP中国
+  enabled: false
+  urls:
+    social: https://careers.sap.com/
+  api:
+    pattern: null
+    type: dom
+  note: 使用Workday招聘系统，需DOM解析
+- id: sensetime
+  name: 商汤科技
+  enabled: true
+  urls:
+    social: https://sensetime.jobs.feishu.cn/
+  api:
+    pattern: search/job/posts
+    data_path: data.job_post_list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: title
+    location:
+      source: city_list.0.name
+    category:
+      source: job_category.name
+    duty:
+      source: description
+    requirement:
+      source: requirement
+    publish_time:
+      source: publish_time
+  url_template: https://sensetime.jobs.feishu.cn/job/{id}
+  note: 使用飞书招聘系统
+- id: keep
+  name: Keep
+  enabled: true
+  urls:
+    social: https://keep.jobs.feishu.cn/
+  api:
+    pattern: search/job/posts
+    data_path: data.job_post_list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: title
+    location:
+      source: city_list.0.name
+    category:
+      source: job_category.name
+    duty:
+      source: description
+    requirement:
+      source: requirement
+    publish_time:
+      source: publish_time
+  url_template: https://keep.jobs.feishu.cn/job/{id}
+  note: 使用飞书招聘系统
+- id: shein
+  name: SHEIN
+  enabled: true
+  urls:
+    social: https://shein.jobs.feishu.cn/social
+  api:
+    pattern: search/job/posts
+    data_path: data.job_post_list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: title
+    location:
+      source: city_list.0.name
+    category:
+      source: job_category.name
+    duty:
+      source: description
+    requirement:
+      source: requirement
+    publish_time:
+      source: publish_time
+  url_template: https://shein.jobs.feishu.cn/job/{id}
+  note: 使用飞书招聘系统
+- id: nio
+  name: 蔚来汽车
+  enabled: true
+  urls:
+    social: https://nio.jobs.feishu.cn/social
+  api:
+    pattern: search/job/posts
+    data_path: data.job_post_list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: title
+    location:
+      source: city_list.0.name
+    category:
+      source: job_category.name
+    duty:
+      source: description
+    requirement:
+      source: requirement
+    publish_time:
+      source: publish_time
+  url_template: https://nio.jobs.feishu.cn/job/{id}
+  note: 使用飞书招聘系统
+- id: lixiang
+  name: 理想汽车
+  enabled: true
+  urls:
+    social: https://li.jobs.feishu.cn/
+  api:
+    pattern: search/job/posts
+    data_path: data.job_post_list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: title
+    location:
+      source: city_list.0.name
+    category:
+      source: job_category.name
+    duty:
+      source: description
+    requirement:
+      source: requirement
+    publish_time:
+      source: publish_time
+  url_template: https://li.jobs.feishu.cn/job/{id}
+  note: 使用飞书招聘系统
+- id: xpeng
+  name: 小鹏汽车
+  enabled: true
+  urls:
+    social: https://xpeng.jobs.feishu.cn/
+  api:
+    pattern: search/job/posts
+    data_path: data.job_post_list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: title
+    location:
+      source: city_list.0.name
+    category:
+      source: job_category.name
+    duty:
+      source: description
+    requirement:
+      source: requirement
+    publish_time:
+      source: publish_time
+  url_template: https://xpeng.jobs.feishu.cn/job/{id}
+  note: 使用飞书招聘系统
+- id: icbc
+  name: 工商银行
+  enabled: true
+  urls:
+    social: https://job.icbc.com.cn/
+    campus: https://job.icbc.com.cn/
+  api:
+    pattern: qryPostType
+    data_path: data.dataList
+    type: intercept
+  field_mappings:
+    id:
+      source: postTypeId
+    title:
+      source: postName
+  url_template: https://job.icbc.com.cn/
+  note: 银行招聘系统
+- id: ccb
+  name: 建设银行
+  enabled: false
+  urls:
+    social: https://job.ccb.com/
+  api:
+    pattern: null
+    type: unknown
+  note: 需要分析API结构
+- id: cmcc
+  name: 中国移动
+  enabled: false
+  urls:
+    social: https://job.10086.cn/
+  api:
+    pattern: null
+    type: unknown
+  note: 需要分析API结构
+- id: chinatelecom
+  name: 中国电信
+  enabled: false
+  urls:
+    social: https://job.chinatelecom.com.cn/
+  api:
+    pattern: null
+    type: unknown
+  note: 需要分析API结构
+- id: boc
+  name: 中国银行
+  enabled: false
+  urls:
+    social: https://careers.boc.cn/
+  api:
+    pattern: null
+    type: unknown
+  note: 需要分析API结构
+- id: cmb
+  name: 招商银行
+  enabled: false
+  urls:
+    social: https://career.cmbchina.com/
+  api:
+    pattern: null
+    type: unknown
+  note: 需要分析API结构
+- id: pingan
+  name: 平安集团
+  enabled: false
+  urls:
+    social: https://recruit.pingan.com/
+  api:
+    pattern: null
+    type: unknown
+  note: 需要分析API结构
+- id: hikvision
+  name: 海康威视
+  enabled: true
+  urls:
+    social: https://talent.hikvision.com/society/sHome
+    campus: https://campushr.hikvision.com/home
+  api:
+    pattern: api/ats/official/officialPostPosition
+    data_path: data
+    type: intercept
+  field_mappings:
+    id:
+      source: positionId
+    title:
+      source: positionName
+    location:
+      source: workPlace
+    category:
+      source: positionCategory
+  url_template: https://talent.hikvision.com/position/{id}
+  note: 自建招聘系统，API已验证
+- id: iflytek
+  name: 科大讯飞
+  enabled: true
+  urls:
+    social: https://campus.iflytek.com/official-pc/jobList
+    campus: https://campus.iflytek.com/official-pc/jobList
+  api:
+    pattern: jobList
+    data_path: data
+    type: intercept
+  field_mappings:
+    id:
+      source: positionId
+    title:
+      source: positionName
+    location:
+      source: workPlace
+    category:
+      source: positionCategory
+  url_template: https://campus.iflytek.com/position/{id}
+  note: 自建招聘系统
+- id: inspur
+  name: 浪潮集团
+  enabled: false
+  urls:
+    social: https://inspur.beisen.com/
+  api:
+    pattern: null
+    type: dom
+  note: 使用北森招聘系统，需DOM解析
+- id: dji
+  name: 大疆
+  enabled: true
+  urls:
+    social: https://we.dji.com/zh-CN/social
+    campus: https://we.dji.com/zh-CN/campus
+  api:
+    pattern: queryPositionCardList
+    data_path: data.datas
+    type: intercept
+  field_mappings:
+    id:
+      source: positionId
+    title:
+      source: jobTitle
+    location:
+      source: locationDescription
+    category:
+      source: positionCategory
+    duty:
+      source: duty
+    requirement:
+      source: requirement
+    team:
+      source: team
+    publish_time:
+      source: approveTime
+  url_template: https://we.dji.com/zh-CN/position/{id}
+  note: API已验证可用
+- id: byd
+  name: 比亚迪
+  enabled: false
+  urls:
+    social: https://job.byd.com/
+  api:
+    pattern: null
+    type: unknown
+  note: 需要分析API结构
+- id: geely
+  name: 吉利汽车
+  enabled: true
+  urls:
+    social: https://app.mokahr.com/social-recruitment/geely/47588#/jobs
+    campus: https://app.mokahr.com/campus-recruitment/geely/46903#/jobs
+  strategy:
+    type: custom_python
+    module: mokahr
+  note: 新版Mokahr策略。社招URL当前404,待确认正确链接
+- id: gwm
+  name: 长城汽车
+  enabled: true
+  urls:
+    social: https://zhaopin.gwm.cn/
+    campus: https://zhaopin.gwm.cn/
+  api:
+    pattern: api/job/list
+    data_path: data.list
+    type: intercept
+  field_mappings:
+    id:
+      source: jobId
+    title:
+      source: jobName
+    location:
+      source: workPlace
+    category:
+      source: jobCategory
+  url_template: https://zhaopin.gwm.cn/job/{id}
+  note: 自建招聘系统，需验证API
+- id: megvii
+  name: 旷视科技
+  enabled: false
+  urls:
+    social: https://megvii.jobs.feishu.cn/
+  api:
+    pattern: search/job/posts
+    data_path: data.job_post_list
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: title
+    location:
+      source: city_list.0.name
+    category:
+      source: job_category.name
+  url_template: https://megvii.jobs.feishu.cn/job/{id}
+  note: 使用飞书招聘系统
+- id: dewu
+  name: 得物
+  enabled: false
+  urls:
+    social: https://careers.dewu.com/
+  api:
+    pattern: null
+    type: unknown
+  note: 使用字节招聘系统
+- id: huolala
+  name: 货拉拉
+  enabled: false
+  urls:
+    social: https://talent.huolala.cn/
+  api:
+    pattern: null
+    type: unknown
+  note: 需要分析API结构
+- id: kingsoft
+  name: 金山软件
+  enabled: false
+  urls:
+    social: https://job.kingsoft.com/
+  api:
+    pattern: null
+    type: unknown
+  note: 需要分析API结构
+- id: yonyou
+  name: 用友网络
+  enabled: false
+  urls:
+    social: https://yonyou.zhiye.com/
+  api:
+    pattern: null
+    type: unknown
+  note: 智联招聘系统已失效，需要确认新网站
+- id: dongchedi_campus
+  name: 懂车帝校招
+  enabled: true
+  urls:
+    social: https://dcar.jobs.feishu.cn/campus/position/list
+    campus: https://dcar.jobs.feishu.cn/campus/position/list
+  note: 飞书招聘校园入口；策略由 20260621-five-site-repair-retry 实证
+  api:
+    type: intercept
+    pattern: search/job/posts
+    data_path: data.job_post_list
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: title
+    location:
+      source: city_list.0.name
+    category:
+      source: job_subject.name.i18n
+    publish_time:
+      source: publish_time
+    duty:
+      source: description
+    requirement:
+      source: requirement
+  url_template: https://dcar.jobs.feishu.cn/campus/position/{id}/detail
+  job_type_detection:
+    internship:
+    - 实习
+    - intern
+    campus:
+    - 校招
+    - 应届
+  strategy:
+    type: config_intercept
+    status: verified
+    last_verified_at: '2026-06-21T14:01:19.208541+08:00'
+    evidence_dir: logs/crawler_evidence/20260621-five-site-repair-retry/dongchedi_campus/20260621_134011
+    fingerprint: 14522347f2043619
+- id: genertec_campus
+  name: 中国通用技术校招
+  enabled: true
+  urls:
+    social: https://genertec.zhiye.com/custom/813f55cb-8392-5c3d-038e-1f815555e637
+    campus: https://genertec.zhiye.com/custom/813f55cb-8392-5c3d-038e-1f815555e637
+  note: 智联招聘校园入口；策略由 20260621-five-site-repair-retry 实证
+  api:
+    type: intercept
+    pattern: Jobad/GetJobAdPageList
+    data_path: Data
+  field_mappings:
+    id:
+      source: Id
+    title:
+      source: JobAdName
+    location:
+      source: LocNames.0
+    category:
+      source: ClassificationTwo
+    publish_time:
+      source: PostDate
+    duty:
+      source: Duty
+    requirement:
+      source: Require
+  url_template: https://genertec.zhiye.com/custom/2c145520-9dce-0868-c707-e65870a45b86?ct=7a34f1fa-99fc-d287-e761-c9dc230e5baa&jobAdId={id}
+  job_type_detection:
+    internship:
+    - 实习
+    - intern
+    campus:
+    - 校招
+    - 应届
+  strategy:
+    type: config_intercept
+    status: verified
+    last_verified_at: '2026-06-21T14:01:43.860242+08:00'
+    evidence_dir: logs/crawler_evidence/20260621-five-site-repair-retry/genertec_campus/20260621_134832
+    fingerprint: 85aa12d5a1665870
+- id: sf_campus
+  name: 顺丰校招
+  enabled: true
+  urls:
+    social: https://campus.sf-express.com/#/positionList
+    campus: https://campus.sf-express.com/#/positionList
+  note: 顺丰校园招聘入口；策略由 20260621-five-site-repair-retry 实证
+  api:
+    type: intercept
+    pattern: /api/web/position/query?
+    data_path: list
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: positionName
+    location:
+      source: demandCity
+    category:
+      source: positionTypeName
+    publish_time:
+      source: createDate
+    duty:
+      source: postDuty
+    requirement:
+      source: jobRequirement
+  url_template: https://campus.sf-express.com/#/postDetail/{id}
+  job_type_detection:
+    internship:
+    - 实习
+    - intern
+    campus:
+    - 校招
+    - 应届
+  strategy:
+    type: config_intercept
+    status: verified
+    last_verified_at: '2026-06-21T14:01:31.667731+08:00'
+    evidence_dir: logs/crawler_evidence/20260621-five-site-repair-retry/sf_campus/20260621_134357
+    fingerprint: a80945a486e03e7e
+- id: ruijie
+  name: 锐捷网络
+  enabled: true
+  urls:
+    campus: https://app.mokahr.com/campus-recruitment/ruijie/136206#/jobs
+  strategy:
+    type: custom_python
+    module: mokahr
+  note: 新版Mokahr加密API,使用Playwright DOM提取策略
 defaults:
   max_jobs: 50
   max_pages: 5

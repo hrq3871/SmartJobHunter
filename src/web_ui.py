@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
-import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional
 import yaml
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
-from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES = ROOT / "templates"
@@ -33,7 +32,7 @@ LOGS_DIR = ROOT / "logs"
 ALLOWED_RESUME_EXTENSIONS = {".txt", ".md", ".docx", ".pdf", ".png", ".jpg", ".jpeg"}
 MAX_RESUME_SIZE = 10 * 1024 * 1024  # 10 MB
 
-app = FastAPI(title="SmartJobHunter Console", version="0.1.0")
+app = FastAPI(title="SmartJobHunter Console", version="0.2.0")
 
 
 # ---------------------------------------------------------------------------
@@ -80,39 +79,56 @@ def _write_profile_frontmatter(path: Path, fm: dict) -> None:
     path.write_text(f"---\n{new_fm}\n---\n{body}", encoding="utf-8")
 
 
-def _replace_company_yaml_block(company_id: str, updates: dict) -> None:
-    """Update enabled / urls / note fields for one company in companies.yaml."""
-    path = CONFIG_DIR / "companies.yaml"
-    text = path.read_text(encoding="utf-8")
-    config = _read_yaml(path)
-    companies = config.get("companies", [])
-    for i, c in enumerate(companies):
-        if c.get("id") == company_id:
-            target = dict(c)
-            for key in ("enabled", "note"):
-                if key in updates:
-                    target[key] = updates[key]
-            if "urls" in updates and isinstance(updates["urls"], dict):
-                target.setdefault("urls", {})
-                for k, v in updates["urls"].items():
-                    if k in ("social", "campus", "internship"):
-                        target["urls"][k] = v
-            companies[i] = target
-            break
-    else:
-        raise HTTPException(status_code=404, detail=f"Company not found: {company_id}")
-    config["companies"] = companies
-    _write_yaml(path, config)
+def _read_companies_config() -> dict:
+    return _read_yaml(CONFIG_DIR / "companies.yaml")
+
+
+def _write_companies_config(config: dict) -> None:
+    _write_yaml(CONFIG_DIR / "companies.yaml", config)
 
 
 # ---------------------------------------------------------------------------
-# Companies API
+# Bilingual reason labels
+# ---------------------------------------------------------------------------
+
+REASON_LABELS: Dict[str, str] = {
+    "unknown_strategy":        "未知策略 / Unknown strategy",
+    "missing_config_crawler":  "缺少爬虫配置 / Missing crawler config",
+    "network_or_link_error":   "网络或链接错误 / Network or link error",
+    "zero_jobs_returned":      "返回空岗位 / Zero jobs returned",
+    "missing_strategy_fingerprint": "缺少策略指纹 / Missing fingerprint",
+    "fingerprint_changed":     "页面指纹变更 / Page fingerprint changed",
+    "needs_review_strategy":   "策略待复核 / Strategy needs review",
+    "failed_strategy":         "策略失败 / Strategy failed",
+    "login_required":          "需要登录 / Login required",
+    "captcha":                 "验证码拦截 / Captcha detected",
+    "anti_crawl":              "反爬拦截 / Anti-crawl detected",
+    "blocked":                 "已被拦截 / Blocked",
+    "company_not_found":       "公司配置缺失 / Company not found",
+    "no_company_link_configured": "未配置公司链接 / No link configured",
+    "config_error":            "配置错误 / Config error",
+    "api_changed":             "API已变更 / API changed",
+    "url_invalid":             "链接失效 / URL invalid",
+    "network_error":           "网络错误 / Network error",
+    "unknown":                 "未知原因 / Unknown",
+}
+
+
+def _bilingual(reason: str) -> str:
+    """Return CN+EN label for a strategy reason code."""
+    for key, label in REASON_LABELS.items():
+        if key in reason.lower().replace(" ", "_"):
+            return label
+    return reason if reason else "未指定 / Unspecified"
+
+
+# ---------------------------------------------------------------------------
+# Companies API (full CRUD)
 # ---------------------------------------------------------------------------
 
 @app.get("/api/companies")
 async def list_companies():
-    """Return all companies with status info."""
-    config = _read_yaml(CONFIG_DIR / "companies.yaml")
+    config = _read_companies_config()
     result = []
     for raw in config.get("companies", []):
         urls = raw.get("urls", {})
@@ -131,23 +147,78 @@ async def list_companies():
 
 @app.put("/api/companies/{company_id}")
 async def update_company(company_id: str, body: dict):
-    """Update company enabled / urls / note. Does NOT touch api or strategy fields."""
-    allowed = {}
-    if "enabled" in body:
-        allowed["enabled"] = bool(body["enabled"])
-    if "urls" in body and isinstance(body["urls"], dict):
-        allowed["urls"] = body["urls"]
-    if "note" in body:
-        allowed["note"] = str(body["note"])
-    if not allowed:
-        raise HTTPException(status_code=400, detail="No updatable fields provided")
-    _replace_company_yaml_block(company_id, allowed)
+    """Update company fields: enabled, urls (social/campus/internship), note, name."""
+    config = _read_companies_config()
+    companies = config.get("companies", [])
+    found = False
+    for c in companies:
+        if c.get("id") == company_id:
+            found = True
+            if "name" in body:
+                c["name"] = str(body["name"])
+            if "enabled" in body:
+                c["enabled"] = bool(body["enabled"])
+            if "note" in body:
+                c["note"] = str(body["note"])
+            if "urls" in body and isinstance(body["urls"], dict):
+                c.setdefault("urls", {})
+                for k in ("social", "campus", "internship"):
+                    if k in body["urls"]:
+                        c["urls"][k] = body["urls"][k]
+            break
+    if not found:
+        raise HTTPException(status_code=404, detail=f"Company not found: {company_id}")
+    _write_companies_config(config)
+    return {"ok": True}
+
+
+@app.post("/api/companies")
+async def create_company(body: dict):
+    """Add a new company entry."""
+    company_id = str(body.get("id", "")).strip()
+    company_name = str(body.get("name", "")).strip()
+    if not company_id or not company_name:
+        raise HTTPException(status_code=400, detail="id and name are required")
+    config = _read_companies_config()
+    companies = config.get("companies", [])
+    for c in companies:
+        if c.get("id") == company_id:
+            raise HTTPException(status_code=409, detail=f"Company already exists: {company_id}")
+    new_entry = {
+        "id": company_id,
+        "name": company_name,
+        "enabled": bool(body.get("enabled", False)),
+        "urls": {},
+        "note": str(body.get("note", "")),
+    }
+    for k in ("social", "campus", "internship"):
+        if body.get("urls", {}).get(k):
+            new_entry["urls"][k] = body["urls"][k]
+    strategy_type = str(body.get("strategy_type", "")).strip()
+    if strategy_type in ("config_intercept", "config_dom", "custom_python", "legacy_python", "browser_operation", "unsupported"):
+        new_entry["strategy"] = {"type": strategy_type, "status": "unknown", "owner": "agent"}
+        if strategy_type == "custom_python" and body.get("strategy_module"):
+            new_entry["strategy"]["module"] = body["strategy_module"]
+    companies.append(new_entry)
+    _write_companies_config(config)
+    return {"ok": True, "id": company_id}
+
+
+@app.delete("/api/companies/{company_id}")
+async def delete_company(company_id: str):
+    """Remove a company from the config."""
+    config = _read_companies_config()
+    companies = config.get("companies", [])
+    before = len(companies)
+    config["companies"] = [c for c in companies if c.get("id") != company_id]
+    if len(config["companies"]) == before:
+        raise HTTPException(status_code=404, detail=f"Company not found: {company_id}")
+    _write_companies_config(config)
     return {"ok": True}
 
 
 @app.post("/api/companies/{company_id}/test")
 async def test_company(company_id: str, body: dict):
-    """Run a quick test crawl for a company."""
     from src.crawler_factory import crawl_company
 
     keyword = str(body.get("keyword", "") or "").strip() or "产品经理"
@@ -169,7 +240,6 @@ async def test_company(company_id: str, body: dict):
 
 @app.get("/api/resumes")
 async def list_resumes():
-    """List all files in resumes/ directory."""
     RESUMES_DIR.mkdir(parents=True, exist_ok=True)
     files = []
     for f in sorted(RESUMES_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
@@ -186,7 +256,6 @@ async def list_resumes():
 
 @app.post("/api/resumes")
 async def upload_resume(file: UploadFile = File(...)):
-    """Upload a resume file."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename")
     ext = Path(file.filename).suffix.lower()
@@ -198,55 +267,80 @@ async def upload_resume(file: UploadFile = File(...)):
     RESUMES_DIR.mkdir(parents=True, exist_ok=True)
     dest = RESUMES_DIR / file.filename
     dest.write_bytes(content)
-    # Check which profiles reference this file
     referenced_by = []
     for pf in PROFILES_DIR.glob("*.md"):
         fm = _parse_profile_frontmatter(pf)
-        resume_path = fm.get("resume", "")
-        if file.filename in resume_path:
+        rp = fm.get("resume", "")
+        if file.filename in rp:
             referenced_by.append(pf.stem)
     return {"ok": True, "filename": file.filename, "size": len(content), "referenced_by": referenced_by}
 
 
 @app.delete("/api/resumes/{filename}")
 async def delete_resume(filename: str):
-    """Delete a resume file, returning warning if still referenced."""
     path = RESUMES_DIR / filename
     if not path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    # Scan profiles for references
     warnings = []
     for pf in PROFILES_DIR.glob("*.md"):
         fm = _parse_profile_frontmatter(pf)
-        resume_path = fm.get("resume", "")
-        if filename in resume_path:
+        rp = fm.get("resume", "")
+        if filename in rp:
             warnings.append(f"Still referenced by profile '{pf.stem}'")
     path.unlink()
     return {"ok": True, "warnings": warnings}
 
 
 # ---------------------------------------------------------------------------
-# Config API
+# Profiles API
 # ---------------------------------------------------------------------------
+
+@app.get("/api/profiles/{name}/resume")
+async def get_profile_resume(name: str):
+    """Return the resume file content associated with a profile."""
+    pf_path = PROFILES_DIR / f"{name}.md"
+    if not pf_path.exists():
+        raise HTTPException(status_code=404, detail=f"Profile not found: {name}")
+    fm = _parse_profile_frontmatter(pf_path)
+    resume_path = fm.get("resume", "")
+    if not resume_path:
+        raise HTTPException(status_code=404, detail="No resume associated with this profile")
+    # Resolve relative path
+    resolved = (PROFILES_DIR / resume_path).resolve()
+    if not resolved.exists():
+        # Try from project root
+        resolved = (ROOT / resume_path).resolve()
+    if not resolved.exists():
+        raise HTTPException(status_code=404, detail=f"Resume file not found: {resume_path}")
+    content = resolved.read_text(encoding="utf-8")
+    return {
+        "filename": resolved.name,
+        "content": content,
+        "format": resolved.suffix.lstrip(".").lower(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Config API (with full Feishu credential editing)
+# ---------------------------------------------------------------------------
+
+FEISHU_FIELDS = ["app_id", "app_secret", "wiki_node_token", "bitable_token", "bitable_table_id"]
+
 
 @app.get("/api/config")
 async def get_config():
-    """Return agent config + profile list."""
-    # Agent config
     agent_path = CONFIG_DIR / "agent.yaml"
     sample_path = CONFIG_DIR / "agent.sample.yaml"
     cfg = _read_yaml(agent_path) if agent_path.exists() else _read_yaml(sample_path)
 
-    # Security: mask secrets
-    feishu = cfg.get("feishu", {})
-    safe_feishu = {
-        "enabled": bool(feishu.get("enabled", False)),
-        "has_credentials": bool(feishu.get("app_id") and feishu.get("app_secret")),
-        "has_wiki": bool(feishu.get("wiki_node_token")),
-        "has_bitable": bool(feishu.get("bitable_token") and feishu.get("bitable_table_id")),
+    feishu_cfg = cfg.get("feishu", {})
+    # Return actual values so they can be edited inline (local-only, not exposed to internet)
+    feishu = {
+        "enabled": bool(feishu_cfg.get("enabled", False)),
     }
+    for f in FEISHU_FIELDS:
+        feishu[f] = feishu_cfg.get(f, "")
 
-    # Profiles
     profiles = []
     for pf in sorted(PROFILES_DIR.glob("*.md")):
         fm = _parse_profile_frontmatter(pf)
@@ -265,18 +359,15 @@ async def get_config():
         "threshold_score": cfg.get("threshold_score", 70),
         "jd_truncate_length": cfg.get("jd_truncate_length", 6000),
         "output": cfg.get("output", {}),
-        "feishu": safe_feishu,
+        "feishu": feishu,
         "profiles": profiles,
     }
 
 
 @app.put("/api/config")
 async def update_config(body: dict):
-    """Update agent.yaml (feishu toggle) and/or profile enabled states."""
     agent_path = CONFIG_DIR / "agent.yaml"
     sample_path = CONFIG_DIR / "agent.sample.yaml"
-
-    # Ensure agent.yaml exists
     if not agent_path.exists():
         if sample_path.exists():
             shutil.copy(sample_path, agent_path)
@@ -284,12 +375,21 @@ async def update_config(body: dict):
             agent_path.write_text("", encoding="utf-8")
     cfg = _read_yaml(agent_path)
 
-    # Update feishu
+    # Update feishu credentials
     feishu_updates = body.get("feishu", {})
     if feishu_updates:
         cfg.setdefault("feishu", {})
         if "enabled" in feishu_updates:
             cfg["feishu"]["enabled"] = bool(feishu_updates["enabled"])
+        for f in FEISHU_FIELDS:
+            if f in feishu_updates:
+                cfg["feishu"][f] = str(feishu_updates[f])
+
+    # Update top-level config fields
+    for field in ("decision_level", "threshold_score", "time_filter_days"):
+        if field in body:
+            cfg[field] = type(cfg.get(field, ""))(body[field])
+
     _write_yaml(agent_path, cfg)
 
     # Update profile enabled states
@@ -313,7 +413,6 @@ async def update_config(body: dict):
 # ---------------------------------------------------------------------------
 
 def _extract_report_meta(path: Path) -> Optional[dict]:
-    """Parse a report file to extract Basic Info fields."""
     try:
         text = path.read_text(encoding="utf-8")[:3000]
     except Exception:
@@ -323,7 +422,6 @@ def _extract_report_meta(path: Path) -> Optional[dict]:
     top_score = 0
     job_type = ""
     generated = ""
-
     for line in text.splitlines():
         line = line.strip()
         if line.startswith("- **Profile**:"):
@@ -337,7 +435,6 @@ def _extract_report_meta(path: Path) -> Optional[dict]:
                 job_count = int(line.split(":", 1)[-1].strip())
             except ValueError:
                 pass
-    # Extract top score
     for m in re.finditer(r"Score:\s*(\d+)", text):
         try:
             score = int(m.group(1))
@@ -345,7 +442,6 @@ def _extract_report_meta(path: Path) -> Optional[dict]:
                 top_score = score
         except ValueError:
             pass
-
     return {
         "filename": path.name,
         "relpath": str(path.relative_to(OUTPUT_DIR)).replace("\\", "/"),
@@ -361,7 +457,6 @@ def _extract_report_meta(path: Path) -> Optional[dict]:
 
 @app.get("/api/reports")
 async def list_reports():
-    """Scan output/ for reports, excluding evals and application_packages."""
     if not OUTPUT_DIR.exists():
         return []
     reports = []
@@ -378,8 +473,6 @@ async def list_reports():
 
 @app.get("/api/reports/{filename:path}")
 async def get_report(filename: str):
-    """Return a full Markdown report."""
-    # Security: only allow relative paths within output/
     safe_path = (OUTPUT_DIR / filename).resolve()
     if not str(safe_path).startswith(str(OUTPUT_DIR.resolve())):
         raise HTTPException(status_code=403, detail="Access denied")
@@ -389,12 +482,11 @@ async def get_report(filename: str):
 
 
 # ---------------------------------------------------------------------------
-# Health API
+# Health API (with batch repair)
 # ---------------------------------------------------------------------------
 
 @app.get("/api/health")
 async def health_overview():
-    """Aggregate strategy task status from logs/strategy_tasks/."""
     task_root = LOGS_DIR / "strategy_tasks"
     if not task_root.exists():
         return {"summary": {"total": 0, "pending": 0, "blocked": 0, "failed": 0, "repaired": 0}, "tasks": []}
@@ -412,17 +504,20 @@ async def health_overview():
                 data = json.loads(task_file.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
                 continue
+            raw_reason = (data.get("decision") or {}).get("reason", "")
             entry = {
                 "company_id": (data.get("company") or {}).get("id", cid),
                 "company_name": (data.get("company") or {}).get("name", cid),
                 "status": data.get("status", "pending"),
-                "reason": (data.get("decision") or {}).get("reason", ""),
+                "reason": raw_reason,
+                "reason_label": _bilingual(raw_reason),
                 "created_at": data.get("created_at", ""),
                 "evidence_dir": data.get("evidence_dir"),
+                "task_path": str(task_file.relative_to(LOGS_DIR)),
             }
             if cid not in latest or entry["created_at"] > latest[cid].get("created_at", ""):
                 latest[cid] = entry
-            break  # only need latest timestamp per company
+            break
 
     tasks = sorted(latest.values(), key=lambda t: t["created_at"], reverse=True)
     summary = {
@@ -433,6 +528,35 @@ async def health_overview():
         "repaired": sum(1 for t in tasks if t["status"] == "repaired"),
     }
     return {"summary": summary, "tasks": tasks}
+
+
+@app.post("/api/health/repair")
+async def trigger_health_repair(body: dict):
+    """Batch trigger health inspection for selected companies (or all)."""
+    company_ids = body.get("company_ids", [])
+    keyword = str(body.get("keyword", "产品经理"))
+    job_type = str(body.get("job_type", "social"))
+
+    def _run():
+        from src.health_monitor import HealthMonitor
+        monitor = HealthMonitor()
+        if company_ids:
+            import json as _json
+            results = []
+            for cid in company_ids:
+                try:
+                    r = monitor.inspect_company_strategy(cid, keyword=keyword, job_type=job_type, headless=True)
+                    results.append({"company_id": cid, "status": "ok", "result": r})
+                except Exception as exc:
+                    results.append({"company_id": cid, "status": "error", "error": str(exc)})
+            print(_json.dumps(results, ensure_ascii=False, indent=2))
+        else:
+            summary = monitor.inspect_all_strategies(keyword=keyword, job_type=job_type, headless=True)
+            print(_json.dumps(summary, ensure_ascii=False, indent=2))
+        print("[HealthRepair] Batch inspection complete")
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"ok": True, "message": f"Started batch repair for {len(company_ids) if company_ids else 'all'} companies in background"}
 
 
 # ---------------------------------------------------------------------------
