@@ -206,41 +206,65 @@ function showModal(title,bodyHtml,width='560px'){
 // ══════════════════════════════════════════════
 // Tab 1: 公司与策略 (companies + health)
 // ══════════════════════════════════════════════
-let _coData=[];
+let _coData=[],_healthData=null,_coFilter='enabled',_selCompanies=new Set();
 renderers.strategy=async()=>{
   const[companies,health]=await Promise.all([api('/api/companies'),api('/api/health')]);
-  _coData=companies;
+  _coData=companies;_healthData=health;_selCompanies=new Set();
+  const sorted=_sortCompanies(companies,_coFilter);
+  renderHealthPanel(health);
+  renderCompanyGrid(sorted);
+};
+
+function _sortCompanies(list,filter){
+  let out=[...list];
+  if(filter==='enabled') out.sort((a,b)=>(b.enabled-a.enabled)||a.name.localeCompare(b.name,'zh'));
+  else if(filter==='all') out.sort((a,b)=>a.name.localeCompare(b.name,'zh'));
+  else if(filter==='disabled') out.sort((a,b)=>a.name.localeCompare(b.name,'zh'));
+  return out;
+}
+
+function renderHealthPanel(health){
   const s=health.summary;
   const statusClass=st=>st==='blocked'?'badge-err':st==='pending'?'badge-warn':st==='repaired'?'badge-ok':'badge-info';
   const statusLabel=st=>({pending:'待处理',blocked:'阻塞',failed:'失败',repaired:'已修复'}[st]||st);
-  const searchHtml=`<div class="card"><div class="flex-between flex-wrap gap-2"><div class="search-bar" style="flex:1;max-width:360px"><input type="search" id="coSearch" placeholder="搜索公司..." oninput="filterCompanies()"></div><div class="flex gap-2"><button class="btn btn-primary" onclick="showAddModal()">+ 新增公司</button></div></div></div>`;
-  const healthHtml=s.total>0?`
-    <div class="card"><div class="card-header"><h3>&#x1fa79; 策略健康</h3><button class="btn btn-outline btn-sm" onclick="loadTab('strategy')">刷新</button></div>
-      <div class="health-strip">
-        <div class="hs-card hs-total"><div class="hs-num" style="color:var(--primary)">${s.total}</div><div class="hs-label">总异常</div></div>
-        <div class="hs-card hs-pending"><div class="hs-num" style="color:var(--yellow)">${s.pending}</div><div class="hs-label">待处理</div></div>
-        <div class="hs-card hs-blocked"><div class="hs-num" style="color:var(--red)">${s.blocked}</div><div class="hs-label">阻塞</div></div>
-        <div class="hs-card hs-failed"><div class="hs-num" style="color:var(--text-muted)">${s.failed}</div><div class="hs-label">失败</div></div>
-      </div>
-      ${health.tasks.map(t=>`
-        <div class="row" style="grid-template-columns:1fr auto auto">
-          <div><strong>${esc(t.company_name)}</strong> <span class="badge ${statusClass(t.status)}">${statusLabel(t.status)}</span><div class="text-sm mt-1" style="color:var(--text-secondary)">${esc(t.reason_label||t.reason)}</div></div>
-          <span class="text-muted text-sm">${(t.created_at||'').slice(0,16)}</span>
-          <button class="btn btn-outline btn-sm" onclick="retryCompany('${esc(t.company_id)}')">&#x1f6e0; 重试</button>
-        </div>
-      `).join('')}
-    </div>`:'';
+  let wrap=$('#healthPanel');
+  if(!wrap){document.getElementById('content').insertAdjacentHTML('afterbegin','<div id="healthPanel"></div>');wrap=$('#healthPanel')}
+  if(s.total===0){
+    wrap.innerHTML=`<div class="card"><div class="card-header"><h3>&#x1fa79; 策略健康</h3><button class="btn btn-outline btn-sm" onclick="refreshHealth()">&#x21bb; 刷新</button></div><div class="empty-state">&#x2705; 所有已启用公司抓取策略正常</div></div>`;
+    return;
+  }
+  let h=`<div class="card"><div class="card-header"><h3>&#x1fa79; 策略健康</h3><div class="flex gap-2"><button class="btn btn-outline btn-sm" onclick="$$('.hc-cb').forEach(cb=>{cb.checked=true;_selCompanies=new Set(health.tasks.map(t=>t.company_id));updateBatchBtn()})">全选</button><button class="btn btn-outline btn-sm" onclick="$$('.hc-cb').forEach(cb=>{cb.checked=false});_selCompanies.clear();updateBatchBtn()">取消</button><button class="btn btn-primary btn-sm" id="batchRepairBtn" disabled onclick="batchRepair()">&#x1f6e0; 批量修复 (0)</button><button class="btn btn-outline btn-sm" onclick="refreshHealth()">&#x21bb; 刷新</button></div></div>`;
+  h+=`<div class="health-strip"><div class="hs-card hs-total"><div class="hs-num" style="color:var(--primary)">${s.total}</div><div class="hs-label">总异常</div></div><div class="hs-card hs-pending"><div class="hs-num" style="color:var(--yellow)">${s.pending}</div><div class="hs-label">待处理</div></div><div class="hs-card hs-blocked"><div class="hs-num" style="color:var(--red)">${s.blocked}</div><div class="hs-label">阻塞</div></div><div class="hs-card hs-failed"><div class="hs-num" style="color:var(--text-muted)">${s.failed}</div><div class="hs-label">失败</div></div></div>`;
+  for(const t of health.tasks){
+    h+=`<div class="row" style="grid-template-columns:auto 1fr auto auto"><input type="checkbox" class="checkbox hc-cb" data-cid="${esc(t.company_id)}" onchange="toggleHcSel('${esc(t.company_id)}',this.checked)"><div><strong>${esc(t.company_name)}</strong> <span class="badge ${statusClass(t.status)}">${statusLabel(t.status)}</span><div class="text-sm mt-1" style="color:var(--text-secondary)">${esc(t.reason_label||t.reason)}</div></div><span class="text-muted text-sm">${(t.created_at||'').slice(0,16)}</span><button class="btn btn-outline btn-sm" onclick="retryOne('${esc(t.company_id)}')">&#x1f6e0; 重试</button></div>`;
+  }
+  h+=`</div>`;
+  wrap.innerHTML=h;
+}
+window.refreshHealth=async()=>{const h=await api('/api/health');_healthData=h;renderHealthPanel(h);renderCompanyGrid(_sortCompanies(_coData,_coFilter))};
+window.toggleHcSel=(cid,checked)=>{if(checked)_selCompanies.add(cid);else _selCompanies.delete(cid);updateBatchBtn()};
+window.updateBatchBtn=()=>{const b=$('#batchRepairBtn');if(b){b.disabled=_selCompanies.size===0;b.textContent=`批量修复 (${_selCompanies.size})`}};
+window.batchRepair=async()=>{if(_selCompanies.size===0)return;const n=_selCompanies.size;if(!confirm(`确认对 ${n} 家公司执行策略巡检？后台运行，完成后刷新。`))return;await api('/api/health/repair',{method:'POST',body:JSON.stringify({company_ids:[..._selCompanies],keyword:'',job_type:'social'})});toast(`已触发 ${n} 家公司后台巡检`);_selCompanies.clear();updateBatchBtn()};
+window.retryOne=async(id)=>{try{const r=await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'',job_type:'social'})});toast(r.ok?`${id}: ${r.jobs_count} 岗位`:`${id}: 测试失败`);await refreshHealth()}catch(e){toast('重试失败: '+e.message)}};
+
+function renderCompanyGrid(companies){
+  // Build health lookup from _healthData
+  const healthMap={};if(_healthData)for(const t of _healthData.tasks||[]){healthMap[t.company_id]=t}
+  const searchHtml=`<div class="card"><div class="flex-between flex-wrap gap-2"><div class="flex gap-2" style="align-items:center"><div class="search-bar" style="width:260px"><input type="search" id="coSearch" placeholder="搜索公司..." oninput="applyCoFilters()"></div><select id="coFilter" onchange="_coFilter=this.value;applyCoFilters()" style="width:auto;padding:9px 12px"><option value="enabled">已启用优先</option><option value="all">全部</option><option value="disabled">仅已禁用</option></select></div><button class="btn btn-primary" onclick="showAddModal()">+ 新增公司</button></div></div>`;
   const coHtml=`
     <div class="company-grid">
       ${companies.map(c=>{
         const urlKeys=Object.keys(c.urls||{}).filter(k=>c.urls[k]);
+        const h=healthMap[c.id];
+        const hBadge=h?`<span class="badge ${h.status==='blocked'?'badge-err':h.status==='pending'?'badge-warn':'badge-info'}" title="${esc(h.reason_label||h.reason||'')}">&#x1fa79; ${({pending:'待修复',blocked:'阻塞',failed:'失败',repaired:'已修复'}[h.status]||h.status)}</span>`:'';
         return `
-        <div class="company-card ${c.enabled?'':'disabled'}" data-cid="${esc(c.id)}" data-search="${esc(c.name+' '+c.id)}">
+        <div class="company-card ${c.enabled?'':'disabled'}" data-cid="${esc(c.id)}" data-search="${esc(c.name+' '+c.id)}" data-enabled="${c.enabled?'1':'0'}">
           <div class="c-top">
             <div class="c-name">
               <span>${esc(c.name)}</span><code style="font-size:11px">${esc(c.id)}</code>
               <span class="badge ${c.enabled?'badge-ok':'badge-warn'}">${c.enabled?'已启用':'已禁用'}</span>
               ${c.strategy_type!=='unknown'?`<span class="badge badge-info">${esc(c.strategy_type)}</span>`:''}
+              ${hBadge}
             </div>
             <label class="toggle"><input type="checkbox" ${c.enabled?'checked':''} onchange="toggleCo('${esc(c.id)}',this.checked)"><div class="toggle-track"></div></label>
           </div>
@@ -255,13 +279,25 @@ renderers.strategy=async()=>{
         </div>`;
       }).join('')}
     </div>`;
-  document.getElementById('content').innerHTML=searchHtml+healthHtml+coHtml;
+  let gridEl=$('#companyGridSection');
+  if(!gridEl){document.getElementById('content').insertAdjacentHTML('beforeend','<div id="companyGridSection"></div>');gridEl=$('#companyGridSection')}
+  gridEl.innerHTML=searchHtml+coHtml;
+  $('#coFilter').value=_coFilter;
+}
+window.applyCoFilters=()=>{
+  const q=$('#coSearch')?.value?.toLowerCase()||'';
+  const filter=_coFilter;
+  let sorted=_sortCompanies(_coData,filter);
+  $$('.company-card').forEach(c=>{
+    const matchSearch=!q||c.dataset.search.toLowerCase().includes(q);
+    const matchFilter=filter==='all'||(filter==='enabled'&&c.dataset.enabled==='1')||(filter==='disabled'&&c.dataset.enabled==='0');
+    c.style.display=(matchSearch&&matchFilter)?'':'none';
+  });
 };
 
-window.filterCompanies=()=>{const q=$('#coSearch')?.value?.toLowerCase()||'';$$('.company-card').forEach(c=>{c.style.display=(!q||c.dataset.search.toLowerCase().includes(q))?'':'none'})};
-window.toggleCo=async(id,en)=>{await api(`/api/companies/${id}`,{method:'PUT',body:JSON.stringify({enabled:en})});toast(en?'已启用 '+id:'已禁用 '+id)};
-window.testCo=async(id)=>{const el=$(`#test-${id}`);el.innerHTML='<span class="spinner"></span>';try{const r=await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'',job_type:'social'})});el.innerHTML=r.ok?`<span style="color:var(--green)">&#x2705; ${r.jobs_count}岗</span>`:`<span style="color:var(--red)">&#x274c; 失败</span>`;if(!r.ok)el.innerHTML+=` <span class="text-sm text-muted">${esc((r.error||'').substring(0,60))}</span>`}catch(e){el.innerHTML=`<span style="color:var(--red)">&#x274c;</span>`}};
-window.retryCompany=async(id)=>{const el=$(`#test-${id}`);if(el){await testCo(id)}else{await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'',job_type:'social'})});toast('已重试 '+id);renderers.strategy()}};
+window.filterCompanies=window.applyCoFilters;
+window.toggleCo=async(id,en)=>{await api(`/api/companies/${id}`,{method:'PUT',body:JSON.stringify({enabled:en})});const c=_coData.find(x=>x.id===id);if(c)c.enabled=en;applyCoFilters();toast(en?'已启用 '+id:'已禁用 '+id)};
+window.testCo=async(id)=>{const el=$(`#test-${id}`);el.innerHTML='<span class="spinner"></span>';try{const r=await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'',job_type:'social'})});el.innerHTML=r.ok?`<span style="color:var(--green)">&#x2705; ${r.jobs_count}岗</span>`:`<span style="color:var(--red)">&#x274c; 失败</span>`;if(!r.ok){el.innerHTML+=` <span class="text-sm text-muted">${esc((r.error||'').substring(0,60))}</span>`;await refreshHealth()}}catch(e){el.innerHTML=`<span style="color:var(--red)">&#x274c;</span>`;await refreshHealth()}};
 window.deleteCo=async(id)=>{if(!confirm(`确定删除 "${id}"？此操作不可恢复。`))return;await api(`/api/companies/${id}`,{method:'DELETE'});toast('已删除 '+id);renderers.strategy()};
 
 window.showAddModal=()=>{showModal('新增公司',`
@@ -336,67 +372,43 @@ window.deleteResume=async(n)=>{if(!confirm(`删除 "${n}"？`))return;const r=aw
 // ══════════════════════════════════════════════
 renderers.tasks=async()=>{
   const[cfg,reports]=await Promise.all([api('/api/config'),api('/api/reports')]);
-  const fs=cfg.feishu;
-  const rptByProfile={};for(const r of reports){(rptByProfile[r.profile||'未知']=rptByProfile[r.profile||'未知']||[]).push(r)}
+  const rptByProfile={};for(const r of reports){const k=r.profile||'未知';if(!rptByProfile[k])rptByProfile[k]=[];rptByProfile[k].push(r)}
+  const fs=cfg.feishu||{};
+  let sidebarHtml='<div class="card"><div class="card-header"><h3>&#x1f4e1; 飞书推送 <span class="tooltip-wrap" style="margin-left:6px"><button class="tooltip-trigger">?</button><div class="tooltip-box">在飞书开放平台创建企业自建应用 → 获取 App ID 和 App Secret → 开启机器人能力 → 在知识库中创建知识空间获取 Wiki Token → 在多维表格中获取 Bitable Token 和 Table ID。填入后开启推送开关即可。</div></span></h3></div>';
+  sidebarHtml+=`<label class="toggle" style="margin-bottom:14px"><input type="checkbox" ${fs.enabled?"checked":""} onchange="toggleFs(this.checked)"><div class="toggle-track"></div><span>${fs.enabled?"推送已开启":"推送已关闭"}</span></label>`;
+  sidebarHtml+='<details style="margin-top:8px"><summary class="text-sm" style="cursor:pointer;color:var(--text-secondary);font-weight:500">编辑凭证</summary><div style="margin-top:10px">';
+  sidebarHtml+=`<label class="text-sm">App ID</label><input id="fsAppId" value="${esc(fs.app_id||"")}" placeholder="飞书应用 App ID" style="margin-bottom:8px">`;
+  sidebarHtml+=`<label class="text-sm">App Secret</label><input id="fsAppSecret" type="password" value="${esc(fs.app_secret||"")}" placeholder="飞书应用 Secret" style="margin-bottom:8px">`;
+  sidebarHtml+=`<label class="text-sm">Wiki Node Token</label><input id="fsWiki" value="${esc(fs.wiki_node_token||"")}" placeholder="知识库节点 Token" style="margin-bottom:8px">`;
+  sidebarHtml+=`<label class="text-sm">Bitable Token</label><input id="fsBitable" value="${esc(fs.bitable_token||"")}" placeholder="多维表格 Token" style="margin-bottom:8px">`;
+  sidebarHtml+=`<label class="text-sm">Bitable Table ID</label><input id="fsTableId" value="${esc(fs.bitable_table_id||"")}" placeholder="表格 ID">`;
+  sidebarHtml+='<button class="btn btn-primary btn-sm mt-2" onclick="saveFs()">保存配置</button></div></details></div>';
+  sidebarHtml+='<div class="card"><div class="card-header"><h3>&#x1f916; 求职意向</h3></div>';
+  for(const p of cfg.profiles||[]){
+    const cnt=(rptByProfile[p.name]||[]).length;
+    sidebarHtml+=`<div class="row" style="grid-template-columns:1fr auto auto"><div><div class="flex gap-1" style="align-items:center;flex-wrap:wrap"><strong>${esc(p.name)}</strong><code>${esc(p.job_type||"")}</code>`;
+    if(p.keywords)for(const k of p.keywords)sidebarHtml+=`<span class="kw-tag">${esc(k)}</span>`;
+    sidebarHtml+=`</div>${p.resume?`<div class="text-sm text-muted mt-1">&#x1f4ce; ${esc(p.resume)}</div>`:""}</div><div class="flex gap-1" style="align-items:center">`;
+    if(p.resume)sidebarHtml+=`<button class="btn btn-outline btn-sm" onclick="viewProfileResume('${esc(p.name)}')">简历</button>`;
+    sidebarHtml+=`<label class="toggle"><input type="checkbox" ${p.enabled?"checked":""} onchange="togglePf('${esc(p.name)}',this.checked)"><div class="toggle-track"></div></label></div></div>`;
+  }
+  sidebarHtml+='</div><button class="btn btn-primary" style="width:100%" onclick="toast(\'请在终端运行: python -m src.cli\')">&#x25b6; 立即巡检</button><div class="text-sm text-muted mt-1" style="text-align:center">运行 python -m src.cli 并刷新此页查看结果</div>';
 
-  const sidebar=`
-    <div class="card"><div class="card-header"><h3>&#x1f4e1; 飞书推送
-      <span class="tooltip-wrap" style="margin-left:6px"><button class="tooltip-trigger">?</button><div class="tooltip-box">在飞书开放平台创建企业自建应用 → 获取 App ID 和 App Secret → 开启机器人能力 → 在知识库中创建知识空间获取 Wiki Token → 在多维表格中获取 Bitable Token 和 Table ID。填入后开启推送开关即可。</div></span>
-    </h3></div>
-      <label class="toggle" style="margin-bottom:14px"><input type="checkbox" ${fs.enabled?'checked':''} onchange="toggleFs(this.checked)"><div class="toggle-track"></div><span>${fs.enabled?'推送已开启':'推送已关闭'}</span></label>
-      <details style="margin-top:8px"><summary class="text-sm" style="cursor:pointer;color:var(--text-secondary);font-weight:500">编辑凭证</summary>
-        <div style="margin-top:10px">
-          <label class="text-sm">App ID</label><input id="fsAppId" value="${esc(fs.app_id||'')}" placeholder="飞书应用 App ID" style="margin-bottom:8px">
-          <label class="text-sm">App Secret</label><input id="fsAppSecret" type="password" value="${esc(fs.app_secret||'')}" placeholder="飞书应用 Secret" style="margin-bottom:8px">
-          <label class="text-sm">Wiki Node Token</label><input id="fsWiki" value="${esc(fs.wiki_node_token||'')}" placeholder="知识库节点 Token" style="margin-bottom:8px">
-          <label class="text-sm">Bitable Token</label><input id="fsBitable" value="${esc(fs.bitable_token||'')}" placeholder="多维表格 Token" style="margin-bottom:8px">
-          <label class="text-sm">Bitable Table ID</label><input id="fsTableId" value="${esc(fs.bitable_table_id||'')}" placeholder="表格 ID">
-          <button class="btn btn-primary btn-sm mt-2" onclick="saveFs()">保存配置</button>
-        </div>
-      </details>
-    </div>
-    <div class="card"><div class="card-header"><h3>&#x1f916; 求职意向</h3></div>
-      ${cfg.profiles.map(p=>{
-        const cnt=(rptByProfile[p.name]||[]).length;
-        return `
-        <div class="row" style="grid-template-columns:1fr auto auto">
-          <div>
-            <div class="flex gap-1" style="align-items:center;flex-wrap:wrap">
-              <strong>${esc(p.name)}</strong><code>${esc(p.job_type||'')}</code>
-              ${p.keywords?.map(k=>`<span class="kw-tag">${esc(k)}</span>`).join('')||''}
-            </div>
-            ${p.resume?`<div class="text-sm text-muted mt-1">&#x1f4ce; ${esc(p.resume)}</div>`:''}
-          </div>
-          <div class="flex gap-1" style="align-items:center">
-            ${p.resume?`<button class="btn btn-outline btn-sm" onclick="viewProfileResume('${esc(p.name)}')">简历</button>`:''}
-            <label class="toggle"><input type="checkbox" ${p.enabled?'checked':''} onchange="togglePf('${esc(p.name)}',this.checked)"><div class="toggle-track"></div></label>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>
-    <button class="btn btn-primary" style="width:100%" onclick="runInspect()">&#x25b6; 立即巡检</button>
-    <div class="text-sm text-muted mt-1" style="text-align:center">运行 python -m src.cli 并刷新此页查看结果</div>
-  `;
-
-  const mainArea=`
-    <div class="card"><div class="card-header"><h3>&#x1f4c4; 巡检报告</h3><span class="text-sm text-muted">${reports.length} 份报告</span></div>
-      ${reports.length===0?`<div class="empty-state">暂无报告。<br>启用意向后运行 <code>python -m src.cli</code></div>`:`
-        ${Object.entries(rptByProfile).map(([profile,items])=>`
-          <div style="margin-bottom:14px">
-            <div class="text-sm" style="font-weight:600;color:var(--text-secondary);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border-subtle)">&#x1f4cc; ${esc(profile)} · ${items.length} 份</div>
-            ${items.map(r=>`
-              <div class="row" style="grid-template-columns:1fr auto;cursor:pointer" onclick="viewReport('${esc(r.relpath)}')">
-                <div><strong>${esc(r.generated||r.modified?.slice(0,10)||'')}</strong><span class="text-muted text-sm" style="margin-left:8px">${r.job_count} 岗位 · 最高 ${r.top_score} 分</span></div>
-                <span class="text-sm text-muted">${fs(r.size)}</span>
-              </div>
-            `).join('')}
-          </div>
-        `).join('')}
-      `}
-    </div>
-    <div id="reportDetail"></div>`;
-
-  document.getElementById('content').innerHTML=`<div class="report-layout"><div class="report-sidebar">${sidebar}</div><div>${mainArea}</div></div>`;
+  let mainHtml=`<div class="card"><div class="card-header"><h3>&#x1f4c4; 巡检报告</h3><span class="text-sm text-muted">${reports.length} 份报告</span></div>`;
+  if(reports.length===0){
+    mainHtml+='<div class="empty-state">暂无报告。<br>启用意向后运行 <code>python -m src.cli</code></div>';
+  }else{
+    const entries=Object.entries(rptByProfile);
+    for(const[profile,items]of entries){
+      mainHtml+=`<div style="margin-bottom:14px"><div class="text-sm" style="font-weight:600;color:var(--text-secondary);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border-subtle)">&#x1f4cc; ${esc(profile)} · ${items.length} 份</div>`;
+      for(const r of items){
+        mainHtml+=`<div class="row" style="grid-template-columns:1fr auto;cursor:pointer" onclick="viewReport('${esc(r.relpath)}')"><div><strong>${esc(r.generated||r.modified?.slice(0,10)||"")}</strong><span class="text-muted text-sm" style="margin-left:8px">${r.job_count} 岗位 · 最高 ${r.top_score} 分</span></div><span class="text-sm text-muted">${fs(r.size)}</span></div>`;
+      }
+      mainHtml+='</div>';
+    }
+  }
+  mainHtml+='</div><div id="reportDetail"></div>';
+  document.getElementById('content').innerHTML=`<div class="report-layout"><div class="report-sidebar">${sidebarHtml}</div><div>${mainHtml}</div></div>`;
 };
 
 window.toggleFs=async(en)=>{await api('/api/config',{method:'PUT',body:JSON.stringify({feishu:{enabled:en}})});toast(en?'飞书推送已开启':'飞书推送已关闭')};
