@@ -205,7 +205,6 @@ function showModal(title,bodyHtml,width='560px'){
   const ov=document.createElement('div');ov.className='modal-overlay';
   ov.innerHTML=`<div class="modal-box" style="width:${width}"><div class="modal-header"><h3 style="font-family:var(--font-mono);font-size:13px;color:var(--primary);letter-spacing:.3px">${title}</h3><button class="btn btn-outline btn-sm" onclick="this.closest('.modal-overlay').remove()">&#x2715; 关闭</button></div><div class="modal-body">${bodyHtml}</div></div>`;
   document.body.appendChild(ov);
-  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove()});
 }
 
 // ══════════════════════════════════════════════
