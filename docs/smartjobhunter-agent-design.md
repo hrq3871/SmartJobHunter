@@ -126,11 +126,14 @@ SmartJobHunter/
 │   ├── feishu_push.py               # 飞书 Wiki 推送
 │   ├── feishu_bitable.py            # 飞书多维表格
 │   ├── notifier.py                  # 用户通知（抓取失败路径）
+│   ├── web_ui.py                    # 本地管理控制台（FastAPI，仅 127.0.0.1）
 │   ├── scheduler.py                 # 定时调度（每天 20:00）
 │   ├── evaluation.py                # Agent 评估 harness
 │   ├── eval_graders.py              # Code/model/human grader
 │   ├── eval_transcript.py           # JSONL 轨迹记录
 │   └── exceptions.py                # 异常类型定义
+├── templates/
+│   └── index.html                    # Web 控制台 SPA 前端
 ├── .claude/skills/jobhunter/
 │   ├── skill.md                    # Skillmap：触发词和路由索引
 │   ├── profile.md
