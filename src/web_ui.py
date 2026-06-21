@@ -533,6 +533,16 @@ async def health_overview():
     return {"summary": summary, "tasks": tasks}
 
 
+@app.delete("/api/health/{company_id}")
+async def clear_health_entry(company_id: str):
+    """Remove all strategy tasks for a company (e.g., after a successful retry)."""
+    task_dir = LOGS_DIR / "strategy_tasks" / company_id
+    if task_dir.exists():
+        shutil.rmtree(task_dir)
+        return {"ok": True, "message": f"Cleared health tasks for {company_id}"}
+    return {"ok": True, "message": f"No tasks found for {company_id}"}
+
+
 @app.post("/api/health/repair")
 async def trigger_health_repair(body: dict):
     """Batch trigger health inspection for selected companies (or all)."""

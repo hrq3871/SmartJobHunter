@@ -204,23 +204,45 @@ function showModal(title,bodyHtml,width='560px'){
 }
 
 // ══════════════════════════════════════════════
-// Tab 1: 公司与策略 (companies + health)
+// Tab 1: 公司与策略 (sub-tabs: companies | health)
 // ══════════════════════════════════════════════
-let _coData=[],_healthData=null,_coFilter='all',_selCompanies=new Set();
-renderers.strategy=async()=>{
+let _coData=[],_healthData=null,_coFilter='all',_selCompanies=new Set(),_strategySubTab='companies';
+renderers.strategy=()=>{renderStrategyLayout()};
+
+async function renderStrategyLayout(){
   const[companies,health]=await Promise.all([api('/api/companies'),api('/api/health')]);
-  _coData=companies;_healthData=health;_selCompanies=new Set();
-  const sorted=_sortCompanies(companies,_coFilter);
-  document.getElementById('content').innerHTML='<div id="companyGridSection"></div><div id="healthPanel"></div>';
-  renderCompanyGrid(sorted);
-  renderHealthPanel(health);
+  _coData=companies;_healthData=health;
+  // Build sub-nav
+  const subActive=(t)=>_strategySubTab===t?'active':'';
+  const html=`
+    <div class="card" style="padding:8px 20px;margin-bottom:16px"><div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-sm ${subActive('companies')}" style="${_strategySubTab==='companies'?'background:var(--primary-bg);color:var(--primary);font-weight:600':'background:transparent;color:var(--text-secondary)'}" onclick="_strategySubTab='companies';renderStrategyContent()">&#x1f4cb; 公司列表 (${companies.length})</button>
+      <button class="btn btn-sm ${subActive('health')}" style="${_strategySubTab==='health'?'background:var(--primary-bg);color:var(--primary);font-weight:600':'background:transparent;color:var(--text-secondary)'}" onclick="_strategySubTab='health';renderStrategyContent()">&#x1fa79; 策略健康 (${health.summary.total})</button>
+    </div></div>
+    <div id="strategyContent"></div>`;
+  document.getElementById('content').innerHTML=html;
+  renderStrategyContent();
+}
+window.renderStrategyContent=()=>{
+  const sc=document.getElementById('strategyContent');if(!sc)return;
+  if(_strategySubTab==='health'){renderHealthPanel(_healthData);return}
+  sc.innerHTML='';
+  renderCompanyGrid(_sortCompanies(_coData,_coFilter));
 };
+window.switchStrategySubTab=(tab)=>{_strategySubTab=tab;renderStrategyLayout()};
 
 function _sortCompanies(list,filter){
   let out=[...list];
-  if(filter==='enabled') out.sort((a,b)=>(b.enabled-a.enabled)||a.name.localeCompare(b.name,'zh'));
-  else if(filter==='all') out.sort((a,b)=>a.name.localeCompare(b.name,'zh'));
-  else if(filter==='disabled') out.sort((a,b)=>a.name.localeCompare(b.name,'zh'));
+  out.sort((a,b)=>(b.enabled-a.enabled)||a.name.localeCompare(b.name,'zh'));
+  if(_healthData){
+    const pendingIds=new Set((_healthData.tasks||[]).filter(t=>t.status==='pending').map(t=>t.company_id));
+    if(filter==='pending'){out=out.filter(c=>pendingIds.has(c.id));out.sort((a,b)=>(b.enabled-a.enabled)||a.name.localeCompare(b.name,'zh'))}
+    else if(filter==='enabled') out=out.filter(c=>c.enabled);
+    else if(filter==='disabled') out=out.filter(c=>!c.enabled);
+  }else{
+    if(filter==='enabled') out=out.filter(c=>c.enabled);
+    else if(filter==='disabled') out=out.filter(c=>!c.enabled);
+  }
   return out;
 }
 
@@ -228,10 +250,9 @@ function renderHealthPanel(health){
   const s=health.summary||{total:0,pending:0,blocked:0,failed:0};
   const statusClass=st=>st==='blocked'?'badge-err':st==='pending'?'badge-warn':st==='repaired'?'badge-ok':'badge-info';
   const statusLabel=st=>({pending:'待处理',blocked:'阻塞',failed:'失败',repaired:'已修复'}[st]||st);
-  const wrap=document.getElementById('healthPanel');
-  if(!wrap)return;
+  const sc=document.getElementById('strategyContent');if(!sc)return;
   if(s.total===0){
-    wrap.innerHTML=`<div class="card"><div class="card-header"><h3>&#x1fa79; 策略健康</h3><button class="btn btn-outline btn-sm" onclick="refreshHealth()">&#x21bb; 刷新</button></div><div class="empty-state">&#x2705; 所有已启用公司抓取策略正常</div></div>`;
+    sc.innerHTML=`<div class="card"><div class="card-header"><h3>&#x1fa79; 策略健康</h3><button class="btn btn-outline btn-sm" onclick="refreshHealth()">&#x21bb; 刷新</button></div><div class="empty-state">&#x2705; 所有已启用公司抓取策略正常</div></div>`;
     return;
   }
   let h=`<div class="card"><div class="card-header"><h3>&#x1fa79; 策略健康</h3><div class="flex gap-2"><button class="btn btn-outline btn-sm" onclick="window._selectAllHealth()">全选</button><button class="btn btn-outline btn-sm" onclick="window._clearHealthSel()">取消</button><button class="btn btn-primary btn-sm" id="batchRepairBtn" disabled onclick="batchRepair()">&#x1f6e0; 批量修复 (0)</button><button class="btn btn-outline btn-sm" onclick="refreshHealth()">&#x21bb; 刷新</button></div></div>`;
@@ -242,7 +263,14 @@ function renderHealthPanel(health){
   h+=`</div>`;
   wrap.innerHTML=h;
 }
-window.refreshHealth=async()=>{const h=await api('/api/health');_healthData=h;renderHealthPanel(h);_updateCoHealthBadges()};
+window.refreshHealth=async()=>{
+  const h=await api('/api/health');_healthData=h;
+  if(_strategySubTab==='health')renderHealthPanel(h);
+  _updateCoHealthBadges();
+  // Update sub-tab badge count
+  const hbtn=document.querySelector('button[onclick*=\"_strategySubTab=\'health\'\"]');
+  if(hbtn)hbtn.textContent=`\u{1fa79} 策略健康 (${h.summary.total})`;
+};
 window._updateCoHealthBadges=()=>{
   const map={};if(_healthData)for(const t of _healthData.tasks||[]){map[t.company_id]=t}
   $$('.company-card').forEach(card=>{
@@ -261,14 +289,17 @@ window.batchRepair=async()=>{if(_selCompanies.size===0)return;const n=_selCompan
 window.retryOne=async(id)=>{
   const btns=$$(`button[onclick*="retryOne('${id}')"]`);
   btns.forEach(b=>{b.disabled=true;b.innerHTML='<span class="spinner"></span>'});
-  try{const r=await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'',job_type:'social'})});toast(r.ok?`${id}: ${r.jobs_count} 岗位`:`${id}: 测试失败`);await refreshHealth()}catch(e){toast('重试失败: '+e.message)}
+  try{const r=await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'',job_type:'social'})});
+    if(r.ok){await api(`/api/health/${encodeURIComponent(id)}`,{method:'DELETE'});toast(`${id}: ${r.jobs_count} 岗位 — 已清除`)}
+    else toast(`${id}: 测试失败`);
+    await refreshHealth()}catch(e){toast('重试失败: '+e.message)}
   btns.forEach(b=>{b.disabled=false;b.innerHTML='&#x1f6e0; 重试'});
 };
 
 function renderCompanyGrid(companies){
-  // Build health lookup from _healthData
+  const sc=document.getElementById('strategyContent');if(!sc)return;
   const healthMap={};if(_healthData)for(const t of _healthData.tasks||[]){healthMap[t.company_id]=t}
-  const searchHtml=`<div class="card"><div class="flex-between flex-wrap gap-2"><div class="flex gap-2" style="align-items:center"><button class="btn btn-primary" onclick="showAddModal()">+ 新增公司</button><select id="coFilter" onchange="_coFilter=this.value;applyCoFilters()" style="width:auto;padding:9px 12px"><option value="all">全部</option><option value="enabled">已启用</option><option value="disabled">已禁用</option></select></div><div class="search-bar" style="width:260px"><input type="search" id="coSearch" placeholder="搜索公司..." oninput="applyCoFilters()"></div></div></div>`;
+  const searchHtml=`<div class="card"><div class="flex-between flex-wrap gap-2"><div class="flex gap-2" style="align-items:center"><button class="btn btn-primary" onclick="showAddModal()">+ 新增公司</button><select id="coFilter" onchange="_coFilter=this.value;renderCompanyGrid(_sortCompanies(_coData,_coFilter))" style="width:auto;padding:9px 12px"><option value="all">全部</option><option value="enabled">已启用</option><option value="disabled">已禁用</option><option value="pending">待修复</option></select></div><div class="search-bar" style="width:260px"><input type="search" id="coSearch" placeholder="搜索公司..." oninput="applyCoFilters()"></div></div></div>`;
   const coHtml=`
     <div class="company-grid">
       ${companies.map(c=>{
@@ -297,20 +328,15 @@ function renderCompanyGrid(companies){
         </div>`;
       }).join('')}
     </div>`;
+  const sc=document.getElementById('strategyContent');if(!sc)return;
+  sc.innerHTML=`<div id="companyGridSection"></div>`;
   const gridEl=document.getElementById('companyGridSection');
-  if(!gridEl)return;
   gridEl.innerHTML=searchHtml+coHtml;
   $('#coFilter').value=_coFilter;
 }
 window.applyCoFilters=()=>{
   const q=$('#coSearch')?.value?.toLowerCase()||'';
-  const filter=_coFilter;
-  let sorted=_sortCompanies(_coData,filter);
-  $$('.company-card').forEach(c=>{
-    const matchSearch=!q||c.dataset.search.toLowerCase().includes(q);
-    const matchFilter=filter==='all'||(filter==='enabled'&&c.dataset.enabled==='1')||(filter==='disabled'&&c.dataset.enabled==='0');
-    c.style.display=(matchSearch&&matchFilter)?'':'none';
-  });
+  $$('.company-card').forEach(c=>{c.style.display=(!q||c.dataset.search.toLowerCase().includes(q))?'':'none'});
 };
 
 window.filterCompanies=window.applyCoFilters;
@@ -329,7 +355,7 @@ window.testCo=async(id)=>{
     const r=await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'',job_type:'social'})});
     el.innerHTML=r.ok?`<span style="color:var(--green)">&#x2705; ${r.jobs_count}岗</span>`:`<span style="color:var(--red)">&#x274c; 失败</span>`;
     if(!r.ok)el.innerHTML+=` <span class="text-sm text-muted">${esc((r.error||'').substring(0,60))}</span>`;
-    // 无论成败都刷新健康面板和卡片badge
+    if(r.ok)await api(`/api/health/${encodeURIComponent(id)}`,{method:'DELETE'});
     await refreshHealth();
   }catch(e){el.innerHTML=`<span style="color:var(--red)">&#x274c; ${esc(e.message)}</span>`;await refreshHealth()}
 };
