@@ -171,8 +171,7 @@ code{font-family:var(--font-mono);font-size:12px;background:var(--muted);padding
   <h1>&#x1f3af; SmartJobHunter <span>Console</span></h1>
   <nav id="tabs">
     <button class="active" data-tab="strategy">&#x2699;&#xfe0f; 公司与策略</button>
-    <button data-tab="resumes">&#x1f4c4; 简历管理</button>
-    <button data-tab="tasks">&#x1f4ca; 任务与结果</button>
+    <button data-tab="tasks">&#x1f4ca; 简历与巡检</button>
   </nav>
 </header>
 
@@ -395,79 +394,104 @@ window.saveCo=async(id)=>{
   const body={name:$('#eName').value.trim(),note:$('#eNote').value.trim(),urls:{social:$('#eUrlS').value.trim(),campus:$('#eUrlC').value.trim(),internship:$('#eUrlI').value.trim()}};
   await api(`/api/companies/${id}`,{method:'PUT',body:JSON.stringify(body)});document.querySelector('.modal-overlay')?.remove();toast('已保存');renderers.strategy();
 };
+window.previewResume=async(n)=>{try{const r=await api('/api/resumes');const f=r.find(x=>x.name===n);if(!f)return;const txt=f.format==='pdf'||f.format==='docx'?'(二进制文件，无法在线预览)':await fetch('/resumes/'+encodeURIComponent(n)).then(r=>r.text());showModal('&#x1f4c4; '+esc(n),f.format==='md'?`<div class="markdown-body">${marked.parse(txt)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:60vh;overflow-y:auto">${esc(txt)}</pre>`,'700px')}catch(e){toast('预览失败: '+e.message)}};
 
 // ══════════════════════════════════════════════
-// Tab 2: 简历管理
+// Tab 2: 简历与巡检
 // ══════════════════════════════════════════════
-renderers.resumes=async()=>{
-  const data=await api('/api/resumes');
-  const html=`
-    <div class="card"><div class="card-header"><h3>上传简历</h3></div>
-      <div class="upload-zone" id="dropZone"><div style="font-size:32px;margin-bottom:8px">&#x1f4c4;</div><div>拖拽文件到此，或点击选择</div><div class="text-sm text-muted mt-2">支持 .txt .md .docx .pdf .png .jpg，最大 10MB</div><input type="file" id="resumeInput" accept=".txt,.md,.docx,.pdf,.png,.jpg,.jpeg" multiple style="display:none"></div>
-      <div id="uploadStatus" class="mt-2 text-sm"></div>
-    </div>
-    <div class="card"><div class="card-header"><h3>已上传 (${data.length} 个文件)</h3></div>
-      ${data.length===0?`<div class="empty-state">暂无简历文件。上传第一份简历开始使用。</div>`:data.map(f=>`
-        <div class="row" style="grid-template-columns:1fr auto auto auto">
-          <div><span>&#x1f4c4; ${esc(f.name)}</span><span class="text-muted text-sm" style="margin-left:12px">${fs(f.size)} · ${(f.modified||'').slice(0,10)}</span></div>
-          <span class="badge badge-info">${esc(f.format)}</span>
-          <button class="btn btn-outline btn-sm" onclick="previewResume('${esc(f.name)}')">&#x1f441; 预览</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteResume('${esc(f.name)}')">删除</button>
-        </div>
-      `).join('')}
-    </div>`;
-  document.getElementById('content').innerHTML=html;
-  const zone=$('#dropZone'),input=$('#resumeInput');
-  zone.addEventListener('click',()=>input.click());
-  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag-over')});
-  zone.addEventListener('dragleave',()=>zone.classList.remove('drag-over'));
-  zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('drag-over');uploadFiles(e.dataTransfer.files)});
-  input.addEventListener('change',()=>uploadFiles(input.files));
-};
+let _tasksSelectedResume=null;
 
-async function uploadFiles(files){const s=$('#uploadStatus');for(const f of files){s.innerHTML=`<span class="spinner"></span> 上传: ${esc(f.name)}...`;const fd=new FormData();fd.append('file',f);try{const r=await fetch('/api/resumes',{method:'POST',body:fd}).then(r=>r.json());s.innerHTML=r.ok?`&#x2705; ${esc(f.name)} 上传成功`:`&#x274c; 失败`;if(r.referenced_by?.length)s.innerHTML+=` (已关联意向: ${r.referenced_by.join(', ')})`;else s.innerHTML+=` (暂无关联意向，Agent 运行后将自动创建)`}catch(e){s.innerHTML=`&#x274c; ${esc(e.message)}`}}setTimeout(()=>renderers.resumes(),800)}
-window.previewResume=async(n)=>{try{const r=await api(`/api/resumes`);const f=r.find(x=>x.name===n);if(!f)return;const txt=f.format==='pdf'||f.format==='docx'?'(二进制文件，无法在线预览)':await fetch(`/resumes/${encodeURIComponent(n)}`).then(r=>r.text());showModal(`&#x1f4c4; ${esc(n)}`,f.format==='md'?`<div class="markdown-body">${marked.parse(txt)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:60vh;overflow-y:auto">${esc(txt)}</pre>`,'700px')}catch(e){toast('预览失败: '+e.message)}};
-window.deleteResume=async(n)=>{if(!confirm(`删除 "${n}"？`))return;const r=await api(`/api/resumes/${encodeURIComponent(n)}`,{method:'DELETE'});if(r.warnings?.length)toast('&#x26a0; '+r.warnings.join('; '));renderers.resumes()};
-
-// ══════════════════════════════════════════════
-// Tab 3: 任务与结果
-// ══════════════════════════════════════════════
 renderers.tasks=async()=>{
   try{
-  const[cfg,reports,resumes]=await Promise.all([api('/api/config'),api('/api/reports'),api('/api/resumes')]);
-  const profiles=cfg.profiles||[];
-  // Build resume→profile→reports chain
-  const resumeMap={};for(const r of resumes){resumeMap[r.name]={...r,profiles:[],reports:[]}}
-  const pfByResume={};
-  for(const p of profiles){const rn=p.resume?.replace(/^.*[\\/]/,'')||'';if(rn){if(!pfByResume[rn])pfByResume[rn]=[];pfByResume[rn].push(p)};if(resumeMap[rn])resumeMap[rn].profiles.push(p)}
-  for(const rpt of reports){const rn=pfByResume[rpt.profile]?.[0]?.resume?.replace(/^.*[\\/]/,'')||'';if(rn&&resumeMap[rn])resumeMap[rn].reports.push(rpt)}
-
+  const[cfg,reports,resumeList]=await Promise.all([api('/api/config'),api('/api/reports'),api('/api/resumes')]);
+  const rptByResume={};for(const r of reports){const k=_findResumeForReport(r,cfg.profiles||[]);if(!rptByResume[k])rptByResume[k]=[];rptByResume[k].push(r)}
   const fconf=cfg.feishu||{};
-  let s='<div class="card"><div class="card-header"><h3>&#x1f4e1; 飞书推送 <span class="tooltip-wrap" style="margin-left:6px"><button class="tooltip-trigger">?</button><div class="tooltip-box">在飞书开放平台创建企业自建应用，获取 App ID 和 App Secret，开启机器人能力，在知识库中创建知识空间获取 Wiki Token，在多维表格中获取 Bitable Token 和 Table ID。填入后开启推送开关即可。</div></span></h3></div>';
-  s+=`<label class="toggle" style="margin-bottom:14px"><input type="checkbox" ${fconf.enabled?"checked":""} onchange="toggleFs(this.checked)"><div class="toggle-track"></div><span>${fconf.enabled?"推送已开启":"推送已关闭"}</span></label>`;
-  s+='<details style="margin-top:8px"><summary class="text-sm" style="cursor:pointer;color:var(--text-secondary);font-weight:500">编辑凭证</summary><div style="margin-top:10px">';
-  s+=`<label class="text-sm">App ID</label><input id="fsAppId" value="${esc(fconf.app_id||"")}" style="margin-bottom:8px"><label class="text-sm">App Secret</label><input id="fsAppSecret" type="password" value="${esc(fconf.app_secret||"")}" style="margin-bottom:8px"><label class="text-sm">Wiki Node Token</label><input id="fsWiki" value="${esc(fconf.wiki_node_token||"")}" style="margin-bottom:8px"><label class="text-sm">Bitable Token</label><input id="fsBitable" value="${esc(fconf.bitable_token||"")}" style="margin-bottom:8px"><label class="text-sm">Bitable Table ID</label><input id="fsTableId" value="${esc(fconf.bitable_table_id||"")}">`;
-  s+='<button class="btn btn-primary btn-sm mt-2" onclick="saveFs()">保存配置</button></div></details>';
-  s+=`</div><button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="toast('请在终端运行 python -m src.cli')">&#x25b6; 运行巡检</button><div class="text-sm text-muted mt-1" style="text-align:center">运行后刷新此页查看结果</div>`;
 
-  const entries=Object.entries(resumeMap).sort((a,b)=>b[1].reports.length-a[1].reports.length||b[1].modified?.localeCompare(a[1].modified||''));
-  let m='<div class="card"><div class="card-header"><h3>&#x1f4c4; 巡检报告</h3><span class="text-sm text-muted">'+reports.length+' 份报告 · '+entries.filter(e=>e[1].reports.length>0).length+' 份简历有结果</span></div>';
-  if(entries.length===0){m+='<div class="empty-state">暂无简历。前往 <b>简历管理</b> 上传第一份简历。</div>'}
-  else for(const[rn,item]of entries){
-    m+=`<div style="margin-bottom:16px"><div class="flex-between" style="margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--border-subtle)"><div><span>&#x1f4c4; <strong>${esc(rn)}</strong></span><span class="text-muted text-sm" style="margin-left:8px">${esc(item.format)} · ${fs(item.size)}</span>`;
-    if(item.profiles.length>0){const p=item.profiles[0];m+=`<span class="text-sm" style="margin-left:8px">关键词: ${(p.keywords||[]).join(', ')||'待设置'} · ${esc(p.job_type||'')}</span><label class="toggle" style="margin-left:8px"><input type="checkbox" ${p.enabled?"checked":""} onchange="togglePf('${esc(p.name)}',this.checked)"><div class="toggle-track"></div></label>`}
-    else m+='<span class="text-sm text-muted" style="margin-left:8px">待 Agent 创建意向</span>';
-    m+=`</div><button class="btn btn-outline btn-sm" onclick="viewProfileResumeByName('${esc(rn)}')">&#x1f441; 预览</button></div>`;
-    if(item.reports.length===0){m+='<div class="text-sm text-muted" style="margin-left:8px">暂无巡检结果</div>'}
-    else for(const r of item.reports){
-      m+=`<div class="row" style="grid-template-columns:1fr auto;cursor:pointer" onclick="viewReport('${esc(r.relpath)}')"><div><strong>${esc(r.generated||"")}</strong><span class="text-muted text-sm" style="margin-left:8px">${r.job_count} 岗位 &middot; 最高 ${r.top_score||0} 分</span></div><span class="text-sm text-muted">${fs(r.size)}</span></div>`;
+  // Left: resume list + upload
+  let left='<div class="card" style="margin-bottom:12px"><div class="card-header"><h3>&#x1f4c4; 简历列表 ('+resumeList.length+')</h3></div>';
+  left+='<div class="upload-zone" id="dropZone" style="padding:16px;margin-bottom:12px"><div style="font-size:20px">+ 上传简历</div><div class="text-sm text-muted">拖拽或点击，支持 .txt .md .docx .pdf .png .jpg</div><input type="file" id="resumeInput" accept=".txt,.md,.docx,.pdf,.png,.jpg,.jpeg" multiple style="display:none"></div><div id="uploadStatus" class="text-sm" style="margin-bottom:8px"></div>';
+  if(resumeList.length===0){left+='<div class="text-sm text-muted">暂无简历</div>'}
+  else{
+    const sorted=[...resumeList].sort((a,b)=>b.modified?.localeCompare(a.modified||''));
+    for(const r of sorted){
+      const cnt=(rptByResume[r.name]||[]).length;
+      const sel=_tasksSelectedResume===r.name;
+      left+=`<div class="row" style="grid-template-columns:1fr auto;cursor:pointer;${sel?'background:var(--primary-bg);margin:0 -20px;padding-left:20px;padding-right:20px':''}" onclick="_tasksSelectedResume='${esc(r.name)}';renderers.tasks()">
+        <div><span>&#x1f4c4; <strong>${esc(r.name)}</strong></span><span class="text-sm text-muted" style="margin-left:4px">${fs(r.size)}</span><div class="text-sm text-muted">${cnt} 份报告</div></div>
+        <div class="flex gap-1"><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();previewResumeInline('${esc(r.name)}')">&#x1f441;</button><button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteResumeAndRefresh('${esc(r.name)}')">&#x1f5d1;</button></div>
+      </div>`;
     }
-    m+='</div>';
   }
-  m+='</div><div id="reportDetail"></div>';
-  document.getElementById('content').innerHTML=`<div class="report-layout"><div class="report-sidebar">${s}</div><div>${m}</div></div>`;
+  left+='</div>';
+
+  // Feishu + run
+  left+=`<div class="card"><div class="card-header"><h3>&#x1f4e1; 飞书推送 <span class="tooltip-wrap" style="margin-left:6px"><button class="tooltip-trigger">?</button><div class="tooltip-box">在飞书开放平台创建企业自建应用，获取 App ID 和 App Secret，开启机器人能力，在知识库中创建知识空间获取 Wiki Token，在多维表格中获取 Bitable Token 和 Table ID。填入后开启推送开关即可。</div></span></h3></div>`;
+  left+=`<label class="toggle" style="margin-bottom:10px"><input type="checkbox" ${fconf.enabled?"checked":""} onchange="toggleFs(this.checked)"><div class="toggle-track"></div><span>${fconf.enabled?"推送已开启":"推送已关闭"}</span></label>`;
+  left+='<details><summary class="text-sm" style="cursor:pointer;color:var(--text-secondary)">编辑凭证</summary><div style="margin-top:8px">';
+  left+=`<input id="fsAppId" class="text-sm" value="${esc(fconf.app_id||"")}" placeholder="App ID" style="margin-bottom:4px"><input id="fsAppSecret" type="password" class="text-sm" value="${esc(fconf.app_secret||"")}" placeholder="App Secret" style="margin-bottom:4px"><input id="fsWiki" class="text-sm" value="${esc(fconf.wiki_node_token||"")}" placeholder="Wiki Token" style="margin-bottom:4px"><input id="fsBitable" class="text-sm" value="${esc(fconf.bitable_token||"")}" placeholder="Bitable Token" style="margin-bottom:4px"><input id="fsTableId" class="text-sm" value="${esc(fconf.bitable_table_id||"")}" placeholder="Table ID">`;
+  left+='<button class="btn btn-primary btn-sm mt-2" onclick="saveFs()">保存</button></div></details></div>';
+  left+=`<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="toast('请在终端运行 python -m src.cli')">&#x25b6; 运行巡检</button>`;
+
+  // Right: selected resume details
+  let right='<div class="card"><div class="card-header"><h3>&#x1f4c4; 巡检结果</h3></div>';
+  if(!_tasksSelectedResume||!resumeList.find(x=>x.name===_tasksSelectedResume)){
+    _tasksSelectedResume=resumeList[0]?.name||null;
+  }
+  if(_tasksSelectedResume){
+    const rr=rptByResume[_tasksSelectedResume]||[];
+    const r=resumeList.find(x=>x.name===_tasksSelectedResume);
+    const pf=(cfg.profiles||[]).find(p=>p.resume&&p.resume.includes(_tasksSelectedResume));
+    right+=`<div style="margin-bottom:8px"><strong>${esc(_tasksSelectedResume)}</strong><span class="text-muted text-sm" style="margin-left:8px">${esc(r?.format||'')} · ${fs(r?.size||0)}</span>`;
+    if(pf){right+=`<div class="text-sm mt-2"><span class="kw-tag">${esc(pf.job_type||'')}</span>`;if(pf.keywords)for(const k of pf.keywords)right+=`<span class="kw-tag">${esc(k)}</span>`;right+=` <label class="toggle" style="margin-left:8px"><input type="checkbox" ${pf.enabled?"checked":""} onchange="togglePf('${esc(pf.name)}',this.checked)"><div class="toggle-track"></div></label></div>`}
+    else right+='<div class="text-sm text-muted mt-2">Agent 运行后自动关联意向</div>';
+    right+='</div>';
+    if(rr.length===0){right+='<div class="text-sm text-muted">暂无巡检结果</div>'}
+    else for(const rpt of rr){
+      right+=`<div class="row" style="grid-template-columns:1fr auto;cursor:pointer" onclick="viewReport('${esc(rpt.relpath)}')"><div><strong>${esc(rpt.generated||"")}</strong><span class="text-muted text-sm" style="margin-left:8px">${rpt.job_count} 岗位 · 最高 ${rpt.top_score||0} 分</span></div><span class="text-sm text-muted">${fs(rpt.size)}</span></div>`;
+    }
+  }else{
+    right+='<div class="text-sm text-muted">请先上传简历，Agent 运行巡检后将在此显示结果。</div>';
+  }
+  right+='</div><div id="reportDetail"></div>';
+
+  document.getElementById('content').innerHTML=`<div class="report-layout"><div class="report-sidebar">${left}</div><div>${right}</div></div>`;
+
+  // Setup upload handlers
+  setTimeout(()=>{
+    const zone=$('#dropZone'),input=$('#resumeInput');
+    if(!zone||!input)return;
+    zone.addEventListener('click',()=>input.click());
+    zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag-over')});
+    zone.addEventListener('dragleave',()=>zone.classList.remove('drag-over'));
+    zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('drag-over');doUpload(e.dataTransfer.files)});
+    input.addEventListener('change',()=>doUpload(input.files));
+  },100);
   }catch(e){document.getElementById('content').innerHTML=`<div class="card" style="border-color:var(--red)"><h3>渲染失败</h3><p>${esc(e.message)}</p></div>`}
 };
+
+function _findResumeForReport(report,profiles){
+  if(!report.profile)return 'unknown';
+  const pf=profiles.find(p=>p.name===report.profile);
+  if(pf?.resume)return pf.resume.replace(/^.*[\\/]/,'');
+  return report.profile;
+}
+
+async function doUpload(files){
+  const s=$('#uploadStatus');if(!s)return;
+  for(const f of files){s.innerHTML='<span class="spinner"></span> 上传: '+esc(f.name)+'...';const fd=new FormData();fd.append('file',f);try{const r=await fetch('/api/resumes',{method:'POST',body:fd}).then(r=>r.json());s.innerHTML=r.ok?'&#x2705; '+esc(f.name)+' 上传成功':('&#x274c; '+esc(f.name));if(r.referenced_by?.length)s.innerHTML+=' (已关联意向)';else s.innerHTML+=' (Agent 运行后将自动关联)'}catch(e){s.innerHTML='&#x274c; '+esc(e.message)}}
+  setTimeout(()=>renderers.tasks(),800);
+}
+
+window.deleteResumeAndRefresh=async(name)=>{
+  if(!confirm('删除简历 "'+name+'"？'))return;
+  await api('/api/resumes/'+encodeURIComponent(name),{method:'DELETE'});
+  if(_tasksSelectedResume===name)_tasksSelectedResume=null;
+  renderers.tasks();
+};
+
+window.previewResumeInline=(rn)=>window.previewResume(rn);
+window.viewProfileResume=async(n)=>{try{const r=await api('/api/profiles/'+encodeURIComponent(n)+'/resume');showModal('&#x1f4c4; '+n+' — '+esc(r.filename),r.format==='md'?`<div class="markdown-body">${marked.parse(r.content)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:60vh;overflow-y:auto">${esc(r.content)}</pre>`,'700px')}catch(e){toast('无法加载: '+e.message)}};
+window.viewProfileResumeByName=async(rn)=>{try{const r=await fetch('/resumes/'+encodeURIComponent(rn)).then(r=>r.text());const ext=rn.split('.').pop()?.toLowerCase();showModal('&#x1f4c4; '+esc(rn),ext==='md'?`<div class="markdown-body">${marked.parse(r)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:60vh;overflow-y:auto">${esc(r)}</pre>`,'700px')}catch(e){toast('预览失败: '+e.message)}};
 
 window.toggleFs=async(en)=>{await api('/api/config',{method:'PUT',body:JSON.stringify({feishu:{enabled:en}})});toast(en?'飞书推送已开启':'飞书推送已关闭')};
 window.togglePf=async(n,en)=>{await api('/api/config',{method:'PUT',body:JSON.stringify({profiles:[{name:n,enabled:en}]})});toast(`${n} ${en?'已启用':'已禁用'}`)};
