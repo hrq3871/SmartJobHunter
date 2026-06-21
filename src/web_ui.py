@@ -387,7 +387,10 @@ async def confirm_resume(body: dict):
     keywords = body.get("keywords", [])
     if isinstance(keywords, str):
         keywords = [k.strip() for k in keywords.replace(",", " ").split() if k.strip()]
-    job_type = str(body.get("job_type", "社招")).strip()
+    job_types = body.get("job_types") or [str(body.get("job_type", "社招")).strip()]
+    if isinstance(job_types, str):
+        job_types = [job_types]
+    job_type = job_types[0] if job_types else "社招"
     profile_name = str(body.get("profile_name", "")).strip() or Path(filename).stem
 
     # Retrieve pending content
@@ -408,11 +411,12 @@ async def confirm_resume(body: dict):
         "name": profile_name,
         "enabled": True,
         "job_type": job_type,
+        "job_types": job_types,
         "resume": f"resumes/{filename}",
         "keywords": keywords,
         "target_roles": keywords[:3] if keywords else [],
     }
-    body_text = f"\n# 求职意向\n\n{profile_name} 的求职意向。\n\n> 关键词: {', '.join(keywords) if keywords else '待设置'}\n> 类型: {job_type}\n"
+    body_text = f"\n# 求职意向\n\n{profile_name} 的求职意向。\n\n> 关键词: {', '.join(keywords) if keywords else '待设置'}\n> 类型: {', '.join(job_types)}\n"
     new_fm = yaml.safe_dump(fm, allow_unicode=True, default_flow_style=False, sort_keys=False).strip()
     profile_path.write_text(f"---\n{new_fm}\n---\n{body_text}", encoding="utf-8")
 

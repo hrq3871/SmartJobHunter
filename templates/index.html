@@ -205,6 +205,9 @@ function showModal(title,bodyHtml,width='560px'){
   const ov=document.createElement('div');ov.className='modal-overlay';
   ov.innerHTML=`<div class="modal-box" style="width:${width}"><div class="modal-header"><h3 style="font-family:var(--font-mono);font-size:13px;color:var(--primary);letter-spacing:.3px">${title}</h3><button class="btn btn-outline btn-sm" onclick="this.closest('.modal-overlay').remove()">&#x2715; 关闭</button></div><div class="modal-body">${bodyHtml}</div></div>`;
   document.body.appendChild(ov);
+  // Prevent drag events from reaching upload zone behind modal
+  ov.addEventListener('dragover',e=>e.preventDefault());
+  ov.addEventListener('drop',e=>e.preventDefault());
 }
 
 // ══════════════════════════════════════════════
@@ -513,7 +516,7 @@ async function doUpload(files){
       showModal('&#x1f4c4; 确认求职意向 — '+esc(r.filename),
         `<div class="text-sm" style="margin-bottom:12px">已分析简历内容，建议以下配置：</div>
         <label>意向名称</label><input id="cfmName" value="${esc(r.suggested_name||'')}">
-        <label>岗位类型</label><select id="cfmType"><option value="社招" ${r.suggested_job_type==='社招'?'selected':''}>社招</option><option value="校招" ${r.suggested_job_type==='校招'?'selected':''}>校招</option><option value="实习" ${r.suggested_job_type==='实习'?'selected':''}>实习</option></select>
+        <label>岗位类型</label><div style="display:flex;gap:16px;padding:8px 0">${['社招','校招','实习'].map(t=>`<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px"><input type="checkbox" class="cfmJobType" value="${t}" ${r.suggested_job_type===t?'checked':''}> ${t}</label>`).join('')}</div>
         <label>搜索关键词 <span class="text-muted text-sm">(用逗号或空格分隔)</span></label><input id="cfmKw" value="${esc(kw.join(', '))}" placeholder="例: 产品经理, TOB, SaaS">
         <div class="text-sm text-muted mt-2">文件: ${esc(r.filename)} · ${fs(r.size)} · ${esc(r.format)}</div>
         ${r.text_preview?`<div class="text-sm text-muted mt-2" style="max-height:100px;overflow-y:auto;background:var(--bg);padding:8px;border-radius:4px">${esc(r.text_preview)}</div>`:''}
@@ -527,11 +530,12 @@ async function doUpload(files){
           btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 保存中...';
           const kwRaw=$('#cfmKw')?.value||kw.join(',');
           const kwList=kwRaw.split(/[,，\s]+/).map(x=>x.trim()).filter(Boolean);
+          const jobTypes=[...document.querySelectorAll('.cfmJobType:checked')].map(cb=>cb.value);
           try{
             const cfm=await api('/api/resumes/confirm',{method:'POST',body:JSON.stringify({
               filename:r.filename,
               keywords:kwList,
-              job_type:$('#cfmType')?.value||'社招',
+              job_types:jobTypes.length?jobTypes:['社招'],
               profile_name:$('#cfmName')?.value||r.suggested_name
             })});
             document.querySelector('.modal-overlay')?.remove();
