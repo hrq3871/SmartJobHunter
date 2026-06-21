@@ -35,3 +35,10 @@
 ## 修复闭环
 
 三项成功策略均经过：公开页面访问 → Network/XHR 采证 → Agent 分析 API 与字段 → Python `strategy_applier` 定向写回 → Python 严格验证 → 保存 `verification.json` → 保存页面 fingerprint → 标记 `verified`。两项失败站点保留 `strategy_decision.yaml`、`verification.json` 和 `task.json`，没有生成无法验证的抓取规则。
+
+## Codex in-app Browser 追加深挖
+
+- Run ID：`20260621-ruijie-yonyou-iab`
+- 锐捷：in-app Browser 在导航前被企业网络策略阻断，耗时 0.712 秒；无法验证 Mokahr 加密载荷在浏览器端如何转换为岗位字段。
+- 用友：in-app Browser 在导航前被企业网络策略阻断，耗时 0.007 秒；无法确认岗位详情 URL、完整职责和任职要求。
+- 两站均保留 `failed/insufficient_evidence`，未修改配置或代码；对应产物位于 `logs/crawler_evidence/20260621-ruijie-yonyou-iab/`。
