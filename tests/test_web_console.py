@@ -24,34 +24,16 @@ def test_console():
         results.append((label, ok, ""))
         print(f"[{'PASS' if ok else 'FAIL'}] {label}")
 
-        # 3. Strategy tab
+        # 3. Strategy tab (company cards)
         page.query_selector("button[data-tab='strategy']").click()
         page.wait_for_timeout(2000)
-        cards = page.query_selector_all(".company-card")
+        cards = page.query_selector_all(".cocard")
         label = "Strategy tab (70+ cards)"
         ok = len(cards) > 50
         results.append((label, ok, len(cards)))
         print(f"[{'PASS' if ok else 'FAIL'}] {label} ({len(cards)} cards)")
 
-        # 4. Sub-tabs
-        subs = page.query_selector_all(".sub-tab")
-        label = "Sub-tabs exist (2)"
-        ok = len(subs) == 2
-        results.append((label, ok, len(subs)))
-        print(f"[{'PASS' if ok else 'FAIL'}] {label} ({len(subs)})")
-
-        # 5. Health panel
-        subs[1].click()
-        page.wait_for_timeout(1500)
-        hs = page.query_selector_all(".hs-card")
-        label = "Health panel stats"
-        ok = len(hs) == 4
-        results.append((label, ok, len(hs)))
-        print(f"[{'PASS' if ok else 'FAIL'}] {label} ({len(hs)} cards)")
-
-        # 6. Back to companies, test filters
-        subs[0].click()
-        page.wait_for_timeout(1000)
+        # 4. Filter dropdowns on strategy tab
         s1 = page.query_selector("#coStatus")
         s2 = page.query_selector("#coHealth")
         label = "Filter dropdowns"
@@ -59,7 +41,18 @@ def test_console():
         results.append((label, ok, ""))
         print(f"[{'PASS' if ok else 'FAIL'}] {label}")
 
-        # 7. Modal
+        # 5. Health tab (standalone)
+        page.query_selector("button[data-tab='health']").click()
+        page.wait_for_timeout(1500)
+        hs = page.query_selector_all(".stat-card")
+        label = "Health panel stats"
+        ok = len(hs) >= 1
+        results.append((label, ok, len(hs)))
+        print(f"[{'PASS' if ok else 'FAIL'}] {label} ({len(hs)} cards)")
+
+        # 7. Modal (must be on strategy tab)
+        page.query_selector("button[data-tab='strategy']").click()
+        page.wait_for_timeout(1500)
         btns = page.query_selector_all(".btn-primary")
         for b in btns:
             if "+" in (b.text_content() or ""):

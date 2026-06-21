@@ -476,10 +476,70 @@ async def get_profile_resume(name: str):
 
 
 # ---------------------------------------------------------------------------
+# Schedule API
+@app.get("/api/schedule")
+async def get_schedule():
+    agent_path = CONFIG_DIR / "agent.yaml"
+    sample_path = CONFIG_DIR / "agent.sample.yaml"
+    cfg = _read_yaml(agent_path) if agent_path.exists() else _read_yaml(sample_path)
+    sc = cfg.get("schedule", {})
+    return {
+        "enabled": bool(sc.get("enabled", False)),
+        "job_type": sc.get("job_type", "social"),
+        "keyword": sc.get("keyword", "产品经理"),
+        "feishu_push": bool(sc.get("feishu_push", False)),
+        "git_push": bool(sc.get("git_push", False)),
+        "last_run": sc.get("last_run", ""),
+    }
+
+
+@app.put("/api/schedule")
+async def update_schedule(body: dict):
+    agent_path = CONFIG_DIR / "agent.yaml"
+    sample_path = CONFIG_DIR / "agent.sample.yaml"
+    if not agent_path.exists():
+        if sample_path.exists():
+            shutil.copy(sample_path, agent_path)
+        else:
+            agent_path.write_text("", encoding="utf-8")
+    cfg = _read_yaml(agent_path)
+    cfg.setdefault("schedule", {})
+    for f in ("enabled", "job_type", "keyword", "feishu_push", "git_push"):
+        if f in body:
+            if f in ("enabled", "feishu_push", "git_push"):
+                cfg["schedule"][f] = bool(body[f])
+            else:
+                cfg["schedule"][f] = str(body[f])
+    _write_yaml(agent_path, cfg)
+    return {"ok": True, "schedule": cfg["schedule"]}
+
+
 # Config API (with full Feishu credential editing)
 # ---------------------------------------------------------------------------
 
 FEISHU_FIELDS = ["app_id", "app_secret", "wiki_node_token", "bitable_token", "bitable_table_id"]
+FEISHU_FIELD_META = {
+    "app_id": {
+        "label": "应用 ID",
+        "desc": "飞书开放平台 → 开发者后台 → 应用设置 → 凭证与基础信息 → App ID",
+    },
+    "app_secret": {
+        "label": "应用密钥 (App Secret)",
+        "desc": "飞书开放平台 → 开发者后台 → 应用设置 → 凭证与基础信息 → App Secret",
+    },
+    "wiki_node_token": {
+        "label": "知识库节点 Token",
+        "desc": "飞书知识库 → 进入目标知识空间 → 浏览器地址栏 /wiki/ 后方的字符串即为 token",
+    },
+    "bitable_token": {
+        "label": "多维表格 Token (Bitable)",
+        "desc": "飞书多维表格 → 进入目标表格 → 浏览器地址栏 /base/ 后方的字符串即为 token",
+    },
+    "bitable_table_id": {
+        "label": "数据表 ID",
+        "desc": "多维表格中展开具体数据表 → 浏览器地址栏 ?table= 参数值（或从数据表 URL 获取）",
+    },
+}
 
 
 @app.get("/api/config")
@@ -496,6 +556,11 @@ async def get_config():
     for f in FEISHU_FIELDS:
         feishu[f] = feishu_cfg.get(f, "")
 
+    feishu_meta = {
+        k: {"label": v["label"], "desc": v["desc"]}
+        for k, v in FEISHU_FIELD_META.items()
+    }
+
     profiles = []
     for pf in sorted(PROFILES_DIR.glob("*.md")):
         fm = _parse_profile_frontmatter(pf)
@@ -508,6 +573,16 @@ async def get_config():
             "resume": fm.get("resume", ""),
         })
 
+    schedule_cfg = cfg.get("schedule", {})
+    schedule = {
+        "enabled": bool(schedule_cfg.get("enabled", False)),
+        "job_type": schedule_cfg.get("job_type", "social"),
+        "keyword": schedule_cfg.get("keyword", "产品经理"),
+        "feishu_push": bool(schedule_cfg.get("feishu_push", False)),
+        "git_push": bool(schedule_cfg.get("git_push", False)),
+        "last_run": schedule_cfg.get("last_run", ""),
+    }
+
     return {
         "decision_level": cfg.get("decision_level", "moderate"),
         "time_filter_days": cfg.get("time_filter_days", 3),
@@ -515,7 +590,10 @@ async def get_config():
         "jd_truncate_length": cfg.get("jd_truncate_length", 6000),
         "output": cfg.get("output", {}),
         "feishu": feishu,
+        "feishu_meta": feishu_meta,
+        "feishu_help_url": cfg.get("feishu_help_url", ""),
         "profiles": profiles,
+        "schedule": schedule,
     }
 
 
@@ -540,12 +618,24 @@ async def update_config(body: dict):
             if f in feishu_updates:
                 cfg["feishu"][f] = str(feishu_updates[f])
 
+    # Update feishu help URL
+    if "feishu_help_url" in body:
+        cfg["feishu_help_url"] = str(body["feishu_help_url"]).strip()
+
     # Update top-level config fields
     for field in ("decision_level", "threshold_score", "time_filter_days"):
         if field in body:
             cfg[field] = type(cfg.get(field, ""))(body[field])
 
     _write_yaml(agent_path, cfg)
+
+    # Update schedule settings
+    schedule_updates = body.get("schedule", {})
+    if schedule_updates:
+        cfg.setdefault("schedule", {})
+        for f in ("enabled", "job_type", "keyword", "feishu_push", "git_push"):
+            if f in schedule_updates:
+                cfg["schedule"][f] = type(cfg["schedule"].get(f, ""))(schedule_updates[f]) if f in ("enabled", "feishu_push", "git_push") else str(schedule_updates[f])
 
     # Update profile enabled states
     profile_updates = body.get("profiles", [])

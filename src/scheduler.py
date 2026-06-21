@@ -16,6 +16,7 @@ import json
 import os
 import subprocess
 import sys
+import yaml
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
@@ -190,11 +191,39 @@ def main() -> int:
         return 0
 
     if args.schedule:
+        # Read schedule config from agent.yaml (web UI settings), CLI args override
+        job_type = args.job_type
+        keyword = args.keyword
+        do_push = args.push and not args.no_push
+        do_feishu = False
+
+        agent_yaml_path = Path(__file__).parent.parent / "config" / "agent.yaml"
+        if agent_yaml_path.exists():
+            raw_cfg = yaml.safe_load(agent_yaml_path.read_text(encoding="utf-8"))
+            schedule_cfg = raw_cfg.get("schedule", {}) if raw_cfg else {}
+            if schedule_cfg.get("enabled") is False:
+                print("[定时] 定时任务已关闭 (schedule.enabled=false in agent.yaml)")
+                return 0
+            # Use config values only when CLI args are at their defaults
+            if args.job_type == "social":
+                job_type = schedule_cfg.get("job_type", "social")
+            if args.keyword == "产品经理":
+                keyword = schedule_cfg.get("keyword", "产品经理")
+            if not args.push:
+                do_push = bool(schedule_cfg.get("git_push", False))
+            do_feishu = bool(schedule_cfg.get("feishu_push", False))
+
+            # Enable feishu push before running if configured
+            if do_feishu:
+                set_feishu_push_enabled(True)
+            else:
+                set_feishu_push_enabled(False)
+
         scheduled_run(
-            job_type=args.job_type,
-            keyword=args.keyword,
+            job_type=job_type,
+            keyword=keyword,
             headless=headless,
-            push=args.push and not args.no_push,
+            push=do_push,
         )
         return 0
 

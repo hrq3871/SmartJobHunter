@@ -130,7 +130,7 @@ main{padding:24px 28px;flex:1}
 .toggle{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px}
 .toggle input{display:none}
 .toggle-track{width:34px;height:20px;background:#d1d5db;border-radius:10px;position:relative;transition:background var(--transition)}
-.toggle input:checked+.toggle-track{background:var(--green)}
+.toggle input:checked+.toggle-track{background:var(--primary)}
 .toggle-track::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:2px;left:2px;transition:transform var(--transition);box-shadow:0 1px 2px rgba(0,0,0,.1)}
 .toggle input:checked+.toggle-track::after{transform:translateX(14px)}
 
@@ -138,13 +138,21 @@ main{padding:24px 28px;flex:1}
 .row{display:grid;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:12px;font-size:13px}
 .row:last-child{border-bottom:none}
 .row:hover{background:var(--bg)}
+.card-list{margin:0 -20px}
+.card-list .row{padding-left:20px;padding-right:20px}
 
 /* ── Forms ── */
-input[type="text"],input[type="url"],input[type="password"],input[type="search"],select{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:var(--font-sans);font-size:13px;background:var(--surface);color:var(--text);transition:border-color var(--transition)}
-input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
-.search-box input{padding-left:36px}
+input[type="text"],input[type="url"],input[type="password"],input[type="search"],input[type="number"],input:not([type]),select{width:100%;height:40px;padding:0 12px;border:1px solid var(--border);border-radius:8px;font-family:var(--font-sans);font-size:14px;background:var(--surface);color:var(--text);transition:border-color var(--transition),box-shadow var(--transition);-webkit-appearance:none;appearance:none;outline:none}
+input:hover,select:hover{border-color:var(--primary-light)}
+input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'%3E%3C/path%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:32px;cursor:pointer}
+input::placeholder{color:var(--text-muted);font-size:13px}
+input[type="file"]{font-size:13px;color:var(--text-secondary)}
+input[type="file"]::file-selector-button{padding:6px 16px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-family:var(--font-sans);font-size:12px;font-weight:500;cursor:pointer;margin-right:10px;transition:all var(--transition)}
+input[type="file"]::file-selector-button:hover{background:var(--primary-bg);border-color:var(--primary);color:var(--primary)}
+.search-box input{padding-left:34px}
 .search-box{position:relative}
-.search-box::before{content:'\1F50D';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:12px;opacity:.35;pointer-events:none}
+.search-box::before{content:'';position:absolute;left:11px;top:50%;transform:translateY(-50%);width:16px;height:16px;background:var(--text-muted);mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cpath d='M21 21l-4.35-4.35'%3E%3C/path%3E%3C/svg%3E");mask-size:contain;mask-repeat:no-repeat;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cpath d='M21 21l-4.35-4.35'%3E%3C/path%3E%3C/svg%3E");-webkit-mask-size:contain;-webkit-mask-repeat:no-repeat;opacity:.4;pointer-events:none}
 
 /* ── Upload ── */
 .upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:24px;text-align:center;cursor:pointer;transition:all var(--transition);color:var(--text-muted);background:var(--bg)}
@@ -217,12 +225,13 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--muted);padding
     <div class="side-section">
       <div class="side-label">工作台</div>
       <button class="side-item active" data-tab="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>简历与巡检</span></button>
-      <button class="side-item" data-tab="health"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>策略健康</span><span id="healthBadge" style="margin-left:auto;font-size:10px;color:var(--text-muted)">0</span></button>
     </div>
     <div class="side-section">
       <div class="side-label">管理</div>
-      <button class="side-item" data-tab="strategy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4m0 14v4M4.22 4.22l2.83 2.83m9.9 9.9l2.83 2.83M1 12h4m14 0h4M4.22 19.78l2.83-2.83m9.9-9.9l2.83-2.83"/></svg><span>公司配置</span></button>
+      <button class="side-item" data-tab="health"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>策略健康</span><span id="healthBadge" style="margin-left:auto;font-size:10px;color:var(--text-muted)">0</span></button>
+      <button class="side-item" data-tab="strategy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4m0 14v4M4.22 4.22l2.83 2.83m9.9 9.9l2.83 2.83M1 12h4m14 0h4M4.22 19.78l2.83-2.83m9.9-9.9l2.83-2.83"/></svg><span>公司配置</span><span id="coCount" style="margin-left:auto;font-size:10px;color:var(--text-muted)">0</span></button>
       <button class="side-item" data-tab="feishu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg><span>飞书推送</span></button>
+      <button class="side-item" data-tab="schedule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>定时任务</span></button>
     </div>
   </nav>
   <div class="side-footer">
@@ -265,10 +274,10 @@ function showModal(title,bodyHtml,w='520px'){
   ov.addEventListener('dragover',e=>e.preventDefault());ov.addEventListener('drop',e=>e.preventDefault());
 }
 const LABEL={social:'社招',campus:'校招',internship:'实习'};
-const TITLES={tasks:'简历与巡检',health:'策略健康',strategy:'公司配置',feishu:'飞书推送'};
-const DESCS={tasks:'上传简历、查看巡检报告、启动针对性巡检',health:'查看和管理公司抓取策略健康状态',strategy:'管理公司链接和抓取策略配置',feishu:'配置飞书知识库和多维表格推送'};
+const TITLES={tasks:'简历与巡检',health:'策略健康',strategy:'公司配置',feishu:'飞书推送',schedule:'定时任务'};
+const DESCS={tasks:'上传简历、查看巡检报告、启动针对性巡检',health:'查看和管理公司抓取策略健康状态',strategy:'管理公司链接和抓取策略配置',feishu:'配置飞书知识库和多维表格推送',schedule:'配置每日定时巡检任务和策略'};
 
-let _coData=[],_healthData=null,_coFilter='all',_coHealthFilter='all',_selCompanies=new Set(),_strategySubTab='companies',_tasksSelectedResume=null,_currentTab='tasks';
+let _coData=[],_healthData=null,_coFilter='all',_coHealthFilter='all',_selCompanies=new Set(),_tasksSelectedResume=null,_currentTab='tasks';
 const renderers={};
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -286,6 +295,7 @@ $$('.side-item[data-tab]').forEach(b=>b.addEventListener('click',()=>switchTab(b
 // ── Sidebar health badge ──
 async function updateHealthBadge(){
   try{const h=await api('/api/health');const b=$('#healthBadge');if(b)b.textContent=h.summary.total}catch(e){}
+  try{const cos=await api('/api/companies');const cc=$('#coCount');if(cc)cc.textContent=cos.length}catch(e){}
 }
 updateHealthBadge();
 
@@ -320,9 +330,18 @@ renderers.tasks=async()=>{
     for(const r of sorted){
       const cnt=(rptByResume[r.name]||[]).length;
       const sel=_tasksSelectedResume===r.name;
-      left+=`<div class="row" style="grid-template-columns:1fr auto;cursor:pointer;${sel?'background:var(--primary-bg);border-radius:6px;padding:8px':''}" onclick="_tasksSelectedResume='${esc(r.name)}';renderers.tasks()">
-        <div><strong style="font-size:13px">${esc(r.name)}</strong><span class="text-sm text-muted" style="margin-left:6px">${fs(r.size)}</span><div class="text-sm text-muted">${cnt} 份报告</div></div>
-        <div class="btn-group"><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();previewResume('${esc(r.name)}')">预览</button><button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteResume('${esc(r.name)}')">删除</button></div>
+      const pf=(cfg.profiles||[]).find(p=>p.resume&&p.resume.includes(r.name));
+      const isEnabled=pf?pf.enabled:true;
+      left+=`<div class="row" style="grid-template-columns:auto 1fr auto;cursor:pointer;align-items:center;gap:8px;opacity:${isEnabled?'1':'.45'};${sel?'background:var(--primary-bg);border-radius:6px;padding:6px 8px':''}" onclick="_tasksSelectedResume='${esc(r.name)}';renderers.tasks()">
+        ${pf?`<label class="toggle" style="flex-shrink:0" title="${isEnabled?'已启用':'已暂停'}" onclick="event.stopPropagation()"><input type="checkbox" ${isEnabled?'checked':''} onchange="togglePf('${esc(pf.name)}',this.checked)"><div class="toggle-track"></div></label>`:'<span style="width:34px;flex-shrink:0"></span>'}
+        <div style="min-width:0;overflow:hidden">
+          <div title="${esc(r.name)}" style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}${isEnabled?'':' · 已暂停'}</div>
+          <div class="text-sm text-muted">${fs(r.size)}${cnt>0?` · ${cnt} 份报告`:''}${pf?` · ${esc(pf.job_type||'')}`:''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:2px;flex-shrink:0" onclick="event.stopPropagation()">
+          <button class="btn btn-outline btn-sm" title="预览" onclick="previewResume('${esc(r.name)}')" style="padding:3px 7px;min-width:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          <button class="btn btn-danger btn-sm" title="删除" onclick="deleteResume('${esc(r.name)}')" style="padding:3px 7px;min-width:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+        </div>
       </div>`;
     }
   }
@@ -369,7 +388,7 @@ async function doUpload(files){
     showModal('填写求职意向 — '+esc(f.name),
       `<div class="text-sm" style="margin-bottom:8px">为简历设置搜索关键词，Agent 巡检时使用。</div>
       <label>意向名称</label><input id="cfmName" value="${esc(bn)}">
-      <label>岗位类型</label><div style="display:flex;gap:14px;padding:6px 0">${['社招','校招','实习'].map(t=>`<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px"><input type="checkbox" class="cfmJobType" value="${t}" ${t==='社招'?'checked':''}> ${t}</label>`).join('')}</div>
+      <label>岗位类型</label><div style="display:flex;gap:8px;padding:6px 0">${['社招','校招','实习'].map((t,i)=>`<button type="button" class="cfmJobType btn ${i===0?'btn-primary':'btn-outline'} btn-sm" data-val="${t}" onclick="this.classList.toggle('btn-primary');this.classList.toggle('btn-outline')">${t}</button>`).join('')}</div>
       <label>搜索关键词 <span class="text-muted text-sm">(逗号或空格分隔)</span></label><input id="cfmKw" placeholder="例: 产品经理, TOB, SaaS">
       <div class="text-sm text-muted mt-2">${esc(f.name)} · ${fs(f.size)}</div>
       <div class="mt-3 flex gap-2"><button class="btn btn-primary" id="cfmBtn">确认</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">取消</button></div>`,`480px`);
@@ -378,7 +397,7 @@ async function doUpload(files){
       btn.addEventListener('click',async()=>{
         btn.disabled=true;btn.innerHTML='<span class="spinner"></span>';
         const kw=$('#cfmKw')?.value||'';const kwl=kw.split(/[,，\s]+/).filter(Boolean);
-        const jts=[...document.querySelectorAll('.cfmJobType:checked')].map(cb=>cb.value);
+        const jts=[...document.querySelectorAll('.cfmJobType.btn-primary')].map(b=>b.dataset.val);
         try{
           const fd=new FormData();fd.append('file',f);
           const up=await fetch('/api/resumes',{method:'POST',body:fd}).then(r=>r.json());
@@ -392,9 +411,9 @@ async function doUpload(files){
   }
 }
 
-window.toggleFs=async(en)=>{await api('/api/config',{method:'PUT',body:JSON.stringify({feishu:{enabled:en}})});toast(en?'飞书推送已开启':'飞书推送已关闭')};
-window.togglePf=async(n,en)=>{await api('/api/config',{method:'PUT',body:JSON.stringify({profiles:[{name:n,enabled:en}]})});toast(`${n} ${en?'已启用':'已禁用'}`)};
-window.saveFs=async()=>{await api('/api/config',{method:'PUT',body:JSON.stringify({feishu:{app_id:$('#fsAppId').value.trim(),app_secret:$('#fsAppSecret').value.trim(),wiki_node_token:$('#fsWiki').value.trim(),bitable_token:$('#fsBitable').value.trim(),bitable_table_id:$('#fsTableId').value.trim()}})});toast('飞书配置已保存')};
+window.toggleFs=async(en)=>{await api('/api/config',{method:'PUT',body:JSON.stringify({feishu:{enabled:en}})});toast(en?'飞书推送已开启':'飞书推送已关闭');renderers.feishu()};
+window.togglePf=async(n,en)=>{await api('/api/config',{method:'PUT',body:JSON.stringify({profiles:[{name:n,enabled:en}]})});toast(`${n} ${en?'已启用':'已禁用'}`);if(_currentTab==='tasks')renderers.tasks()};
+window.saveFeishu=async()=>{await api('/api/config',{method:'PUT',body:JSON.stringify({feishu:{app_id:$('#fAppId').value.trim(),app_secret:$('#fAppSecret').value.trim(),wiki_node_token:$('#fWiki').value.trim(),bitable_token:$('#fBitable').value.trim(),bitable_table_id:$('#fTableId').value.trim()}})});toast('飞书配置已保存')};
 window.deleteResume=async(n)=>{if(!confirm(`删除 "${n}"？`))return;const r=await api('/api/resumes/'+encodeURIComponent(n),{method:'DELETE'});if(r.warnings?.length)toast(r.warnings.join('; '));if(_tasksSelectedResume===n)_tasksSelectedResume=null;renderers.tasks()};
 window.viewReport=async(rp)=>{const md=await api('/api/reports/'+encodeURIComponent(rp));const reports=await api('/api/reports');const meta=reports.find(r=>r.relpath===rp);const dur=meta?.duration_str?`<span class="text-sm text-muted" style="margin-left:12px">${esc(meta.duration_str)}</span>`:'';$('#reportDetail').innerHTML=`<div class="card"><div class="card-header"><h3>${esc(rp)}${dur}</h3><button class="btn btn-outline btn-sm" onclick="this.closest('#reportDetail').innerHTML=''">关闭</button></div><div class="markdown-body">${marked.parse(md)}</div></div>`;$('#reportDetail').scrollIntoView({behavior:'smooth'})};
 
@@ -410,23 +429,31 @@ window.previewResume=async(n)=>{
 };
 
 // ══════════════════════════════════════════════
-// Tab: 公司与策略
+// Tab: 公司配置
 // ══════════════════════════════════════════════
-renderers.strategy=()=>{renderStrategyLayout()};
-
-async function renderStrategyLayout(){
+renderers.strategy=async()=>{
   const[companies,health]=await Promise.all([api('/api/companies'),api('/api/health')]);
   _coData=companies;_healthData=health;
-  let h=`<div class="sub-nav"><button class="${_strategySubTab==='companies'?'active':''}" onclick="_strategySubTab='companies';renderStrategyContent()">公司列表 (${companies.length})</button><button class="${_strategySubTab==='health'?'active':''}" onclick="_strategySubTab='health';renderStrategyContent()">策略健康 (${health.summary.total})</button></div><div id="strategyContent"></div>`;
-  document.getElementById('content').innerHTML=h;
-  renderStrategyContent();
+  const cc=$('#coCount');if(cc)cc.textContent=companies.length;
   $('#topbarActions').innerHTML=`<div class="search-box" style="width:240px"><input type="search" id="coSearch" placeholder="搜索公司..." oninput="applyCoFilters()"></div>`;
-}
-window.renderStrategyContent=()=>{
-  if(_strategySubTab==='health'){renderHealthPanel(_healthData);return}
-  $('#topbarActions').innerHTML=`<div class="search-box" style="width:240px"><input type="search" id="coSearch" placeholder="搜索公司..." oninput="applyCoFilters()"></div>`;
-  renderCompanyGrid(_sortCompanies(_coData,_coFilter));
+  document.getElementById('content').innerHTML=renderCompanyGridHtml(_sortCompanies(_coData,_coFilter));
 };
+function renderCompanyGridHtml(companies){
+  const healthMap={};if(_healthData)for(const t of _healthData.tasks||[]){healthMap[t.company_id]=t}
+  let c=`<div class="card"><div class="card-header"><h3>公司列表</h3><div class="btn-group"><button class="btn btn-primary btn-sm" onclick="showAddCoModal()">+ 新增公司</button><select id="coStatus" onchange="_coFilter=this.value;document.getElementById('content').innerHTML=renderCompanyGridHtml(_sortCompanies(_coData,_coFilter))" style="width:auto;padding:6px 10px;font-size:12px"><option value="all">全部状态</option><option value="enabled">已启用</option><option value="disabled">已禁用</option></select><select id="coHealth" onchange="_coHealthFilter=this.value;document.getElementById('content').innerHTML=renderCompanyGridHtml(_sortCompanies(_coData,_coFilter))" style="width:auto;padding:6px 10px;font-size:12px"><option value="all">全部健康</option><option value="pending">待修复</option></select></div></div><div class="company-grid">`;
+  companies.forEach(co=>{
+    const uk=Object.keys(co.urls||{}).filter(k=>co.urls[k]);const h=healthMap[co.id];
+    const hb=h?`<span class="badge ${h.status==='blocked'?'badge-err':h.status==='pending'?'badge-warn':'badge-info'}">${({pending:'待修复',blocked:'阻塞',failed:'失败',repaired:'已修复'}[h.status]||h.status)}</span>`:'';
+    c+=`<div class="cocard ${co.enabled?'':'disabled'}" data-cid="${esc(co.id)}" data-search="${esc(co.name+' '+co.id)}" data-enabled="${co.enabled?'1':'0'}">
+      <div class="cctop"><div class="ccname"><span>${esc(co.name)}</span><code>${esc(co.id)}</code><span class="badge ${co.enabled?'badge-ok':'badge-warn'}">${co.enabled?'已启用':'已禁用'}</span>${hb}${co.strategy_type&&co.strategy_type!=='unknown'?`<span class="badge badge-neutral">${esc(co.strategy_type==='custom_python'?'custom':co.strategy_type==='config_intercept'?'intercept':co.strategy_type)}</span>`:''}</div><label class="toggle"><input type="checkbox" ${co.enabled?'checked':''} onchange="toggleCo('${esc(co.id)}',this.checked)"><div class="toggle-track"></div></label></div>
+      ${uk.length?`<div class="ccurls">${uk.map(k=>`<a href="${esc(co.urls[k])}" target="_blank" rel="noopener">${LABEL[k]||k}</a>`).join('')}</div>`:''}
+      ${co.note?`<div class="ccnote">${esc(co.note)}</div>`:''}
+      <div class="ccactions"><button class="btn btn-outline btn-sm" onclick="showEditCoModal('${esc(co.id)}')">编辑</button><button class="btn btn-outline btn-sm" onclick="testCo('${esc(co.id)}')">测试</button><button class="btn btn-danger btn-sm" onclick="deleteCo('${esc(co.id)}')">删除</button><span id="test-${esc(co.id)}" class="text-sm" style="margin-left:auto"></span></div>
+    </div>`;
+  });
+  c+='</div>';
+  return c;
+}
 
 function _sortCompanies(list,sf){
   let out=[...list];out.sort((a,b)=>(b.enabled-a.enabled)||a.name.localeCompare(b.name,'zh'));
@@ -435,23 +462,6 @@ function _sortCompanies(list,sf){
   return out;
 }
 
-function renderCompanyGrid(companies){
-  const healthMap={};if(_healthData)for(const t of _healthData.tasks||[]){healthMap[t.company_id]=t}
-  let c=`<div class="card"><div class="card-header"><div class="flex gap-2" style="align-items:center"><button class="btn btn-primary btn-sm" onclick="showAddCoModal()">+ 新增公司</button><select id="coStatus" onchange="_coFilter=this.value;renderCompanyGrid(_sortCompanies(_coData,_coFilter))" style="width:auto;padding:6px 10px;font-size:12px"><option value="all">全部状态</option><option value="enabled">已启用</option><option value="disabled">已禁用</option></select><select id="coHealth" onchange="_coHealthFilter=this.value;renderCompanyGrid(_sortCompanies(_coData,_coFilter))" style="width:auto;padding:6px 10px;font-size:12px"><option value="all">全部健康</option><option value="pending">待修复</option></select></div></div></div><div class="company-grid">`;
-  companies.forEach(co=>{
-    const uk=Object.keys(co.urls||{}).filter(k=>co.urls[k]);const h=healthMap[co.id];
-    const hb=h?`<span class="badge ${h.status==='blocked'?'badge-err':h.status==='pending'?'badge-warn':'badge-info'}">${({pending:'待修复',blocked:'阻塞',failed:'失败',repaired:'已修复'}[h.status]||h.status)}</span>`:'';
-    c+=`<div class="cocard ${co.enabled?'':'disabled'}" data-cid="${esc(co.id)}" data-search="${esc(co.name+' '+co.id)}" data-enabled="${co.enabled?'1':'0'}">
-      <div class="cctop"><div class="ccname"><span>${esc(co.name)}</span><code>${esc(co.id)}</code><span class="badge ${co.enabled?'badge-ok':'badge-warn'}">${co.enabled?'已启用':'已禁用'}</span>${hb}<span class="badge badge-neutral">${esc(co.strategy_type==='custom_python'?'custom':co.strategy_type==='config_intercept'?'intercept':co.strategy_type||'unknown')}</span></div><label class="toggle"><input type="checkbox" ${co.enabled?'checked':''} onchange="toggleCo('${esc(co.id)}',this.checked)"><div class="toggle-track"></div></label></div>
-      ${uk.length?`<div class="ccurls">${uk.map(k=>`<a href="${esc(co.urls[k])}" target="_blank" rel="noopener">${LABEL[k]||k}</a>`).join('')}</div>`:''}
-      ${co.note?`<div class="ccnote">${esc(co.note)}</div>`:''}
-      <div class="ccactions"><button class="btn btn-outline btn-sm" onclick="showEditCoModal('${esc(co.id)}')">编辑</button><button class="btn btn-outline btn-sm" onclick="testCo('${esc(co.id)}')">测试</button><button class="btn btn-danger btn-sm" onclick="deleteCo('${esc(co.id)}')">删除</button><span id="test-${esc(co.id)}" class="text-sm" style="margin-left:auto"></span></div>
-    </div>`;
-  });
-  c+='</div>';
-  document.getElementById('strategyContent').innerHTML=c;
-  $('#coStatus').value=_coFilter;$('#coHealth').value=_coHealthFilter;
-}
 
 window.applyCoFilters=()=>{const q=$('#coSearch')?.value?.toLowerCase()||'';$$('.cocard').forEach(c=>{c.style.display=(!q||c.dataset.search.toLowerCase().includes(q))?'':'none'})};
 window.toggleCo=async(id,en)=>{await api(`/api/companies/${id}`,{method:'PUT',body:JSON.stringify({enabled:en})});const c=_coData.find(x=>x.id===id);if(c)c.enabled=en;const card=document.querySelector(`.cocard[data-cid="${id}"]`);if(card){card.classList.toggle('disabled',!en);const b=card.querySelector('.badge');if(b){b.className=`badge ${en?'badge-ok':'badge-warn'}`;b.textContent=en?'已启用':'已禁用'}}};
@@ -465,7 +475,7 @@ window.saveCo=async(id)=>{await api(`/api/companies/${id}`,{method:'PUT',body:JS
 // ── Health ──
 function renderHealthPanel(health){
   const s=health.summary||{total:0,pending:0,blocked:0,failed:0};
-  const sc=document.getElementById('strategyContent');if(!sc)return;
+  const sc=document.getElementById('content');if(!sc||_currentTab!=='health')return;
   $('#topbarActions').innerHTML='';
   if(s.total===0){sc.innerHTML='<div class="card"><div class="empty-state">所有公司抓取策略正常</div></div>';return}
   let h='<div class="stats-grid">';
@@ -474,15 +484,15 @@ function renderHealthPanel(health){
   h+=`<div class="stat-card left-accent-red"><div class="num" style="color:var(--red)">${s.blocked}</div><div class="lbl">阻塞</div></div>`;
   h+=`<div class="stat-card left-accent-muted"><div class="num" style="color:var(--text-muted)">${s.failed}</div><div class="lbl">失败</div></div>`;
   h+='</div>';
-  h+='<div class="card"><div class="card-header"><h3>策略任务</h3><div class="btn-group"><button class="btn btn-outline btn-sm" onclick="selectAllHealth()">全选</button><button class="btn btn-outline btn-sm" onclick="clearHealthSel()">取消</button><button class="btn btn-primary btn-sm" id="batchBtn" disabled onclick="batchRepair()">批量修复 (0)</button><button class="btn btn-outline btn-sm" onclick="refreshHealth()">刷新</button></div></div>';
+  h+='<div class="card"><div class="card-header"><h3>策略任务</h3><div class="btn-group"><button class="btn btn-outline btn-sm" onclick="selectAllHealth()">全选</button><button class="btn btn-outline btn-sm" onclick="clearHealthSel()">取消</button><button class="btn btn-primary btn-sm" id="batchBtn" disabled onclick="batchRepair()">批量修复 (0)</button><button class="btn btn-outline btn-sm" onclick="refreshHealth()">刷新</button></div></div><div class="card-list">';
   for(const t of health.tasks){
     const cls=t.status==='blocked'?'badge-err':t.status==='pending'?'badge-warn':'badge-info';
     const lbl={pending:'待处理',blocked:'阻塞',failed:'失败',repaired:'已修复'}[t.status]||t.status;
     h+=`<div class="row" style="grid-template-columns:auto 1fr auto auto"><input type="checkbox" class="checkbox hc-cb" data-cid="${esc(t.company_id)}" onchange="toggleHc('${esc(t.company_id)}',this.checked)"><div><strong>${esc(t.company_name)}</strong><span class="badge ${cls}">${lbl}</span><div class="text-sm text-muted mt-1">${esc(t.reason_label||t.reason)}</div></div><span class="text-sm text-muted">${(t.created_at||'').slice(0,16)}</span><button class="btn btn-outline btn-sm" onclick="retryOne('${esc(t.company_id)}')">重试</button></div>`;
   }
-  h+='</div>';sc.innerHTML=h;
+  h+='</div></div>';sc.innerHTML=h;
 }
-window.refreshHealth=async()=>{const h=await api('/api/health');_healthData=h;renderHealthPanel(h);updateCoBadges();updateHealthBadge()};
+window.refreshHealth=async()=>{const h=await api('/api/health');_healthData=h;if(_currentTab==='health')renderHealthPanel(h);updateCoBadges();updateHealthBadge()};
 window.updateCoBadges=()=>{const m={};if(_healthData)for(const t of _healthData.tasks||[]){m[t.company_id]=t}$$('.cocard').forEach(c=>{const cid=c.dataset.cid;const h=m[cid];const b=c.querySelector('.badge:last-child');if(b&&(b.classList.contains('badge-warn')||b.classList.contains('badge-err')||b.classList.contains('badge-info'))){if(h){const l={pending:'待修复',blocked:'阻塞',failed:'失败',repaired:'已修复'}[h.status]||h.status;b.className=`badge ${h.status==='blocked'?'badge-err':h.status==='pending'?'badge-warn':'badge-info'}`;b.textContent=l}else b.remove()}})};
 window.selectAllHealth=()=>{const ids=_healthData.tasks.map(t=>t.company_id);_selCompanies=new Set(ids);$$('.hc-cb').forEach(c=>{c.checked=true});updateBatchBtn()};
 window.clearHealthSel=()=>{_selCompanies.clear();$$('.hc-cb').forEach(c=>{c.checked=false});updateBatchBtn()};
@@ -495,21 +505,64 @@ window.retryOne=async(id)=>{const btns=$$(`button[onclick*="retryOne('${id}')"]`
 renderers.health=async()=>{
   const h=await api('/api/health');_healthData=h;updateHealthBadge();
   $('#topbarActions').innerHTML='<button class="btn btn-outline btn-sm" onclick="renderers.health()">刷新</button>';
-  _strategySubTab='health';renderStrategyContent();
+  document.getElementById('content').innerHTML='';
+  renderHealthPanel(h);
 };
 
 // Tab: 飞书推送 (standalone)
 renderers.feishu=async()=>{
-  const cfg=await api('/api/config');const fconf=cfg.feishu||{};
+  const cfg=await api('/api/config');const fconf=cfg.feishu||{};const fmeta=cfg.feishu_meta||{};
   $('#topbarActions').innerHTML='';
-  var h='<div class="card"><div class="card-header"><h3>飞书推送配置</h3><p class="text-sm text-muted">配置飞书应用凭证，开启后巡检报告自动推送到飞书知识库和多维表格。</p></div>';
-  h+='<label class="toggle" style="margin-bottom:16px"><input type="checkbox" '+ (fconf.enabled?"checked":"") +' onchange="toggleFs(this.checked)"><div class="toggle-track"></div><span>'+ (fconf.enabled?"推送已开启":"推送已关闭") +'</span></label>';
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:600px">';
-  var fl=[['App ID','fAppId',fconf.app_id||''],['App Secret','fAppSecret',fconf.app_secret||''],['Wiki Token','fWiki',fconf.wiki_node_token||''],['Bitable Token','fBitable',fconf.bitable_token||''],['Table ID','fTableId',fconf.bitable_table_id||'']];
-  for(var i=0;i<fl.length;i++){var lb=fl[i][0];var fi=fl[i][1];var fv=fl[i][2];h+='<div><label class="form-label">'+lb+'</label><input id="'+fi+'" value="'+esc(fv)+'" '+ (fi==='fAppSecret'?'type="password"':'') +'></div>';}
-  h+='</div><button class="btn btn-primary mt-3" onclick="saveFeishu()">保存</button></div>';
+  let h='<div class="card" style="max-width:760px"><div class="card-header"><h3>飞书推送配置</h3></div>';
+  h+='<p class="text-sm text-muted" style="margin-bottom:16px">配置飞书应用凭证，开启后巡检报告自动推送到飞书知识库和多维表格。每个字段下方标注了在飞书后台的查找路径。</p>';
+  h+='<label class="toggle" style="margin-bottom:20px;display:flex"><input type="checkbox" '+ (fconf.enabled?"checked":"") +' onchange="toggleFs(this.checked)"><div class="toggle-track"></div><span style="font-weight:600">'+ (fconf.enabled?"推送已开启":"推送已关闭") +'</span></label>';
+  const fields=[
+    {id:'fAppId',key:'app_id',pw:false},
+    {id:'fAppSecret',key:'app_secret',pw:true},
+    {id:'fWiki',key:'wiki_node_token',pw:false},
+    {id:'fBitable',key:'bitable_token',pw:false},
+    {id:'fTableId',key:'bitable_table_id',pw:false},
+  ];
+  h+='<div style="display:grid;grid-template-columns:1fr;gap:16px">';
+  for(const f of fields){
+    const meta=fmeta[f.key]||{};
+    const label=meta.label||f.key;
+    const desc=meta.desc||'';
+    h+='<div><label class="form-label">'+esc(label)+'</label><input type="'+(f.pw?'password':'text')+'" id="'+f.id+'" value="'+esc(fconf[f.key]||'')+'" placeholder="'+esc(desc)+'"><div class="text-sm text-muted" style="margin-top:3px">'+esc(desc)+'</div></div>';
+  }
+  h+='</div>';
+  h+='<div style="margin-top:20px;display:flex;align-items:center;gap:12px"><button class="btn btn-primary" onclick="saveFeishu()">保存配置</button><a href="https://open.feishu.cn/document/home/index" target="_blank" rel="noopener" style="font-size:12px;color:var(--primary)">飞书开放平台文档 &#x2197;</a></div>';
+  h+='<div class="text-sm text-muted" style="margin-top:16px;padding:12px;background:var(--muted);border-radius:8px;line-height:1.7">也可通过飞书 CLI 用自然语言获取和配置：<br><code>lark im send-message</code> / <code>lark wiki</code> / <code>lark bitable</code> — 具体凭据和节点信息可直接向 Claude 描述需求获取。</div>';
+  h+='</div>';
   document.getElementById('content').innerHTML=h;
 };
+// Tab: 定时任务 (standalone)
+renderers.schedule=async()=>{
+  const cfg=await api('/api/config');const sc=cfg.schedule||{};
+  $('#topbarActions').innerHTML='';
+  let h='<div class="card" style="max-width:700px"><div class="card-header"><h3>定时巡检</h3></div>';
+  h+='<p class="text-sm text-muted" style="margin-bottom:16px">每日自动运行策略巡检 + 岗位抓取，结果推送到飞书。配置保存后由系统调度器触发（需配合 Windows 任务计划程序或 cron）。</p>';
+  h+='<label class="toggle" style="margin-bottom:20px;display:flex"><input type="checkbox" '+ (sc.enabled?"checked":"") +' onchange="toggleSchedule(this.checked)"><div class="toggle-track"></div><span style="font-weight:600">'+ (sc.enabled?"定时已开启":"定时已关闭") +'</span></label>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">';
+  h+='<div><label class="form-label">巡检类型</label><select id="scJobType" onchange="saveScheduleField()"><option value="social" '+ (sc.job_type==='social'?'selected':'') +'>社招</option><option value="campus" '+ (sc.job_type==='campus'?'selected':'') +'>校招</option><option value="internship" '+ (sc.job_type==='internship'?'selected':'') +'>实习</option></select></div>';
+  h+='<div><label class="form-label">搜索关键词</label><input id="scKeyword" value="'+esc(sc.keyword||'产品经理')+'" onchange="saveScheduleField()"></div>';
+  h+='</div>';
+  h+='<div style="display:flex;gap:24px;margin-top:16px;align-items:center">';
+  h+='<label class="toggle"><input type="checkbox" '+ (sc.feishu_push?"checked":"") +' onchange="saveScheduleToggle(&quot;feishu_push&quot;,this.checked)"><div class="toggle-track"></div><span>完成后飞书推送</span></label>';
+  h+='<label class="toggle"><input type="checkbox" '+ (sc.git_push?"checked":"") +' onchange="saveScheduleToggle(&quot;git_push&quot;,this.checked)"><div class="toggle-track"></div><span>完成后 Git 提交</span></label>';
+  h+='</div>';
+  if(sc.last_run)h+='<div class="text-sm text-muted" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">上次运行: '+esc(sc.last_run)+'</div>';
+  h+='<div class="text-sm text-muted" style="margin-top:16px;padding:12px;background:var(--muted);border-radius:8px;line-height:1.7">';
+  h+='<strong>如何设置自动触发</strong><br>';
+  h+='直接告诉 Claude：「帮我设一个每天早上 9 点跑 <code>python -m src.scheduler --schedule</code> 的定时任务」即可（Claude Code 内置 cron，持久存盘）。<br>';
+  h+='或手动：<code>crontab -e</code> 添加 <code>0 9 * * * cd '+esc('D:/ccworkplace/Smarthunter')+' && python -m src.scheduler --schedule</code>';
+  h+='</div>';
+  h+='</div>';
+  document.getElementById('content').innerHTML=h;
+};
+window.toggleSchedule=async(en)=>{await api('/api/config',{method:'PUT',body:JSON.stringify({schedule:{enabled:en}})});toast(en?'定时已开启':'定时已关闭');renderers.schedule()};
+window.saveScheduleField=async()=>{await api('/api/config',{method:'PUT',body:JSON.stringify({schedule:{job_type:$('#scJobType').value,keyword:$('#scKeyword').value.trim()}})});toast('已保存')};
+window.saveScheduleToggle=async(field,val)=>{const b={};b[field]=val;await api('/api/config',{method:'PUT',body:JSON.stringify({schedule:b})});toast('已保存')};
 
 // ── Init ──
 switchTab('tasks');
