@@ -322,7 +322,8 @@ renderers.tasks=async()=>{
   const fconf=cfg.feishu||{};
 
   // Left: resume list + upload
-  let left='<div class="card" style="margin-bottom:12px"><div class="card-header"><h3>简历</h3><span class="text-sm text-muted">'+resumeList.length+' 份</span></div>';
+  let left=`<button class="btn btn-primary" style="width:100%;margin-bottom:12px" onclick="runInspect()">&#x25b6; 启动巡检</button>`;
+  left+='<div class="card" style="margin-bottom:12px"><div class="card-header"><h3>简历</h3><span class="text-sm text-muted">'+resumeList.length+' 份</span></div>';
   left+='<div class="upload-zone" id="dropZone" style="padding:14px;margin-bottom:12px"><div style="font-size:18px;font-weight:600;color:var(--primary)">+ 上传简历</div><div class="text-sm text-muted">拖拽或点击 · .txt .md .docx .pdf .png .jpg</div><input type="file" id="resumeInput" accept=".txt,.md,.docx,.pdf,.png,.jpg,.jpeg" multiple style="display:none"></div><div id="uploadStatus" class="text-sm" style="margin-bottom:8px"></div>';
   if(resumeList.length===0){left+='<div class="text-sm text-muted">暂无简历</div>'}
   else{
@@ -332,8 +333,8 @@ renderers.tasks=async()=>{
       const sel=_tasksSelectedResume===r.name;
       const pf=(cfg.profiles||[]).find(p=>p.resume&&p.resume.includes(r.name));
       const isEnabled=pf?pf.enabled:true;
-      left+=`<div class="row" style="grid-template-columns:auto 1fr auto;cursor:pointer;align-items:center;gap:8px;opacity:${isEnabled?'1':'.45'};${sel?'background:var(--primary-bg);border-radius:6px;padding:6px 8px':''}" onclick="_tasksSelectedResume='${esc(r.name)}';renderers.tasks()">
-        ${pf?`<label class="toggle" style="flex-shrink:0" title="${isEnabled?'已启用':'已暂停'}" onclick="event.stopPropagation()"><input type="checkbox" ${isEnabled?'checked':''} onchange="togglePf('${esc(pf.name)}',this.checked)"><div class="toggle-track"></div></label>`:'<span style="width:34px;flex-shrink:0"></span>'}
+      left+=`<div class="row" style="grid-template-columns:auto 1fr auto;cursor:pointer;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;opacity:${isEnabled?'1':'.45'};${sel?'background:var(--primary-bg)':''}" onclick="_tasksSelectedResume='${esc(r.name)}';renderers.tasks()">
+        <span style="width:36px;flex-shrink:0;display:flex;justify-content:center">${pf?`<label class="toggle" title="${isEnabled?'已启用':'已暂停'}" onclick="event.stopPropagation()"><input type="checkbox" ${isEnabled?'checked':''} onchange="togglePf('${esc(pf.name)}',this.checked)"><div class="toggle-track"></div></label>`:''}</span>
         <div style="min-width:0;overflow:hidden">
           <div title="${esc(r.name)}" style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}${isEnabled?'':' · 已暂停'}</div>
           <div class="text-sm text-muted">${fs(r.size)}${cnt>0?` · ${cnt} 份报告`:''}${pf?` · ${esc(pf.job_type||'')}`:''}</div>
@@ -347,9 +348,6 @@ renderers.tasks=async()=>{
   }
   left+='</div>';
 
-  // Run inspection
-  left+=`<button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="runInspect()">&#x25b6; 启动巡检</button>`;
-
   // Right: selected resume
   let right='<div class="card"><div class="card-header"><h3>巡检报告</h3></div>';
   if(!_tasksSelectedResume||!resumeList.find(x=>x.name===_tasksSelectedResume))_tasksSelectedResume=resumeList[0]?.name||null;
@@ -358,7 +356,7 @@ renderers.tasks=async()=>{
     const r=resumeList.find(x=>x.name===_tasksSelectedResume);
     const pf=(cfg.profiles||[]).find(p=>p.resume&&p.resume.includes(_tasksSelectedResume));
     right+=`<div style="margin-bottom:10px"><strong>${esc(_tasksSelectedResume)}</strong><span class="text-sm text-muted" style="margin-left:8px">${esc(r?.format||'')} · ${fs(r?.size||0)}</span>`;
-    if(pf){right+=`<div class="text-sm mt-2"><span class="kw-tag">${esc(pf.job_type||'')}</span>`;if(pf.keywords)for(const k of pf.keywords)right+=`<span class="kw-tag">${esc(k)}</span>`;right+=` <label class="toggle" style="margin-left:8px"><input type="checkbox" ${pf.enabled?"checked":""} onchange="togglePf('${esc(pf.name)}',this.checked)"><div class="toggle-track"></div></label></div>`}
+    if(pf){right+=`<div class="text-sm mt-2"><span class="kw-tag">${esc(pf.job_type||'')}</span>`;if(pf.keywords)for(const k of pf.keywords)right+=`<span class="kw-tag">${esc(k)}</span>`;right+=`</div>`}
     else right+='<div class="text-sm text-muted mt-2">Agent 运行后创建意向</div>';
     right+='</div>';
     if(rr.length===0)right+='<div class="text-sm text-muted">暂无巡检结果</div>';
