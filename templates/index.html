@@ -385,8 +385,19 @@ async function doUpload(files){
   const s=$('#uploadStatus');if(!s||!files.length)return;
   for(const f of files){
     const bn=f.name.replace(/\.[^.]+$/,'');
+    // Upload file immediately so confirm is instant
+    s.innerHTML='<span class="spinner"></span> 上传中...';
+    let analyzed=null;
+    try{
+      const fd=new FormData();fd.append('file',f);
+      analyzed=await fetch('/api/resumes/analyze',{method:'POST',body:fd}).then(r=>r.json());
+      s.innerHTML='';
+    }catch(e){s.innerHTML='上传失败: '+e.message;return}
+
+    if(!analyzed.ok){s.innerHTML=analyzed.detail||'上传失败';return}
+
     showModal('填写求职意向 — '+esc(f.name),
-      `<div class="text-sm" style="margin-bottom:8px">为简历设置搜索关键词，Agent 巡检时使用。</div>
+      `<div class="text-sm" style="margin-bottom:8px">为简历设置搜索关键词，Agent 巡检时使用。<br><span style="color:var(--green)">✓ 文件已上传 (${fs(f.size)})</span></div>
       <label>意向名称</label><input id="cfmName" value="${esc(bn)}">
       <label>岗位类型</label><div style="display:flex;gap:8px;padding:6px 0">${['社招','校招','实习'].map((t,i)=>`<button type="button" class="cfmJobType btn ${i===0?'btn-primary':'btn-outline'} btn-sm" data-val="${t}" onclick="this.classList.toggle('btn-primary');this.classList.toggle('btn-outline')">${t}</button>`).join('')}</div>
       <label>搜索关键词 <span class="text-muted text-sm">(逗号或空格分隔)</span></label><input id="cfmKw" placeholder="例: 产品经理, TOB, SaaS">
@@ -399,11 +410,8 @@ async function doUpload(files){
         const kw=$('#cfmKw')?.value||'';const kwl=kw.split(/[,，\s]+/).filter(Boolean);
         const jts=[...document.querySelectorAll('.cfmJobType.btn-primary')].map(b=>b.dataset.val);
         try{
-          const fd=new FormData();fd.append('file',f);
-          const up=await fetch('/api/resumes',{method:'POST',body:fd}).then(r=>r.json());
-          if(!up.ok){s.innerHTML='上传失败';btn.disabled=false;return}
-          await api('/api/resumes/confirm',{method:'POST',body:JSON.stringify({filename:up.filename,keywords:kwl,job_types:jts.length?jts:['社招'],profile_name:$('#cfmName')?.value||bn})});
-          document.querySelector('.modal-overlay')?.remove();s.innerHTML=up.filename+' 已创建';
+          await api('/api/resumes/confirm',{method:'POST',body:JSON.stringify({filename:analyzed.filename,keywords:kwl,job_types:jts.length?jts:['社招'],profile_name:$('#cfmName')?.value||bn})});
+          document.querySelector('.modal-overlay')?.remove();s.innerHTML=analyzed.filename+' 已创建';
           setTimeout(()=>renderers.tasks(),600);
         }catch(e){btn.disabled=false;btn.textContent='确认';s.innerHTML='失败: '+e.message}
       });
