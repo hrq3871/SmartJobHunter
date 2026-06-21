@@ -262,8 +262,92 @@ async def list_resumes():
     return files
 
 
-@app.post("/api/resumes")
-async def upload_resume(file: UploadFile = File(...)):
+def _extract_text_from_bytes(content: bytes, filename: str) -> str:
+    """Try to extract readable text from a resume file for keyword suggestion."""
+    ext = Path(filename).suffix.lower()
+    if ext in (".txt", ".md"):
+        try:
+            return content.decode("utf-8")
+        except UnicodeDecodeError:
+            try:
+                return content.decode("gbk", errors="replace")
+            except Exception:
+                return ""
+    if ext == ".docx":
+        try:
+            from docx import Document
+            from io import BytesIO
+            doc = Document(BytesIO(content))
+            return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        except Exception:
+            return ""
+    if ext == ".pdf":
+        try:
+            import fitz  # PyMuPDF
+            doc = fitz.open(stream=content, filetype="pdf")
+            return "\n".join(page.get_text() for page in doc)
+        except Exception:
+            return ""
+    # Images: can't extract text server-side
+    return ""
+
+
+def _suggest_profile(filename: str, text_content: str) -> dict:
+    """Heuristically suggest keywords and job_type from filename + content."""
+    combined = (filename + " " + text_content[:2000]).lower()
+
+    # Detect job_type
+    job_type = "社招"
+    if any(kw in combined for kw in ["实习", "intern", "internship"]):
+        job_type = "实习"
+    elif any(kw in combined for kw in ["校招", "应届", "campus", "graduate"]):
+        job_type = "校招"
+
+    # Extract role keywords from filename
+    name = Path(filename).stem
+    # Split by common separators
+    import re as _re
+    parts = _re.split(r"[-_\s]+", name)
+    role_hints = []
+    for p in parts:
+        p_clean = p.strip().lower()
+        if p_clean in ("resume", "cv", "简历", "个人简历"):
+            continue
+        if len(p_clean) >= 2 and not p_clean.isdigit():
+            role_hints.append(p_clean)
+
+    # Extract from text content
+    text_lower = text_content.lower()
+    keyword_candidates = set()
+    # Common role keywords
+    ROLE_PATTERNS = [
+        "产品经理", "产品总监", "产品负责人", "ai产品", "tob", "toc", "saas",
+        "后端", "前端", "全栈", "算法", "数据分析", "数据工程师",
+        "java", "python", "golang", "rust", "c++",
+        "运营", "市场", "销售", "设计", "测试", "运维",
+        "项目经理", "技术经理", "架构师",
+    ]
+    for kw in ROLE_PATTERNS:
+        if kw in combined or kw.lower() in combined:
+            keyword_candidates.add(kw if kw in combined else kw.lower())
+
+    # Add filename hints
+    for h in role_hints:
+        if len(h) >= 2 and not h.isdigit():
+            keyword_candidates.add(h)
+
+    return {
+        "suggested_name": name,
+        "suggested_job_type": job_type,
+        "suggested_keywords": sorted(keyword_candidates),
+        "text_preview": text_content[:500] if text_content else "",
+    }
+
+
+@app.post("/api/resumes/analyze")
+async def analyze_resume(file: UploadFile = File(...)):
+    """Upload a resume temporarily, analyze it, return keyword suggestions.
+    Does NOT save the file yet — user must call /api/resumes/confirm to finalize."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename")
     ext = Path(file.filename).suffix.lower()
@@ -272,18 +356,73 @@ async def upload_resume(file: UploadFile = File(...)):
     content = await file.read()
     if len(content) > MAX_RESUME_SIZE:
         raise HTTPException(status_code=400, detail="File exceeds 10 MB limit")
+
+    # Check for duplicate filename
+    if (RESUMES_DIR / file.filename).exists():
+        raise HTTPException(status_code=409, detail=f"File already exists: {file.filename}")
+
+    # Extract text and suggest
+    text = _extract_text_from_bytes(content, file.filename)
+    suggestion = _suggest_profile(file.filename, text)
+
+    # Store content temporarily for confirm step (simple in-memory, keyed by filename)
+    app.state._pending_upload = getattr(app.state, "_pending_upload", {})
+    app.state._pending_upload[file.filename] = content
+
+    return {
+        "ok": True,
+        "filename": file.filename,
+        "size": len(content),
+        "format": ext.lstrip("."),
+        **suggestion,
+    }
+
+
+@app.post("/api/resumes/confirm")
+async def confirm_resume(body: dict):
+    """Finalize resume upload with user-confirmed keywords, save file + create profile."""
+    filename = str(body.get("filename", "")).strip()
+    if not filename:
+        raise HTTPException(status_code=400, detail="filename required")
+    keywords = body.get("keywords", [])
+    if isinstance(keywords, str):
+        keywords = [k.strip() for k in keywords.replace(",", " ").split() if k.strip()]
+    job_type = str(body.get("job_type", "社招")).strip()
+    profile_name = str(body.get("profile_name", "")).strip() or Path(filename).stem
+
+    # Retrieve pending content
+    pending = getattr(app.state, "_pending_upload", {})
+    content = pending.pop(filename, None)
+    if content is None:
+        raise HTTPException(status_code=404, detail="No pending upload found. Please re-upload.")
+
+    # Save resume file
     RESUMES_DIR.mkdir(parents=True, exist_ok=True)
-    dest = RESUMES_DIR / file.filename
+    dest = RESUMES_DIR / filename
     dest.write_bytes(content)
-    # Profiles are managed by the Agent, not auto-created here.
-    # Report which profiles already reference this resume for user visibility.
-    referenced_by = []
-    for pf in PROFILES_DIR.glob("*.md"):
-        fm = _parse_profile_frontmatter(pf)
-        rp = fm.get("resume", "")
-        if file.filename in rp:
-            referenced_by.append(pf.stem)
-    return {"ok": True, "filename": file.filename, "size": len(content), "referenced_by": referenced_by}
+
+    # Create profile
+    PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    profile_path = PROFILES_DIR / f"{profile_name}.md"
+    fm = {
+        "name": profile_name,
+        "enabled": True,
+        "job_type": job_type,
+        "resume": f"resumes/{filename}",
+        "keywords": keywords,
+        "target_roles": keywords[:3] if keywords else [],
+    }
+    body_text = f"\n# 求职意向\n\n{profile_name} 的求职意向。\n\n> 关键词: {', '.join(keywords) if keywords else '待设置'}\n> 类型: {job_type}\n"
+    new_fm = yaml.safe_dump(fm, allow_unicode=True, default_flow_style=False, sort_keys=False).strip()
+    profile_path.write_text(f"---\n{new_fm}\n---\n{body_text}", encoding="utf-8")
+
+    return {
+        "ok": True,
+        "filename": filename,
+        "profile_name": profile_name,
+        "keywords": keywords,
+        "job_type": job_type,
+    }
 
 
 @app.delete("/api/resumes/{filename}")

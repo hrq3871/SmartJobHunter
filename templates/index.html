@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 :root {
   --bg: #F8FAFC; --surface: #FFFFFF; --primary: #1E40AF; --primary-light: #3B82F6;
@@ -394,7 +396,29 @@ window.saveCo=async(id)=>{
   const body={name:$('#eName').value.trim(),note:$('#eNote').value.trim(),urls:{social:$('#eUrlS').value.trim(),campus:$('#eUrlC').value.trim(),internship:$('#eUrlI').value.trim()}};
   await api(`/api/companies/${id}`,{method:'PUT',body:JSON.stringify(body)});document.querySelector('.modal-overlay')?.remove();toast('已保存');renderers.strategy();
 };
-window.previewResume=async(n)=>{try{const r=await api('/api/resumes');const f=r.find(x=>x.name===n);if(!f)return;const txt=f.format==='pdf'||f.format==='docx'?'(二进制文件，无法在线预览)':await fetch('/resumes/'+encodeURIComponent(n)).then(r=>r.text());showModal('&#x1f4c4; '+esc(n),f.format==='md'?`<div class="markdown-body">${marked.parse(txt)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:60vh;overflow-y:auto">${esc(txt)}</pre>`,'700px')}catch(e){toast('预览失败: '+e.message)}};
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+window.previewResume=async(n)=>{
+  try{
+    const ext=n.split('.').pop()?.toLowerCase();
+    const url='/resumes/'+encodeURIComponent(n);
+    if(ext==='pdf'){
+      showModal('&#x1f4c4; '+esc(n),'<div id="pvContent" style="height:70vh;overflow-y:auto;text-align:center"><span class="spinner"></span> 加载 PDF...</div>','800px');
+      try{const pdf=await pdfjsLib.getDocument(url).promise;let h='';for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i);const vp=pg.getViewport({scale:1.2});const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;h+=`<div style="margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.1)"><img src="${c.toDataURL()}" style="max-width:100%;height:auto"></div>`}document.getElementById('pvContent').innerHTML=h||'渲染失败'}catch(e){document.getElementById('pvContent').innerHTML='PDF 加载失败: '+esc(e.message)}
+      return;
+    }
+    if(ext==='docx'){
+      showModal('&#x1f4c4; '+esc(n),'<div id="pvContent" style="height:70vh;overflow-y:auto;font-family:var(--font-sans);line-height:1.8;font-size:14px"><span class="spinner"></span> 转换中...</div>','800px');
+      try{const res=await fetch(url);const buf=await res.arrayBuffer();const r=await mammoth.convertToHtml({arrayBuffer:buf});document.getElementById('pvContent').innerHTML=r.value||'转换失败'}catch(e){document.getElementById('pvContent').innerHTML='DOCX 转换失败: '+esc(e.message)}
+      return;
+    }
+    if(['png','jpg','jpeg','gif','webp','bmp'].includes(ext)){
+      showModal('&#x1f4c4; '+esc(n),`<div style="text-align:center"><img src="${url}" style="max-width:100%;max-height:75vh;box-shadow:0 4px 16px rgba(0,0,0,.1);border-radius:4px" onerror="this.parentElement.innerHTML='图片加载失败'"></div>`,'800px');
+      return;
+    }
+    const txt=await fetch(url).then(r=>r.text());
+    showModal('&#x1f4c4; '+esc(n),ext==='md'?`<div class="markdown-body">${marked.parse(txt)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:70vh;overflow-y:auto">${esc(txt)}</pre>`,'800px');
+  }catch(e){toast('预览失败: '+e.message)}
+};
 
 // ══════════════════════════════════════════════
 // Tab 2: 简历与巡检
@@ -477,9 +501,47 @@ function _findResumeForReport(report,profiles){
 }
 
 async function doUpload(files){
-  const s=$('#uploadStatus');if(!s)return;
-  for(const f of files){s.innerHTML='<span class="spinner"></span> 上传: '+esc(f.name)+'...';const fd=new FormData();fd.append('file',f);try{const r=await fetch('/api/resumes',{method:'POST',body:fd}).then(r=>r.json());s.innerHTML=r.ok?'&#x2705; '+esc(f.name)+' 上传成功':('&#x274c; '+esc(f.name));if(r.referenced_by?.length)s.innerHTML+=' (已关联意向)';else s.innerHTML+=' (Agent 运行后将自动关联)'}catch(e){s.innerHTML='&#x274c; '+esc(e.message)}}
-  setTimeout(()=>renderers.tasks(),800);
+  const s=$('#uploadStatus');if(!s||!files.length)return;
+  for(const f of files){
+    s.innerHTML='<span class="spinner"></span> 分析: '+esc(f.name)+'...';
+    const fd=new FormData();fd.append('file',f);
+    try{
+      const r=await fetch('/api/resumes/analyze',{method:'POST',body:fd}).then(r=>r.json());
+      if(!r.ok){s.innerHTML='&#x274c; '+esc(f.name);continue}
+      // Show confirmation modal
+      const kw=r.suggested_keywords||[];
+      showModal('&#x1f4c4; 确认求职意向 — '+esc(r.filename),
+        `<div class="text-sm" style="margin-bottom:12px">已分析简历内容，建议以下配置：</div>
+        <label>意向名称</label><input id="cfmName" value="${esc(r.suggested_name||'')}">
+        <label>岗位类型</label><select id="cfmType"><option value="社招" ${r.suggested_job_type==='社招'?'selected':''}>社招</option><option value="校招" ${r.suggested_job_type==='校招'?'selected':''}>校招</option><option value="实习" ${r.suggested_job_type==='实习'?'selected':''}>实习</option></select>
+        <label>搜索关键词 <span class="text-muted text-sm">(用逗号或空格分隔)</span></label><input id="cfmKw" value="${esc(kw.join(', '))}" placeholder="例: 产品经理, TOB, SaaS">
+        <div class="text-sm text-muted mt-2">文件: ${esc(r.filename)} · ${fs(r.size)} · ${esc(r.format)}</div>
+        ${r.text_preview?`<div class="text-sm text-muted mt-2" style="max-height:100px;overflow-y:auto;background:var(--bg);padding:8px;border-radius:4px">${esc(r.text_preview)}</div>`:''}
+        <div class="mt-3 flex gap-2"><button class="btn btn-primary" id="cfmBtn">确认上传并创建意向</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">取消</button></div>`,
+        '520px'
+      );
+      // Bind confirm
+      setTimeout(()=>{
+        const btn=$('#cfmBtn');if(!btn)return;
+        btn.addEventListener('click',async()=>{
+          btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 保存中...';
+          const kwRaw=$('#cfmKw')?.value||kw.join(',');
+          const kwList=kwRaw.split(/[,，\s]+/).map(x=>x.trim()).filter(Boolean);
+          try{
+            const cfm=await api('/api/resumes/confirm',{method:'POST',body:JSON.stringify({
+              filename:r.filename,
+              keywords:kwList,
+              job_type:$('#cfmType')?.value||'社招',
+              profile_name:$('#cfmName')?.value||r.suggested_name
+            })});
+            document.querySelector('.modal-overlay')?.remove();
+            s.innerHTML='&#x2705; '+esc(cfm.filename)+' — 意向「'+esc(cfm.profile_name)+'」已创建';
+          }catch(e){s.innerHTML='&#x274c; '+esc(e.message);btn.disabled=false;btn.textContent='确认上传并创建意向'}
+        });
+      },100);
+    }catch(e){s.innerHTML='&#x274c; '+esc(e.message)}
+  }
+  setTimeout(()=>renderers.tasks(),1500);
 }
 
 window.deleteResumeAndRefresh=async(name)=>{
