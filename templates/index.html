@@ -408,7 +408,7 @@ window.previewResume=async(n)=>{
     }
     if(ext==='docx'){
       showModal('&#x1f4c4; '+esc(n),'<div id="pvContent" style="height:70vh;overflow-y:auto;background:#fff;padding:20px"><span class="spinner"></span> 渲染中...</div>','900px');
-      try{const res=await fetch(url);const buf=await res.arrayBuffer();await docxPreview.renderAsync(buf,document.getElementById('pvContent'),null,{inWrapper:true,ignoreWidth:true,ignoreHeight:true,ignoreFonts:false,breakPages:true,ignoreLastRenderedPageBreak:true,experimental:false,trimXmlDeclaration:true,useBase64URL:false,useMathMLPolyfill:false,showChanges:false,debug:false})}catch(e){document.getElementById('pvContent').innerHTML='DOCX 渲染失败: '+esc(e.message)}
+      try{const res=await fetch(url);const buf=await res.arrayBuffer();await docx.renderAsync(buf,document.getElementById('pvContent'),null,{inWrapper:true,ignoreWidth:true,ignoreHeight:true,ignoreFonts:false,breakPages:true})}catch(e){document.getElementById('pvContent').innerHTML='DOCX 渲染失败: '+esc(e.message)}
       return;
     }
     if(['png','jpg','jpeg','gif','webp','bmp'].includes(ext)){
