@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 import yaml
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES = ROOT / "templates"
@@ -250,7 +251,7 @@ async def list_resumes():
     RESUMES_DIR.mkdir(parents=True, exist_ok=True)
     files = []
     for f in sorted(RESUMES_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-        if f.is_file():
+        if f.is_file() and not f.name.startswith(".") and f.name != "example_resume.md":
             st = f.stat()
             files.append({
                 "name": f.name,
