@@ -8,8 +8,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/docx-preview@0.3.7/dist/docx-preview.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 :root {
@@ -324,7 +322,7 @@ renderers.tasks=async()=>{
   // Left: resume list + upload
   let left=`<button class="btn btn-primary" style="width:100%;margin-bottom:12px" onclick="runInspect()">&#x25b6; 启动巡检</button>`;
   left+='<div class="card" style="margin-bottom:12px"><div class="card-header"><h3>简历</h3><span class="text-sm text-muted">'+resumeList.length+' 份</span></div>';
-  left+='<div class="upload-zone" id="dropZone" style="padding:14px;margin-bottom:12px"><div style="font-size:18px;font-weight:600;color:var(--primary)">+ 上传简历</div><div class="text-sm text-muted">拖拽或点击 · .txt .md .docx .pdf .png .jpg</div><input type="file" id="resumeInput" accept=".txt,.md,.docx,.pdf,.png,.jpg,.jpeg" multiple style="display:none"></div><div id="uploadStatus" class="text-sm" style="margin-bottom:8px"></div>';
+  left+='<div class="upload-zone" id="dropZone" style="padding:14px;margin-bottom:12px"><div style="font-size:18px;font-weight:600;color:var(--primary)">+ 上传简历</div><div class="text-sm text-muted">拖拽或点击 · .pdf .md .txt</div><input type="file" id="resumeInput" accept=".pdf,.md,.txt" multiple style="display:none"></div><div id="uploadStatus" class="text-sm" style="margin-bottom:8px"></div>';
   if(resumeList.length===0){left+='<div class="text-sm text-muted">暂无简历</div>'}
   else{
     const sorted=[...resumeList].sort((a,b)=>b.modified?.localeCompare(a.modified||''));
@@ -428,8 +426,6 @@ window.previewResume=async(n)=>{
   try{
     const ext=n.split('.').pop()?.toLowerCase();const url='/resumes/'+encodeURIComponent(n);
     if(ext==='pdf'){showModal(n,'<div id="pv" style="height:70vh;overflow-y:auto;text-align:center"><span class="spinner"></span></div>','800px');try{const pdf=await pdfjsLib.getDocument(url).promise;let h='';for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i);const vp=pg.getViewport({scale:1.2});const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;h+=`<div style="margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.1)"><img src="${c.toDataURL()}" style="max-width:100%"></div>`}$('#pv').innerHTML=h||'渲染失败'}catch(e){$('#pv').innerHTML='加载失败: '+esc(e.message)}return}
-    if(ext==='docx'){showModal(n,'<div id="pv" style="height:70vh;overflow-y:auto;background:#fff;padding:20px"><span class="spinner"></span></div>','900px');try{const res=await fetch(url);const buf=await res.arrayBuffer();await docx.renderAsync(buf,document.getElementById('pv'),null,{inWrapper:true,ignoreWidth:true,ignoreHeight:true,ignoreFonts:false,breakPages:true})}catch(e){$('#pv').innerHTML='渲染失败: '+esc(e.message)}return}
-    if(['png','jpg','jpeg','gif','webp','bmp'].includes(ext)){showModal(n,`<div style="text-align:center"><img src="${url}" style="max-width:100%;max-height:75vh;box-shadow:0 4px 16px rgba(0,0,0,.1);border-radius:4px" onerror="this.parentElement.innerHTML='加载失败'"></div>`,'800px');return}
     const txt=await fetch(url).then(r=>r.text());showModal(n,ext==='md'?`<div class="markdown-body">${marked.parse(txt)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:70vh;overflow-y:auto">${esc(txt)}</pre>`,'800px');
   }catch(e){toast('预览失败: '+e.message)}
 };

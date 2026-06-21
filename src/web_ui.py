@@ -24,6 +24,8 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
+from .resume_intents import SUPPORTED_RESUME_EXTENSIONS
+
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES = ROOT / "templates"
 PROFILES_DIR = ROOT / "profiles"
@@ -32,7 +34,7 @@ CONFIG_DIR = ROOT / "config"
 OUTPUT_DIR = ROOT / "output"
 LOGS_DIR = ROOT / "logs"
 
-ALLOWED_RESUME_EXTENSIONS = {".txt", ".md", ".docx", ".pdf", ".png", ".jpg", ".jpeg"}
+ALLOWED_RESUME_EXTENSIONS = SUPPORTED_RESUME_EXTENSIONS
 MAX_RESUME_SIZE = 10 * 1024 * 1024  # 10 MB
 
 app = FastAPI(title="SmartJobHunter Console", version="0.2.0")
@@ -274,14 +276,6 @@ def _extract_text_from_bytes(content: bytes, filename: str) -> str:
                 return content.decode("gbk", errors="replace")
             except Exception:
                 return ""
-    if ext == ".docx":
-        try:
-            from docx import Document
-            from io import BytesIO
-            doc = Document(BytesIO(content))
-            return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-        except Exception:
-            return ""
     if ext == ".pdf":
         try:
             import fitz  # PyMuPDF
@@ -289,7 +283,6 @@ def _extract_text_from_bytes(content: bytes, filename: str) -> str:
             return "\n".join(page.get_text() for page in doc)
         except Exception:
             return ""
-    # Images: can't extract text server-side
     return ""
 
 
