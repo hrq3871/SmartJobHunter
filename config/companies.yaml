@@ -372,7 +372,7 @@ companies:
   note: API已验证可用
 - id: kuaishou
   name: 快手
-  enabled: true
+  enabled: false
   urls:
     social: https://zhaopin.kuaishou.cn/recruit/e/#/official/social/
     campus: https://zhaopin.kuaishou.cn/recruit/e/#/official/campus/
