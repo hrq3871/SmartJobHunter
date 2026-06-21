@@ -11,99 +11,155 @@
 <style>
 :root {
   --bg: #F8FAFC; --surface: #FFFFFF; --primary: #1E40AF; --primary-light: #3B82F6;
-  --primary-bg: #EFF6FF; --accent: #D97706; --text: #1E293B; --text-secondary: #475569;
-  --text-muted: #94A3B8; --border: #DBEAFE; --border-light: #E2E8F0; --muted: #E9EEF6;
+  --primary-bg: #EFF6FF; --accent: #D97706; --accent-bg: #FFF7ED;
+  --text: #1E293B; --text-secondary: #475569; --text-muted: #94A3B8;
+  --border: #DBEAFE; --border-light: #E2E8F0; --border-subtle: #F1F5F9;
+  --muted: #E9EEF6; --muted-bg: #F1F5F9;
   --green: #16A34A; --green-bg: #F0FDF4; --red: #DC2626; --red-bg: #FEF2F2;
-  --yellow: #CA8A04; --yellow-bg: #FEFCE8;
+  --yellow: #CA8A04; --yellow-bg: #FEFCE8; --shadow-card: 0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --shadow-modal: 0 20px 60px rgba(0,0,0,.15); --shadow-hover: 0 4px 16px rgba(0,0,0,.08);
   --font-mono: 'Fira Code','Consolas',monospace; --font-sans: 'Fira Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  --radius: 8px; --shadow-sm: 0 1px 2px rgba(0,0,0,.05); --shadow: 0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
-  --transition: 150ms ease;
+  --radius: 10px; --radius-sm: 6px;
+  --transition: 180ms ease;
 }
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5;-webkit-font-smoothing:antialiased}
 
-header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100;box-shadow:var(--shadow-sm)}
-header h1{font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--primary);display:flex;align-items:center;gap:8px;white-space:nowrap}
-header h1 span{color:var(--accent)}
-nav{display:flex;gap:2px;overflow-x:auto}
-nav button{background:transparent;color:var(--text-secondary);border:none;padding:8px 16px;cursor:pointer;border-radius:6px;font-family:var(--font-sans);font-size:13px;font-weight:500;white-space:nowrap;transition:background var(--transition),color var(--transition);display:flex;align-items:center;gap:6px}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:center;justify-content:space-between;height:58px;position:sticky;top:0;z-index:100;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+header h1{font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--primary);display:flex;align-items:center;gap:8px;letter-spacing:-.3px}
+header h1 span{color:var(--accent);font-weight:500}
+
+nav{display:flex;gap:2px}
+nav button{background:transparent;color:var(--text-secondary);border:none;padding:8px 18px;cursor:pointer;border-radius:var(--radius-sm);font-family:var(--font-sans);font-size:13px;font-weight:500;white-space:nowrap;transition:all var(--transition);display:flex;align-items:center;gap:7px;position:relative}
 nav button:hover{background:var(--muted);color:var(--text)}
 nav button.active{background:var(--primary-bg);color:var(--primary);font-weight:600}
+nav button.active::after{content:'';position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);width:24px;height:2px;background:var(--primary);border-radius:1px}
 
-main{max-width:1400px;margin:0 auto;padding:24px}
+main{max-width:1500px;margin:0 auto;padding:28px}
 
-.card{background:var(--surface);border:1px solid var(--border-light);border-radius:var(--radius);padding:20px;margin-bottom:12px;box-shadow:var(--shadow-sm);transition:box-shadow var(--transition)}
-.card:hover{box-shadow:var(--shadow)}
-.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.card-header h2,.card-header h3{font-family:var(--font-mono);font-size:14px;font-weight:600;color:var(--primary)}
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border-light);border-radius:var(--radius);padding:20px;margin-bottom:14px;box-shadow:var(--shadow-card);transition:box-shadow var(--transition)}
+.card:hover{box-shadow:var(--shadow-hover)}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.card-header h2,.card-header h3{font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--primary);text-transform:uppercase;letter-spacing:.3px}
 
+/* Company Grid */
+.company-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:14px}
+.company-card{border:1px solid var(--border-light);border-radius:var(--radius);padding:18px;background:var(--surface);transition:all var(--transition);position:relative}
+.company-card:hover{border-color:var(--primary-light);box-shadow:var(--shadow-hover)}
+.company-card.disabled{opacity:.65;background:var(--muted-bg)}
+.company-card .c-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.company-card .c-name{font-weight:600;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.company-card .c-urls{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.company-card .c-urls a{display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:500;text-decoration:none;background:var(--primary-bg);color:var(--primary);border:1px solid var(--border);transition:all var(--transition)}
+.company-card .c-urls a:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+.company-card .c-note{font-size:12px;color:var(--text-muted);margin-top:6px}
+.company-card .c-actions{display:flex;gap:6px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-subtle)}
+
+/* Report two-column */
+.report-layout{display:grid;grid-template-columns:380px 1fr;gap:20px;align-items:start}
+@media(max-width:1000px){.report-layout{grid-template-columns:1fr}}
+.report-sidebar{position:sticky;top:80px}
+
+/* Health mini-panel inside companies tab */
+.health-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.health-strip .hs-card{background:var(--surface);border:1px solid var(--border-light);border-radius:var(--radius);padding:14px 18px;text-align:center;transition:all var(--transition);cursor:pointer}
+.health-strip .hs-card:hover{box-shadow:var(--shadow-hover)}
+.hs-card .hs-num{font-family:var(--font-mono);font-size:26px;font-weight:700}
+.hs-card .hs-label{font-size:11px;color:var(--text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+.hs-card.hs-total{border-left:3px solid var(--primary)}
+.hs-card.hs-pending{border-left:3px solid var(--yellow)}
+.hs-card.hs-blocked{border-left:3px solid var(--red)}
+.hs-card.hs-failed{border-left:3px solid var(--text-muted)}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:999;display:flex;align-items:flex-start;justify-content:center;padding-top:80px;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal-box{background:var(--surface);border-radius:14px;width:560px;max-width:94vw;max-height:82vh;overflow-y:auto;box-shadow:var(--shadow-modal);animation:slideUp .25s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid var(--border-light);position:sticky;top:0;background:var(--surface);z-index:1;border-radius:14px 14px 0 0}
+.modal-body{padding:24px}
+.modal-body label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;margin-top:12px;text-transform:uppercase;letter-spacing:.4px}
+.modal-body label:first-child{margin-top:0}
+.modal-body .hint{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+/* Tooltip */
+.tooltip-wrap{position:relative;display:inline-flex;align-items:center}
+.tooltip-trigger{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--muted);color:var(--text-muted);font-size:11px;font-weight:700;cursor:help;border:none;transition:all var(--transition)}
+.tooltip-trigger:hover{background:var(--primary);color:#fff}
+.tooltip-box{display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.6;white-space:normal;width:260px;z-index:1000;box-shadow:0 8px 24px rgba(0,0,0,.2);pointer-events:none}
+.tooltip-box::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--text)}
+.tooltip-wrap:hover .tooltip-box{display:block}
+
+/* Badges */
 .badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;letter-spacing:.3px}
 .badge-ok{background:var(--green-bg);color:var(--green)}
 .badge-warn{background:var(--yellow-bg);color:var(--yellow)}
 .badge-err{background:var(--red-bg);color:var(--red)}
 .badge-info{background:var(--primary-bg);color:var(--primary)}
 
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;font-family:var(--font-sans);font-size:13px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:all var(--transition);white-space:nowrap}
-.btn-primary{background:var(--primary);color:#fff}
-.btn-primary:hover{background:#1E3A8A}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 15px;border-radius:var(--radius-sm);font-family:var(--font-sans);font-size:12px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:all var(--transition);white-space:nowrap;letter-spacing:.2px}
+.btn-primary{background:var(--primary);color:#fff;box-shadow:0 1px 2px rgba(30,64,175,.25)}
+.btn-primary:hover{background:#1E3A8A;box-shadow:0 2px 6px rgba(30,64,175,.35)}
 .btn-outline{background:transparent;border-color:var(--border);color:var(--text-secondary)}
-.btn-outline:hover{background:var(--muted);color:var(--text)}
+.btn-outline:hover{background:var(--muted);color:var(--text);border-color:var(--primary-light)}
 .btn-danger{background:transparent;border-color:var(--red);color:var(--red)}
 .btn-danger:hover{background:var(--red-bg)}
-.btn-sm{padding:4px 12px;font-size:12px}
+.btn-sm{padding:4px 10px;font-size:11px}
 
-.toggle{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-size:14px}
+/* Toggle */
+.toggle{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px}
 .toggle input{display:none}
-.toggle-track{width:40px;height:22px;background:var(--text-muted);border-radius:11px;position:relative;transition:background var(--transition)}
+.toggle-track{width:38px;height:21px;background:#CBD5E1;border-radius:10px;position:relative;transition:background var(--transition)}
 .toggle input:checked+.toggle-track{background:var(--green)}
-.toggle-track::after{content:'';position:absolute;width:18px;height:18px;background:#fff;border-radius:50%;top:2px;left:2px;transition:transform var(--transition)}
-.toggle input:checked+.toggle-track::after{transform:translateX(18px)}
+.toggle-track::after{content:'';position:absolute;width:17px;height:17px;background:#fff;border-radius:50%;top:2px;left:2px;transition:transform var(--transition);box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.toggle input:checked+.toggle-track::after{transform:translateX(17px)}
 
-.table-row{display:grid;align-items:center;padding:10px 0;border-bottom:1px solid var(--border-light);gap:12px;font-size:13px}
-.table-row:last-child{border-bottom:none}
-.table-row:hover{background:var(--bg);margin:0 -20px;padding-left:20px;padding-right:20px}
+/* Table rows */
+.row{display:grid;align-items:center;padding:10px 0;border-bottom:1px solid var(--border-subtle);gap:12px;font-size:13px}
+.row:last-child{border-bottom:none}
+.row:hover{background:var(--bg);margin:0 -20px;padding-left:20px;padding-right:20px}
 
-input[type="text"],input[type="url"],input[type="password"],textarea,select{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-sans);font-size:13px;background:var(--bg);color:var(--text);transition:border-color var(--transition)}
-input:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(30,64,175,.12)}
+/* Forms */
+input[type="text"],input[type="url"],input[type="password"],input[type="search"],select{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-sans);font-size:13px;background:var(--bg);color:var(--text);transition:all var(--transition)}
+input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(30,64,175,.1)}
+.search-bar{position:relative}
+.search-bar input{padding-left:34px}
+.search-bar::before{content:'\1F50D';position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;opacity:.5;pointer-events:none}
 
-.upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:32px;text-align:center;cursor:pointer;transition:border-color var(--transition),background var(--transition);color:var(--text-muted)}
-.upload-zone:hover{border-color:var(--primary-light);background:var(--primary-bg)}
+/* Upload */
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:28px;text-align:center;cursor:pointer;transition:all var(--transition);color:var(--text-muted);background:var(--bg)}
+.upload-zone:hover{border-color:var(--primary-light);background:var(--primary-bg);color:var(--primary)}
 .upload-zone.drag-over{border-color:var(--primary);background:var(--primary-bg)}
 
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
-.stat-card{background:var(--surface);border:1px solid var(--border-light);border-radius:var(--radius);padding:16px;text-align:center}
-.stat-value{font-family:var(--font-mono);font-size:28px;font-weight:700;color:var(--primary)}
-.stat-label{font-size:12px;color:var(--text-muted);margin-top:4px}
-
-.markdown-body{font-size:14px;line-height:1.8;color:var(--text)}
-.markdown-body h1{font-size:22px;margin:16px 0 8px;color:var(--primary)}
-.markdown-body h2{font-size:18px;margin:24px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
-.markdown-body h3{font-size:15px;margin:16px 0 6px;color:var(--text-secondary)}
-.markdown-body table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
-.markdown-body th,.markdown-body td{border:1px solid var(--border-light);padding:8px 12px;text-align:left}
-.markdown-body th{background:var(--primary-bg);font-weight:600}
-.markdown-body code{font-family:var(--font-mono);font-size:12px;background:var(--muted);padding:2px 6px;border-radius:3px}
-.markdown-body pre{background:var(--bg);border:1px solid var(--border);padding:16px;overflow-x:auto;font-size:13px;line-height:1.6;border-radius:var(--radius)}
+/* Markdown */
+.markdown-body{font-size:14px;line-height:1.85;color:var(--text)}
+.markdown-body h1{font-size:20px;margin:16px 0 8px;color:var(--primary);font-family:var(--font-mono)}
+.markdown-body h2{font-size:16px;margin:20px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.markdown-body h3{font-size:14px;margin:14px 0 6px}
+.markdown-body table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
+.markdown-body th,.markdown-body td{border:1px solid var(--border-light);padding:7px 12px;text-align:left}
+.markdown-body th{background:var(--primary-bg);font-weight:600;font-size:12px}
+.markdown-body code{font-family:var(--font-mono);font-size:12px;background:var(--muted);padding:2px 5px;border-radius:3px}
+.markdown-body pre{background:var(--bg);border:1px solid var(--border);padding:14px;overflow-x:auto;font-size:12px;line-height:1.6;border-radius:var(--radius-sm)}
 .markdown-body a{color:var(--primary);text-decoration:underline}
-.markdown-body hr{margin:20px 0;border:none;border-top:1px solid var(--border)}
+.markdown-body hr{margin:18px 0;border:none;border-top:1px solid var(--border)}
 .markdown-body strong{color:var(--text)}
 
-.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:999;display:flex;align-items:flex-start;justify-content:center;padding-top:60px}
-.modal-box{background:var(--surface);border-radius:12px;width:90%;max-width:900px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
-.modal-header{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid var(--border-light);position:sticky;top:0;background:var(--surface);z-index:1}
-.modal-body{padding:24px}
+@media(max-width:768px){header{padding:0 12px}header h1{font-size:14px}nav button{padding:6px 10px;font-size:11px}main{padding:12px}.company-grid{grid-template-columns:1fr}}
 
-@media(max-width:768px){header{padding:0 12px}header h1{font-size:15px}nav button{padding:6px 10px;font-size:12px}main{padding:12px}.modal-box{width:96%}}
-
-.text-muted{color:var(--text-muted)}.text-sm{font-size:12px}.mt-2{margin-top:8px}.mt-3{margin-top:12px}.mr-2{margin-right:8px}
-.flex{display:flex}.flex-between{display:flex;justify-content:space-between;align-items:center}.gap-2{gap:8px}.flex-wrap{flex-wrap:wrap}
+.text-muted{color:var(--text-muted)}.text-sm{font-size:12px}.mt-1{margin-top:4px}.mt-2{margin-top:8px}.mt-3{margin-top:12px}
+.flex{display:flex}.flex-between{display:flex;justify-content:space-between;align-items:center}.gap-1{gap:4px}.gap-2{gap:8px}.flex-wrap{flex-wrap:wrap}
 .truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-code{font-family:var(--font-mono);font-size:12px;background:var(--muted);padding:1px 6px;border-radius:3px;color:var(--primary)}
-.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
+code{font-family:var(--font-mono);font-size:12px;background:var(--muted);padding:1px 5px;border-radius:3px;color:var(--primary)}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .5s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.toast{position:fixed;bottom:24px;right:24px;background:var(--text);color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:9999;animation:toastIn .3s ease}
-@keyframes toastIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-.checkbox{width:16px;height:16px;accent-color:var(--primary);cursor:pointer}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--text);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;animation:toastIn .25s ease;box-shadow:0 8px 24px rgba(0,0,0,.15)}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.checkbox{width:15px;height:15px;accent-color:var(--primary);cursor:pointer}
+.empty-state{text-align:center;padding:40px 20px;color:var(--text-muted)}
+.kw-tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;background:var(--accent-bg);color:var(--accent);margin:1px 2px}
 </style>
 </head>
 <body>
@@ -111,140 +167,151 @@ code{font-family:var(--font-mono);font-size:12px;background:var(--muted);padding
 <header>
   <h1>&#x1f3af; SmartJobHunter <span>Console</span></h1>
   <nav id="tabs">
-    <button class="active" data-tab="companies">&#x1f4cb; 公司配置</button>
+    <button class="active" data-tab="strategy">&#x2699;&#xfe0f; 公司与策略</button>
     <button data-tab="resumes">&#x1f4c4; 简历管理</button>
     <button data-tab="tasks">&#x1f4ca; 任务与结果</button>
-    <button data-tab="health">&#x1fa79; 健康面板</button>
   </nav>
 </header>
 
 <main id="content"></main>
 
 <script>
-const $ = (s,c) => (c||document).querySelector(s);
-const $$ = (s,c) => [...(c||document).querySelectorAll(s)];
+const $=(s,c)=>(c||document).querySelector(s);
+const $$=(s,c)=>[...(c||document).querySelectorAll(s)];
 
 async function api(path,opts={}){
-  const res = await fetch(path,{headers:opts.body instanceof FormData?{}:{'Content-Type':'application/json'},...opts});
-  if(!res.ok){const msg=await res.text().catch(()=>'');throw new Error(msg||`${res.status} ${res.statusText}`)}
+  const res=await fetch(path,{headers:opts.body instanceof FormData?{}:{'Content-Type':'application/json'},...opts});
+  if(!res.ok){const msg=await res.text().catch(()=>'');throw new Error(msg||`${res.status}`)}
   const ct=res.headers.get('content-type')||'';
   return ct.includes('application/json')?res.json():res.text();
 }
-
-function toast(msg){const el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),2500)}
-function formatSize(b){return b<1048576?Math.round(b/1024)+' KB':(b/1048576).toFixed(1)+' MB'}
+function toast(m){const el=document.createElement('div');el.className='toast';el.textContent=m;document.body.appendChild(el);setTimeout(()=>el.remove(),2500)}
+function fs(b){return b<1048576?Math.round(b/1024)+' KB':(b/1048576).toFixed(1)+' MB'}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-let _reportData=[];
-let _configData=null;
+const LABEL={'social':'社招','campus':'校招','internship':'实习'};
 
-// Tab routing
+// ── Tab routing ──
 const renderers={};
-function loadTab(name){const fn=renderers[name];if(fn)fn()}
-$$('nav button').forEach(btn=>{btn.addEventListener('click',()=>{$$('nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');loadTab(btn.dataset.tab)})});
+function loadTab(n){const f=renderers[n];if(f)f()}
+$$('nav button').forEach(b=>b.addEventListener('click',()=>{$$('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');loadTab(b.dataset.tab)}));
+
+// ── Modal helper ──
+function showModal(title,bodyHtml,width='560px'){
+  const ov=document.createElement('div');ov.className='modal-overlay';
+  ov.innerHTML=`<div class="modal-box" style="width:${width}"><div class="modal-header"><h3 style="font-family:var(--font-mono);font-size:13px;color:var(--primary);letter-spacing:.3px">${title}</h3><button class="btn btn-outline btn-sm" onclick="this.closest('.modal-overlay').remove()">&#x2715; 关闭</button></div><div class="modal-body">${bodyHtml}</div></div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove()});
+}
 
 // ══════════════════════════════════════════════
-// Tab 1: Companies (full CRUD)
+// Tab 1: 公司与策略 (companies + health)
 // ══════════════════════════════════════════════
-renderers.companies = async ()=>{
-  const data = await api('/api/companies');
-  const html = `
-    <div class="card"><div class="card-header"><h3>已配置公司 (${data.length} 家)</h3><button class="btn btn-primary btn-sm" onclick="showAddCompany()">+ 新增公司</button></div>
-      ${data.map(c=>`
-        <div class="table-row" style="grid-template-columns:1fr auto auto auto">
-          <div>
-            <div class="flex gap-2" style="align-items:center">
-              <strong>${esc(c.name)}</strong><code>${esc(c.id)}</code>
+let _coData=[];
+renderers.strategy=async()=>{
+  const[companies,health]=await Promise.all([api('/api/companies'),api('/api/health')]);
+  _coData=companies;
+  const s=health.summary;
+  const statusClass=st=>st==='blocked'?'badge-err':st==='pending'?'badge-warn':st==='repaired'?'badge-ok':'badge-info';
+  const statusLabel=st=>({pending:'待处理',blocked:'阻塞',failed:'失败',repaired:'已修复'}[st]||st);
+  const searchHtml=`<div class="card"><div class="flex-between flex-wrap gap-2"><div class="search-bar" style="flex:1;max-width:360px"><input type="search" id="coSearch" placeholder="搜索公司..." oninput="filterCompanies()"></div><div class="flex gap-2"><button class="btn btn-primary" onclick="showAddModal()">+ 新增公司</button></div></div></div>`;
+  const healthHtml=s.total>0?`
+    <div class="card"><div class="card-header"><h3>&#x1fa79; 策略健康</h3><button class="btn btn-outline btn-sm" onclick="loadTab('strategy')">刷新</button></div>
+      <div class="health-strip">
+        <div class="hs-card hs-total"><div class="hs-num" style="color:var(--primary)">${s.total}</div><div class="hs-label">总异常</div></div>
+        <div class="hs-card hs-pending"><div class="hs-num" style="color:var(--yellow)">${s.pending}</div><div class="hs-label">待处理</div></div>
+        <div class="hs-card hs-blocked"><div class="hs-num" style="color:var(--red)">${s.blocked}</div><div class="hs-label">阻塞</div></div>
+        <div class="hs-card hs-failed"><div class="hs-num" style="color:var(--text-muted)">${s.failed}</div><div class="hs-label">失败</div></div>
+      </div>
+      ${health.tasks.map(t=>`
+        <div class="row" style="grid-template-columns:1fr auto auto">
+          <div><strong>${esc(t.company_name)}</strong> <span class="badge ${statusClass(t.status)}">${statusLabel(t.status)}</span><div class="text-sm mt-1" style="color:var(--text-secondary)">${esc(t.reason_label||t.reason)}</div></div>
+          <span class="text-muted text-sm">${(t.created_at||'').slice(0,16)}</span>
+          <button class="btn btn-outline btn-sm" onclick="retryCompany('${esc(t.company_id)}')">&#x1f6e0; 重试</button>
+        </div>
+      `).join('')}
+    </div>`:'';
+  const coHtml=`
+    <div class="company-grid">
+      ${companies.map(c=>{
+        const urlKeys=Object.keys(c.urls||{}).filter(k=>c.urls[k]);
+        return `
+        <div class="company-card ${c.enabled?'':'disabled'}" data-cid="${esc(c.id)}" data-search="${esc(c.name+' '+c.id)}">
+          <div class="c-top">
+            <div class="c-name">
+              <span>${esc(c.name)}</span><code style="font-size:11px">${esc(c.id)}</code>
               <span class="badge ${c.enabled?'badge-ok':'badge-warn'}">${c.enabled?'已启用':'已禁用'}</span>
               ${c.strategy_type!=='unknown'?`<span class="badge badge-info">${esc(c.strategy_type)}</span>`:''}
             </div>
-            <div class="text-muted text-sm mt-2">${Object.entries(c.urls||{}).map(([k,v])=>`<span class="mr-2">${k}: ${esc(v.substring(0,60))}${v.length>60?'...':''}</span>`).join('')}</div>
-            ${c.note?`<div class="text-muted text-sm mt-2">${esc(c.note)}</div>`:''}
+            <label class="toggle"><input type="checkbox" ${c.enabled?'checked':''} onchange="toggleCo('${esc(c.id)}',this.checked)"><div class="toggle-track"></div></label>
           </div>
-          <label class="toggle"><input type="checkbox" ${c.enabled?'checked':''} onchange="toggleCompany('${esc(c.id)}',this.checked)"><div class="toggle-track"></div></label>
-          <button class="btn btn-outline btn-sm" onclick="editCompany('${esc(c.id)}')">&#x270f;&#xfe0f; 编辑</button>
-          <button class="btn btn-outline btn-sm" onclick="testCompany('${esc(c.id)}')">&#x1f9ea;</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteCompany('${esc(c.id)}')">&#x1f5d1;</button>
-        </div>
-        <div id="test-${esc(c.id)}" class="text-sm mt-2" style="padding-left:8px"></div>
-      `).join('')}
+          ${urlKeys.length?`<div class="c-urls">${urlKeys.map(k=>`<a href="${esc(c.urls[k])}" target="_blank" rel="noopener" title="${esc(c.urls[k])}">${LABEL[k]||k}</a>`).join('')}</div>`:''}
+          ${c.note?`<div class="c-note">${esc(c.note)}</div>`:''}
+          <div class="c-actions">
+            <button class="btn btn-outline btn-sm" onclick="showEditModal('${esc(c.id)}')">&#x270f; 编辑</button>
+            <button class="btn btn-outline btn-sm" onclick="testCo('${esc(c.id)}')">&#x1f9ea; 测试</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteCo('${esc(c.id)}')">&#x1f5d1; 删除</button>
+            <span id="test-${esc(c.id)}" class="text-sm" style="margin-left:auto"></span>
+          </div>
+        </div>`;
+      }).join('')}
     </div>`;
-  document.getElementById('content').innerHTML = html;
+  document.getElementById('content').innerHTML=searchHtml+healthHtml+coHtml;
 };
 
-window.toggleCompany = async(id,en)=>{await api(`/api/companies/${id}`,{method:'PUT',body:JSON.stringify({enabled:en})});toast(en?'已启用 '+id:'已禁用 '+id)};
-window.testCompany = async(id)=>{
-  const el=document.getElementById(`test-${id}`);el.innerHTML='<span class="spinner"></span> 测试中...';
-  try{const r=await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'产品经理',job_type:'social'})});el.innerHTML=r.ok?`<span style="color:var(--green)">&#x2705; ${r.jobs_count} 个岗位:</span> ${(r.sample_titles||[]).join(' · ')}`:`<span style="color:var(--red)">&#x274c; 抓取失败: ${esc(r.error||'无数据')}</span>`}
-  catch(e){el.innerHTML=`<span style="color:var(--red)">&#x274c; ${esc(e.message)}</span>`}
-};
+window.filterCompanies=()=>{const q=$('#coSearch')?.value?.toLowerCase()||'';$$('.company-card').forEach(c=>{c.style.display=(!q||c.dataset.search.toLowerCase().includes(q))?'':'none'})};
+window.toggleCo=async(id,en)=>{await api(`/api/companies/${id}`,{method:'PUT',body:JSON.stringify({enabled:en})});toast(en?'已启用 '+id:'已禁用 '+id)};
+window.testCo=async(id)=>{const el=$(`#test-${id}`);el.innerHTML='<span class="spinner"></span>';try{const r=await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'',job_type:'social'})});el.innerHTML=r.ok?`<span style="color:var(--green)">&#x2705; ${r.jobs_count}岗</span>`:`<span style="color:var(--red)">&#x274c; 失败</span>`;if(!r.ok)el.innerHTML+=` <span class="text-sm text-muted">${esc((r.error||'').substring(0,60))}</span>`}catch(e){el.innerHTML=`<span style="color:var(--red)">&#x274c;</span>`}};
+window.retryCompany=async(id)=>{const el=$(`#test-${id}`);if(el){await testCo(id)}else{await api(`/api/companies/${id}/test`,{method:'POST',body:JSON.stringify({keyword:'',job_type:'social'})});toast('已重试 '+id);renderers.strategy()}};
+window.deleteCo=async(id)=>{if(!confirm(`确定删除 "${id}"？此操作不可恢复。`))return;await api(`/api/companies/${id}`,{method:'DELETE'});toast('已删除 '+id);renderers.strategy()};
 
-window.deleteCompany = async(id)=>{
-  if(!confirm(`确定删除公司 "${id}"？此操作从 config/companies.yaml 中移除。`))return;
-  await api(`/api/companies/${id}`,{method:'DELETE'});toast('已删除 '+id);renderers.companies();
-};
+window.showAddModal=()=>{showModal('新增公司',`
+  <label>公司 ID <span class="text-muted">(英文标识)</span></label><input id="mId" placeholder="例: mycompany">
+  <label>公司名称</label><input id="mName" placeholder="例: 我的公司">
+  <label>社招 URL</label><input id="mUrlS" placeholder="https://...">
+  <label>校招 URL</label><input id="mUrlC" placeholder="https://...">
+  <label>实习 URL</label><input id="mUrlI" placeholder="https://...">
+  <label>策略类型</label><select id="mStrat"><option value="">待定 (后续Agent分析)</option><option value="config_intercept">config_intercept (API拦截)</option><option value="config_dom">config_dom (DOM解析)</option><option value="custom_python">custom_python (专用策略)</option></select>
+  <label>备注</label><input id="mNote" placeholder="可选">
+  <div class="mt-3 flex gap-2"><button class="btn btn-primary" onclick="createCo()">确认创建</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">取消</button></div>
+`)};
 
-window.showAddCompany = ()=>{
-  const el=document.getElementById('content');
-  el.insertAdjacentHTML('afterbegin',`
-    <div class="card" id="addCompanyCard" style="border:2px solid var(--primary)">
-      <div class="card-header"><h3>+ 新增公司</h3><button class="btn btn-outline btn-sm" onclick="document.getElementById('addCompanyCard').remove()">取消</button></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div><label class="text-sm">公司ID (英文标识)</label><input id="newCid" placeholder="例: mycompany"></div>
-        <div><label class="text-sm">公司名称</label><input id="newCname" placeholder="例: 我的公司"></div>
-        <div><label class="text-sm">社招URL</label><input id="newCurlS" placeholder="https://..."></div>
-        <div><label class="text-sm">校招URL</label><input id="newCurlC" placeholder="https://..."></div>
-        <div><label class="text-sm">实习URL</label><input id="newCurlI" placeholder="https://..."></div>
-        <div><label class="text-sm">策略类型</label><select id="newCstrat"><option value="">待定</option><option value="config_intercept">config_intercept</option><option value="config_dom">config_dom</option><option value="custom_python">custom_python</option></select></div>
-      </div>
-      <div class="mt-3"><label class="text-sm">备注</label><input id="newCnote" placeholder="可选备注"></div>
-      <button class="btn btn-primary mt-3" onclick="createCompany()">确认创建</button>
-    </div>`);
-  document.getElementById('addCompanyCard').scrollIntoView({behavior:'smooth'});
-};
-
-window.createCompany = async()=>{
-  const body={id:$('#newCid').value.trim(),name:$('#newCname').value.trim(),enabled:false,urls:{social:$('#newCurlS').value.trim(),campus:$('#newCurlC').value.trim(),internship:$('#newCurlI').value.trim()},note:$('#newCnote').value.trim(),strategy_type:$('#newCstrat').value};
+window.createCo=async()=>{
+  const body={id:$('#mId').value.trim(),name:$('#mName').value.trim(),enabled:false,urls:{social:$('#mUrlS').value.trim(),campus:$('#mUrlC').value.trim(),internship:$('#mUrlI').value.trim()},note:$('#mNote').value.trim(),strategy_type:$('#mStrat').value};
   if(!body.id||!body.name)return toast('ID 和名称不能为空');
-  await api('/api/companies',{method:'POST',body:JSON.stringify(body)});toast('已创建 '+body.id);renderers.companies();
+  try{await api('/api/companies',{method:'POST',body:JSON.stringify(body)});document.querySelector('.modal-overlay')?.remove();toast('已创建 '+body.id);renderers.strategy()}catch(e){toast('创建失败: '+e.message)}
 };
 
-window.editCompany = async(id)=>{
-  const data=await api('/api/companies');const c=data.find(x=>x.id===id);if(!c)return;
-  const el=document.getElementById('content');
-  el.insertAdjacentHTML('afterbegin',`
-    <div class="card" id="editCompanyCard" style="border:2px solid var(--accent)">
-      <div class="card-header"><h3>&#x270f;&#xfe0f; 编辑: ${esc(c.name)}</h3><button class="btn btn-outline btn-sm" onclick="document.getElementById('editCompanyCard').remove()">取消</button></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div><label class="text-sm">公司名称</label><input id="editCname" value="${esc(c.name)}"></div>
-        <div><label class="text-sm">备注</label><input id="editCnote" value="${esc(c.note||'')}"></div>
-        <div><label class="text-sm">社招URL</label><input id="editCurlS" value="${esc(c.urls?.social||'')}"></div>
-        <div><label class="text-sm">校招URL</label><input id="editCurlC" value="${esc(c.urls?.campus||'')}"></div>
-        <div><label class="text-sm">实习URL</label><input id="editCurlI" value="${esc(c.urls?.internship||'')}"></div>
-      </div>
-      <button class="btn btn-primary mt-3" onclick="saveCompany('${esc(id)}')">保存</button>
-    </div>`);
-  document.getElementById('editCompanyCard').scrollIntoView({behavior:'smooth'});
+window.showEditModal=(id)=>{
+  const c=_coData.find(x=>x.id===id);if(!c)return;
+  showModal(`编辑: ${esc(c.name)}`,`
+    <label>公司名称</label><input id="eName" value="${esc(c.name)}">
+    <label>社招 URL</label><input id="eUrlS" value="${esc(c.urls?.social||'')}">
+    <label>校招 URL</label><input id="eUrlC" value="${esc(c.urls?.campus||'')}">
+    <label>实习 URL</label><input id="eUrlI" value="${esc(c.urls?.internship||'')}">
+    <label>备注</label><input id="eNote" value="${esc(c.note||'')}">
+    <div class="mt-3 flex gap-2"><button class="btn btn-primary" onclick="saveCo('${esc(id)}')">保存</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">取消</button></div>
+  `);
 };
 
-window.saveCompany = async(id)=>{
-  const body={name:$('#editCname').value.trim(),note:$('#editCnote').value.trim(),urls:{social:$('#editCurlS').value.trim(),campus:$('#editCurlC').value.trim(),internship:$('#editCurlI').value.trim()}};
-  await api(`/api/companies/${id}`,{method:'PUT',body:JSON.stringify(body)});toast('已保存 '+id);renderers.companies();
+window.saveCo=async(id)=>{
+  const body={name:$('#eName').value.trim(),note:$('#eNote').value.trim(),urls:{social:$('#eUrlS').value.trim(),campus:$('#eUrlC').value.trim(),internship:$('#eUrlI').value.trim()}};
+  await api(`/api/companies/${id}`,{method:'PUT',body:JSON.stringify(body)});document.querySelector('.modal-overlay')?.remove();toast('已保存');renderers.strategy();
 };
 
 // ══════════════════════════════════════════════
-// Tab 2: Resumes
+// Tab 2: 简历管理
 // ══════════════════════════════════════════════
-renderers.resumes = async()=>{
+renderers.resumes=async()=>{
   const data=await api('/api/resumes');
   const html=`
     <div class="card"><div class="card-header"><h3>上传简历</h3></div>
-      <div class="upload-zone" id="dropZone"><div style="font-size:32px;margin-bottom:8px">&#x1f4c4;</div><div>拖拽文件到此处，或点击选择</div><div class="text-sm text-muted mt-2">支持 .txt .md .docx .pdf .png .jpg，最大 10 MB</div><input type="file" id="resumeInput" accept=".txt,.md,.docx,.pdf,.png,.jpg,.jpeg" multiple style="display:none"></div>
+      <div class="upload-zone" id="dropZone"><div style="font-size:32px;margin-bottom:8px">&#x1f4c4;</div><div>拖拽文件到此，或点击选择</div><div class="text-sm text-muted mt-2">支持 .txt .md .docx .pdf .png .jpg，最大 10MB</div><input type="file" id="resumeInput" accept=".txt,.md,.docx,.pdf,.png,.jpg,.jpeg" multiple style="display:none"></div>
       <div id="uploadStatus" class="mt-2 text-sm"></div>
     </div>
     <div class="card"><div class="card-header"><h3>已上传 (${data.length} 个文件)</h3></div>
-      ${data.length===0?'<div class="text-muted text-sm">暂无简历文件</div>':data.map(f=>`
-        <div class="table-row" style="grid-template-columns:1fr auto auto auto">
-          <div><span>&#x1f4c4; ${esc(f.name)}</span><span class="text-muted text-sm" style="margin-left:12px">${formatSize(f.size)} · ${(f.modified||'').slice(0,10)}</span></div>
+      ${data.length===0?`<div class="empty-state">暂无简历文件。上传第一份简历开始使用。</div>`:data.map(f=>`
+        <div class="row" style="grid-template-columns:1fr auto auto auto">
+          <div><span>&#x1f4c4; ${esc(f.name)}</span><span class="text-muted text-sm" style="margin-left:12px">${fs(f.size)} · ${(f.modified||'').slice(0,10)}</span></div>
           <span class="badge badge-info">${esc(f.format)}</span>
           <button class="btn btn-outline btn-sm" onclick="previewResume('${esc(f.name)}')">&#x1f441; 预览</button>
           <button class="btn btn-danger btn-sm" onclick="deleteResume('${esc(f.name)}')">删除</button>
@@ -260,161 +327,87 @@ renderers.resumes = async()=>{
   input.addEventListener('change',()=>uploadFiles(input.files));
 };
 
-async function uploadFiles(files){const s=$('#uploadStatus');for(const f of files){s.innerHTML=`<span class="spinner"></span> 上传中: ${esc(f.name)}...`;const form=new FormData();form.append('file',f);try{const r=await fetch('/api/resumes',{method:'POST',body:form}).then(r=>r.json());s.innerHTML=r.ok?`&#x2705; ${esc(f.name)} 上传成功`:`&#x274c; ${esc(f.name)} 失败`;if(r.referenced_by?.length)s.innerHTML+=` (关联意向: ${r.referenced_by.join(', ')})`}catch(e){s.innerHTML=`&#x274c; ${esc(e.message)}`}}setTimeout(()=>renderers.resumes(),800)}
-
-window.previewResume = async(name)=>{
-  try{
-    const r=await api(`/api/resumes`);const file=r.find(f=>f.name===name);if(!file)return;
-    const text=file.format==='pdf'||file.format==='docx'?'(二进制文件，无法在线预览)':await fetch(`/resumes/${encodeURIComponent(name)}`).then(r=>r.text());
-    showModal(`&#x1f4c4; ${esc(name)}`,file.format==='md'?`<div class="markdown-body">${marked.parse(text)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:60vh;overflow-y:auto">${esc(text)}</pre>`);
-  }catch(e){toast('预览失败: '+e.message)}
-};
-
-window.deleteResume=async(name)=>{if(!confirm(`确定删除 "${name}"？`))return;const r=await api(`/api/resumes/${encodeURIComponent(name)}`,{method:'DELETE'});if(r.warnings?.length)toast('&#x26a0;&#xfe0f; '+r.warnings.join('; '));renderers.resumes()};
+async function uploadFiles(files){const s=$('#uploadStatus');for(const f of files){s.innerHTML=`<span class="spinner"></span> 上传: ${esc(f.name)}...`;const fd=new FormData();fd.append('file',f);try{const r=await fetch('/api/resumes',{method:'POST',body:fd}).then(r=>r.json());s.innerHTML=r.ok?`&#x2705; ${esc(f.name)} 上传成功`:`&#x274c; 失败`;if(r.referenced_by?.length)s.innerHTML+=` (关联: ${r.referenced_by.join(', ')})`}catch(e){s.innerHTML=`&#x274c; ${esc(e.message)}`}}setTimeout(()=>renderers.resumes(),800)}
+window.previewResume=async(n)=>{try{const r=await api(`/api/resumes`);const f=r.find(x=>x.name===n);if(!f)return;const txt=f.format==='pdf'||f.format==='docx'?'(二进制文件，无法在线预览)':await fetch(`/resumes/${encodeURIComponent(n)}`).then(r=>r.text());showModal(`&#x1f4c4; ${esc(n)}`,f.format==='md'?`<div class="markdown-body">${marked.parse(txt)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:60vh;overflow-y:auto">${esc(txt)}</pre>`,'700px')}catch(e){toast('预览失败: '+e.message)}};
+window.deleteResume=async(n)=>{if(!confirm(`删除 "${n}"？`))return;const r=await api(`/api/resumes/${encodeURIComponent(n)}`,{method:'DELETE'});if(r.warnings?.length)toast('&#x26a0; '+r.warnings.join('; '));renderers.resumes()};
 
 // ══════════════════════════════════════════════
-// Tab 3: Tasks & Results (merged config + reports)
+// Tab 3: 任务与结果
 // ══════════════════════════════════════════════
-renderers.tasks = async()=>{
-  _configData=await api('/api/config');
-  _reportData=await api('/api/reports');
-  // Group reports by profile
-  const reportsByProfile={};
-  for(const r of _reportData){const p=r.profile||'未知意向';(reportsByProfile[p]=reportsByProfile[p]||[]).push(r)}
+renderers.tasks=async()=>{
+  const[cfg,reports]=await Promise.all([api('/api/config'),api('/api/reports')]);
+  const fs=cfg.feishu;
+  const rptByProfile={};for(const r of reports){(rptByProfile[r.profile||'未知']=rptByProfile[r.profile||'未知']||[]).push(r)}
 
-  // Feishu card
-  const fs=_configData.feishu;
-  const html=`
-    <div class="card"><div class="card-header"><h3>&#x1f4e1; 飞书推送</h3></div>
-      <label class="toggle" style="margin-bottom:16px"><input type="checkbox" ${fs.enabled?'checked':''} onchange="toggleFeishu(this.checked)"><div class="toggle-track"></div><span>${fs.enabled?'已开启':'已关闭'}</span></label>
-      <details style="margin-top:12px"><summary class="text-sm" style="cursor:pointer;color:var(--text-secondary)">编辑凭证</summary>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
-          <div><label class="text-sm">App ID</label><input id="fsAppId" value="${esc(fs.app_id||'')}" placeholder="飞书应用 App ID"></div>
-          <div><label class="text-sm">App Secret</label><input id="fsAppSecret" type="password" value="${esc(fs.app_secret||'')}" placeholder="飞书应用 Secret"></div>
-          <div><label class="text-sm">Wiki Node Token</label><input id="fsWiki" value="${esc(fs.wiki_node_token||'')}" placeholder="飞书知识库节点"></div>
-          <div><label class="text-sm">Bitable Token</label><input id="fsBitable" value="${esc(fs.bitable_token||'')}" placeholder="多维表格 Token"></div>
-          <div><label class="text-sm">Bitable Table ID</label><input id="fsTableId" value="${esc(fs.bitable_table_id||'')}" placeholder="表格 ID"></div>
+  const sidebar=`
+    <div class="card"><div class="card-header"><h3>&#x1f4e1; 飞书推送
+      <span class="tooltip-wrap" style="margin-left:6px"><button class="tooltip-trigger">?</button><div class="tooltip-box">在飞书开放平台创建企业自建应用 → 获取 App ID 和 App Secret → 开启机器人能力 → 在知识库中创建知识空间获取 Wiki Token → 在多维表格中获取 Bitable Token 和 Table ID。填入后开启推送开关即可。</div></span>
+    </h3></div>
+      <label class="toggle" style="margin-bottom:14px"><input type="checkbox" ${fs.enabled?'checked':''} onchange="toggleFs(this.checked)"><div class="toggle-track"></div><span>${fs.enabled?'推送已开启':'推送已关闭'}</span></label>
+      <details style="margin-top:8px"><summary class="text-sm" style="cursor:pointer;color:var(--text-secondary);font-weight:500">编辑凭证</summary>
+        <div style="margin-top:10px">
+          <label class="text-sm">App ID</label><input id="fsAppId" value="${esc(fs.app_id||'')}" placeholder="飞书应用 App ID" style="margin-bottom:8px">
+          <label class="text-sm">App Secret</label><input id="fsAppSecret" type="password" value="${esc(fs.app_secret||'')}" placeholder="飞书应用 Secret" style="margin-bottom:8px">
+          <label class="text-sm">Wiki Node Token</label><input id="fsWiki" value="${esc(fs.wiki_node_token||'')}" placeholder="知识库节点 Token" style="margin-bottom:8px">
+          <label class="text-sm">Bitable Token</label><input id="fsBitable" value="${esc(fs.bitable_token||'')}" placeholder="多维表格 Token" style="margin-bottom:8px">
+          <label class="text-sm">Bitable Table ID</label><input id="fsTableId" value="${esc(fs.bitable_table_id||'')}" placeholder="表格 ID">
+          <button class="btn btn-primary btn-sm mt-2" onclick="saveFs()">保存配置</button>
         </div>
-        <button class="btn btn-primary mt-3 btn-sm" onclick="saveFeishu()">保存飞书配置</button>
       </details>
     </div>
-
-    <div class="card"><div class="card-header"><h3>&#x1f916; 求职意向与巡检报告</h3></div>
-      ${_configData.profiles.map(p=>{
-        const reports=reportsByProfile[p.name]||[];
+    <div class="card"><div class="card-header"><h3>&#x1f916; 求职意向</h3></div>
+      ${cfg.profiles.map(p=>{
+        const cnt=(rptByProfile[p.name]||[]).length;
         return `
-        <div class="card" style="border:1px solid var(--border)">
-          <div class="flex-between" style="margin-bottom:8px">
-            <div class="flex gap-2" style="align-items:center">
-              <span>&#x1f4cc; <strong>${esc(p.name)}</strong></span>
-              <code>${esc(p.job_type||'')}</code>
-              <label class="toggle"><input type="checkbox" ${p.enabled?'checked':''} onchange="toggleProfile('${esc(p.name)}',this.checked)"><div class="toggle-track"></div></label>
-              ${p.keywords?.length?`<span class="text-muted text-sm">关键词: ${p.keywords.join(', ')}</span>`:''}
+        <div class="row" style="grid-template-columns:1fr auto auto">
+          <div>
+            <div class="flex gap-1" style="align-items:center;flex-wrap:wrap">
+              <strong>${esc(p.name)}</strong><code>${esc(p.job_type||'')}</code>
+              ${p.keywords?.map(k=>`<span class="kw-tag">${esc(k)}</span>`).join('')||''}
             </div>
-            <div class="flex gap-2">
-              ${p.resume?`<button class="btn btn-outline btn-sm" onclick="viewProfileResume('${esc(p.name)}')">&#x1f4c4; 查看简历</button>`:''}
-              <span class="text-muted text-sm">${reports.length} 份报告</span>
-            </div>
+            ${p.resume?`<div class="text-sm text-muted mt-1">&#x1f4ce; ${esc(p.resume)}</div>`:''}
           </div>
-          ${reports.length===0?`<div class="text-sm text-muted mt-2">暂无报告。启用此意向后运行 <code>python -m src.cli -p "${esc(p.name)}"</code> 生成。</div>`:reports.slice(0,5).map(r=>`
-            <div class="table-row" style="grid-template-columns:1fr auto auto;cursor:pointer" onclick="viewReport('${esc(r.relpath)}')">
-              <div><strong>&#x1f4c5; ${esc(r.generated||r.modified?.slice(0,10)||'')}</strong><span class="text-muted text-sm" style="margin-left:8px">${r.job_count} 岗位</span><span class="text-muted text-sm" style="margin-left:8px">最高 ${r.top_score} 分</span></div>
-              <span class="text-muted text-sm">${formatSize(r.size)}</span>
-            </div>
-          `).join('')}
+          <div class="flex gap-1" style="align-items:center">
+            ${p.resume?`<button class="btn btn-outline btn-sm" onclick="viewProfileResume('${esc(p.name)}')">简历</button>`:''}
+            <label class="toggle"><input type="checkbox" ${p.enabled?'checked':''} onchange="togglePf('${esc(p.name)}',this.checked)"><div class="toggle-track"></div></label>
+          </div>
         </div>`;
       }).join('')}
     </div>
-    <div id="reportDetail"></div>`;
-  document.getElementById('content').innerHTML=html;
-};
+    <button class="btn btn-primary" style="width:100%" onclick="runInspect()">&#x25b6; 立即巡检</button>
+    <div class="text-sm text-muted mt-1" style="text-align:center">运行 python -m src.cli 并刷新此页查看结果</div>
+  `;
 
-window.toggleFeishu=async(en)=>{await api('/api/config',{method:'PUT',body:JSON.stringify({feishu:{enabled:en}})});toast(en?'&#x2705; 飞书推送已开启':'⏸ 飞书推送已关闭')};
-window.toggleProfile=async(name,en)=>{await api('/api/config',{method:'PUT',body:JSON.stringify({profiles:[{name,enabled:en}]})});toast(`${en?'&#x2705;':'⏸'} ${name} ${en?'已启用':'已禁用'}`)};
-
-window.saveFeishu=async()=>{
-  const body={feishu:{app_id:$('#fsAppId').value.trim(),app_secret:$('#fsAppSecret').value.trim(),wiki_node_token:$('#fsWiki').value.trim(),bitable_token:$('#fsBitable').value.trim(),bitable_table_id:$('#fsTableId').value.trim()}};
-  await api('/api/config',{method:'PUT',body:JSON.stringify(body)});toast('&#x2705; 飞书配置已保存');
-};
-
-window.viewProfileResume=async(name)=>{
-  try{
-    const r=await api(`/api/profiles/${encodeURIComponent(name)}/resume`);
-    showModal(`&#x1f4c4; ${name} — 简历: ${esc(r.filename)}`,r.format==='md'?`<div class="markdown-body">${marked.parse(r.content)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:60vh;overflow-y:auto">${esc(r.content)}</pre>`);
-  }catch(e){toast('无法加载简历: '+e.message)}
-};
-
-window.viewReport=async(relpath)=>{
-  const md=await api('/api/reports/'+encodeURIComponent(relpath));
-  const el=$('#reportDetail');
-  el.innerHTML=`<div class="card"><div class="card-header"><h3>&#x1f4c4; ${esc(relpath)}</h3><button class="btn btn-outline btn-sm" onclick="document.getElementById('reportDetail').innerHTML=''">关闭</button></div><div class="markdown-body">${marked.parse(md)}</div></div>`;
-  el.scrollIntoView({behavior:'smooth'});
-};
-
-// ══════════════════════════════════════════════
-// Tab 4: Health (bilingual + batch repair)
-// ══════════════════════════════════════════════
-let _selectedCompanies=new Set();
-renderers.health=async()=>{
-  const data=await api('/api/health');const s=data.summary;
-  const statusClass=st=>st==='blocked'?'badge-err':st==='pending'?'badge-warn':st==='repaired'?'badge-ok':'badge-info';
-  const statusLabel=st=>({pending:'待处理',blocked:'阻塞',failed:'失败',repaired:'已修复'}[st]||st);
-  _selectedCompanies=new Set();
-  const html=`
-    <div class="stats-grid">
-      <div class="stat-card"><div class="stat-value">${s.total}</div><div class="stat-label">总异常</div></div>
-      <div class="stat-card" style="border-left:3px solid var(--yellow)"><div class="stat-value">${s.pending}</div><div class="stat-label">待处理</div></div>
-      <div class="stat-card" style="border-left:3px solid var(--red)"><div class="stat-value">${s.blocked}</div><div class="stat-label">阻塞</div></div>
-      <div class="stat-card" style="border-left:3px solid var(--text-muted)"><div class="stat-value">${s.failed}</div><div class="stat-label">失败</div></div>
-    </div>
-    <div class="card"><div class="card-header">
-      <h3>&#x1fa79; 策略任务</h3>
-      <div class="flex gap-2">
-        <button class="btn btn-outline btn-sm" onclick="$$('.health-cb').forEach(cb=>{cb.checked=true;_selectedCompanies=new Set($$('.health-cb').map(c=>c.dataset.cid))});updateRepairBtn()">全选</button>
-        <button class="btn btn-outline btn-sm" onclick="$$('.health-cb').forEach(cb=>{cb.checked=false});_selectedCompanies.clear();updateRepairBtn()">取消全选</button>
-        <button class="btn btn-primary btn-sm" id="repairBtn" disabled onclick="batchRepair()">&#x1f6e0;&#xfe0f; 批量修复选中</button>
-      </div>
-    </div>
-      ${s.total===0?'<div class="text-muted text-sm">&#x2705; 暂无策略异常</div>':data.tasks.map(t=>`
-        <div class="table-row" style="grid-template-columns:auto 1fr auto auto">
-          <input type="checkbox" class="checkbox health-cb" data-cid="${esc(t.company_id)}" onchange="toggleHealthSelect('${esc(t.company_id)}',this.checked)">
-          <div>
-            <div class="flex gap-2" style="align-items:center"><strong>${esc(t.company_name)}</strong><span class="badge ${statusClass(t.status)}">${statusLabel(t.status)}</span></div>
-            <div class="text-sm mt-2" style="color:var(--text-secondary)">${esc(t.reason_label||t.reason||'未知')}</div>
-            ${t.evidence_dir?`<div class="text-sm text-muted mt-2">&#x1f4c1; ${esc(t.evidence_dir)}</div>`:''}
+  const mainArea=`
+    <div class="card"><div class="card-header"><h3>&#x1f4c4; 巡检报告</h3><span class="text-sm text-muted">${reports.length} 份报告</span></div>
+      ${reports.length===0?`<div class="empty-state">暂无报告。<br>启用意向后运行 <code>python -m src.cli</code></div>`:`
+        ${Object.entries(rptByProfile).map(([profile,items])=>`
+          <div style="margin-bottom:14px">
+            <div class="text-sm" style="font-weight:600;color:var(--text-secondary);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border-subtle)">&#x1f4cc; ${esc(profile)} · ${items.length} 份</div>
+            ${items.map(r=>`
+              <div class="row" style="grid-template-columns:1fr auto;cursor:pointer" onclick="viewReport('${esc(r.relpath)}')">
+                <div><strong>${esc(r.generated||r.modified?.slice(0,10)||'')}</strong><span class="text-muted text-sm" style="margin-left:8px">${r.job_count} 岗位 · 最高 ${r.top_score} 分</span></div>
+                <span class="text-sm text-muted">${fs(r.size)}</span>
+              </div>
+            `).join('')}
           </div>
-          <span class="text-muted text-sm">${(t.created_at||'').slice(0,16)}</span>
-        </div>
-      `).join('')}
-    </div>`;
-  document.getElementById('content').innerHTML=html;
+        `).join('')}
+      `}
+    </div>
+    <div id="reportDetail"></div>`;
+
+  document.getElementById('content').innerHTML=`<div class="report-layout"><div class="report-sidebar">${sidebar}</div><div>${mainArea}</div></div>`;
 };
 
-window.toggleHealthSelect=(cid,checked)=>{if(checked)_selectedCompanies.add(cid);else _selectedCompanies.delete(cid);updateRepairBtn()};
-window.updateRepairBtn=()=>{const btn=$('#repairBtn');if(btn){btn.disabled=_selectedCompanies.size===0;btn.textContent=`&#x1f6e0;&#xfe0f; 批量修复 (${_selectedCompanies.size})`}};
+window.toggleFs=async(en)=>{await api('/api/config',{method:'PUT',body:JSON.stringify({feishu:{enabled:en}})});toast(en?'飞书推送已开启':'飞书推送已关闭')};
+window.togglePf=async(n,en)=>{await api('/api/config',{method:'PUT',body:JSON.stringify({profiles:[{name:n,enabled:en}]})});toast(`${n} ${en?'已启用':'已禁用'}`)};
+window.saveFs=async()=>{const b={feishu:{app_id:$('#fsAppId').value.trim(),app_secret:$('#fsAppSecret').value.trim(),wiki_node_token:$('#fsWiki').value.trim(),bitable_token:$('#fsBitable').value.trim(),bitable_table_id:$('#fsTableId').value.trim()}};await api('/api/config',{method:'PUT',body:JSON.stringify(b)});toast('飞书配置已保存')};
+window.runInspect=()=>{toast('请在终端运行: python -m src.cli')};
+window.viewProfileResume=async(n)=>{try{const r=await api(`/api/profiles/${encodeURIComponent(n)}/resume`);showModal(`&#x1f4c4; ${n} — ${esc(r.filename)}`,r.format==='md'?`<div class="markdown-body">${marked.parse(r.content)}</div>`:`<pre style="white-space:pre-wrap;font-size:13px;max-height:60vh;overflow-y:auto">${esc(r.content)}</pre>`,'700px')}catch(e){toast('无法加载: '+e.message)}};
+window.viewReport=async(rp)=>{const md=await api('/api/reports/'+encodeURIComponent(rp));$('#reportDetail').innerHTML=`<div class="card"><div class="card-header"><h3>&#x1f4c4; ${esc(rp)}</h3><button class="btn btn-outline btn-sm" onclick="this.closest('#reportDetail').innerHTML=''">关闭</button></div><div class="markdown-body">${marked.parse(md)}</div></div>`;$('#reportDetail').scrollIntoView({behavior:'smooth'})};
 
-window.batchRepair=async()=>{
-  if(_selectedCompanies.size===0)return;
-  const count=_selectedCompanies.size;
-  if(!confirm(`确认对 ${count} 家公司执行策略巡检？此操作在后台运行，完成后刷新页面查看结果。`))return;
-  try{
-    const r=await api('/api/health/repair',{method:'POST',body:JSON.stringify({company_ids:[..._selectedCompanies],keyword:'产品经理',job_type:'social'})});
-    toast(`&#x2705; ${r.message}`);_selectedCompanies.clear();
-  }catch(e){toast('&#x274c; 触发失败: '+e.message)}
-};
-
-// ══════════════════════════════════════════════
-// Shared utilities
-// ══════════════════════════════════════════════
-function showModal(title,bodyHtml){
-  const overlay=document.createElement('div');overlay.className='modal-overlay';
-  overlay.innerHTML=`<div class="modal-box"><div class="modal-header"><h3>${title}</h3><button class="btn btn-outline btn-sm" onclick="this.closest('.modal-overlay').remove()">&#x2715;</button></div><div class="modal-body">${bodyHtml}</div></div>`;
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()});
-}
-
-// Init
-loadTab('companies');
+// ── Init ──
+loadTab('strategy');
 </script>
 </body>
 </html>
