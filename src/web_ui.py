@@ -741,31 +741,25 @@ async def clear_health_entry(company_id: str):
 
 @app.post("/api/health/repair")
 async def trigger_health_repair(body: dict):
-    """Batch trigger health inspection for selected companies (or all)."""
+    """Launch strategy inspection in a new CMD window (same as CLI)."""
     company_ids = body.get("company_ids", [])
     keyword = str(body.get("keyword", "产品经理"))
     job_type = str(body.get("job_type", "social"))
 
     def _run():
-        from src.health_monitor import HealthMonitor
-        monitor = HealthMonitor()
-        if company_ids:
-            import json as _json
-            results = []
-            for cid in company_ids:
-                try:
-                    r = monitor.inspect_company_strategy(cid, keyword=keyword, job_type=job_type, headless=True)
-                    results.append({"company_id": cid, "status": "ok", "result": r})
-                except Exception as exc:
-                    results.append({"company_id": cid, "status": "error", "error": str(exc)})
-            print(_json.dumps(results, ensure_ascii=False, indent=2))
-        else:
-            summary = monitor.inspect_all_strategies(keyword=keyword, job_type=job_type, headless=True)
-            print(_json.dumps(summary, ensure_ascii=False, indent=2))
-        print("[HealthRepair] Batch inspection complete")
-
+        try:
+            cmd = [sys.executable, "-m", "src.health_monitor", "--inspect-strategies", "--keyword", keyword, "--job-type", job_type]
+            kwargs: dict = dict(cwd=str(ROOT))
+            if sys.platform == "win32":
+                kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
+                cmd = ["cmd", "/k"] + cmd + ["&&", "echo.", "&&", "echo Strategy inspection complete. Refresh web console.", "&&", "pause"]
+            subprocess.Popen(cmd, **kwargs)
+        except Exception:
+            pass
     threading.Thread(target=_run, daemon=True).start()
-    return {"ok": True, "message": f"Started batch repair for {len(company_ids) if company_ids else 'all'} companies in background"}
+
+    count = len(company_ids) if company_ids else "all"
+    return {"ok": True, "message": f"已在新窗口启动策略巡检（{count} 家公司），完成后刷新页面查看结果"}
 
 
 # ---------------------------------------------------------------------------
