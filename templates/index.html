@@ -372,7 +372,7 @@ window.showAddModal=()=>{showModal('新增公司',`
   <label>实习 URL</label><input id="mUrlI" placeholder="https://...">
   <label>策略类型</label><select id="mStrat"><option value="">待定 (后续Agent分析)</option><option value="config_intercept">config_intercept (API拦截)</option><option value="config_dom">config_dom (DOM解析)</option><option value="custom_python">custom_python (专用策略)</option></select>
   <label>备注</label><input id="mNote" placeholder="可选">
-  <div class="mt-3 flex gap-2"><button class="btn btn-primary" onclick="createCo()">确认创建</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">取消</button></div>
+  <div class="mt-3 flex gap-2"><button class="btn btn-primary" onclick="createCo()">确认创建</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove();setTimeout(()=>renderers.tasks(),300)">取消</button></div>
 `)};
 
 window.createCo=async()=>{
@@ -389,7 +389,7 @@ window.showEditModal=(id)=>{
     <label>校招 URL</label><input id="eUrlC" value="${esc(c.urls?.campus||'')}">
     <label>实习 URL</label><input id="eUrlI" value="${esc(c.urls?.internship||'')}">
     <label>备注</label><input id="eNote" value="${esc(c.note||'')}">
-    <div class="mt-3 flex gap-2"><button class="btn btn-primary" onclick="saveCo('${esc(id)}')">保存</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">取消</button></div>
+    <div class="mt-3 flex gap-2"><button class="btn btn-primary" onclick="saveCo('${esc(id)}')">保存</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove();setTimeout(()=>renderers.tasks(),300)">取消</button></div>
   `);
 };
 
@@ -518,7 +518,7 @@ async function doUpload(files){
         <label>搜索关键词 <span class="text-muted text-sm">(用逗号或空格分隔)</span></label><input id="cfmKw" value="${esc(kw.join(', '))}" placeholder="例: 产品经理, TOB, SaaS">
         <div class="text-sm text-muted mt-2">文件: ${esc(r.filename)} · ${fs(r.size)} · ${esc(r.format)}</div>
         ${r.text_preview?`<div class="text-sm text-muted mt-2" style="max-height:100px;overflow-y:auto;background:var(--bg);padding:8px;border-radius:4px">${esc(r.text_preview)}</div>`:''}
-        <div class="mt-3 flex gap-2"><button class="btn btn-primary" id="cfmBtn">确认上传并创建意向</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">取消</button></div>`,
+        <div class="mt-3 flex gap-2"><button class="btn btn-primary" id="cfmBtn">确认上传并创建意向</button><button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove();setTimeout(()=>renderers.tasks(),300)">取消</button></div>`,
         '520px'
       );
       // Bind confirm
@@ -537,12 +537,14 @@ async function doUpload(files){
             })});
             document.querySelector('.modal-overlay')?.remove();
             s.innerHTML='&#x2705; '+esc(cfm.filename)+' — 意向「'+esc(cfm.profile_name)+'」已创建';
+            setTimeout(()=>renderers.tasks(),600);
           }catch(e){s.innerHTML='&#x274c; '+esc(e.message);btn.disabled=false;btn.textContent='确认上传并创建意向'}
         });
       },100);
     }catch(e){s.innerHTML='&#x274c; '+esc(e.message)}
   }
-  setTimeout(()=>renderers.tasks(),1500);
+  // Don't auto-refresh — user needs time to fill the confirmation modal.
+  // Page refreshes after confirm/cancel actions instead.
 }
 
 window.deleteResumeAndRefresh=async(name)=>{
