@@ -20,3 +20,14 @@ def test_frontend_exposes_only_pdf_markdown_and_text():
     assert "jszip" not in html.lower()
     assert "ext==='docx'" not in html
     assert "['png','jpg','jpeg'" not in html
+
+
+def test_frontend_uses_search_intent_and_claude_launch_states():
+    html = Path("templates/index.html").read_text(encoding="utf-8")
+
+    assert "resumePayload.resumes" in html
+    assert "resume_id" in html
+    assert "/intent" in html
+    assert "待补充关键词" in html
+    assert "待 Agent 建档" in html
+    assert "Claude Code 已在新窗口打开" in html

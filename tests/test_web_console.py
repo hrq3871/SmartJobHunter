@@ -74,6 +74,22 @@ def test_list_resumes_auto_enables_manual_supported_file(isolated_web):
     assert manual["keywords"] == []
 
 
+def test_manual_resume_intent_can_be_completed_without_uploading_again(isolated_web):
+    (isolated_web["RESUMES_DIR"] / "manual.md").write_text("开发经历", encoding="utf-8")
+    asyncio.run(web_ui.list_resumes())
+
+    result = asyncio.run(web_ui.update_resume_intent("manual.md", {
+        "keywords": ["后端工程师", "Python"],
+        "job_types": ["社招"],
+        "display_name": "后端方向",
+        "enabled": True,
+    }))
+
+    assert result["keywords"] == ["后端工程师", "Python"]
+    assert result["job_types"] == ["社招"]
+    assert result["display_name"] == "后端方向"
+
+
 def test_run_inspection_launches_claude_after_profile_generation_prompt(isolated_web, monkeypatch):
     resume = isolated_web["RESUMES_DIR"] / "candidate.pdf"
     resume.write_bytes(b"pdf")

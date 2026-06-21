@@ -31,6 +31,7 @@ from .claude_launcher import (
 )
 from .resume_intents import (
     SUPPORTED_RESUME_EXTENSIONS,
+    load_intents,
     sync_resume_directory,
     upsert_intent,
 )
@@ -432,12 +433,53 @@ async def confirm_resume(body: dict):
         job_types=job_types,
         display_name=display_name,
     )
+    intent_data = load_intents(CONFIG_DIR / "resume_intents.yaml")
+    intent_id = next(
+        key
+        for key, entry in intent_data["resumes"].items()
+        if entry.get("filename") == filename
+    )
 
     return {
         "ok": True,
+        "resume_id": intent_id,
         "filename": filename,
         **intent,
     }
+
+
+@app.put("/api/resumes/{filename}/intent")
+async def update_resume_intent(filename: str, body: dict):
+    """Update search intent for an uploaded or manually added supported resume."""
+    intent_path = CONFIG_DIR / "resume_intents.yaml"
+    data = sync_resume_directory(RESUMES_DIR, intent_path)
+    existing_id = next(
+        (
+            key
+            for key, entry in data["resumes"].items()
+            if entry.get("filename") == filename
+        ),
+        None,
+    )
+    if not existing_id:
+        raise HTTPException(status_code=404, detail=f"简历不存在或格式不受支持: {filename}")
+    existing = data["resumes"][existing_id]
+    keywords = body.get("keywords", existing.get("keywords", []))
+    if isinstance(keywords, str):
+        keywords = [item for item in re.split(r"[,，\s]+", keywords) if item]
+    job_types = body.get("job_types", existing.get("job_types", []))
+    if isinstance(job_types, str):
+        job_types = [job_types]
+    updated = upsert_intent(
+        intent_path,
+        resume_dir=RESUMES_DIR,
+        filename=filename,
+        keywords=keywords,
+        job_types=job_types,
+        display_name=str(body.get("display_name", existing.get("display_name", ""))),
+        enabled=bool(body.get("enabled", existing.get("enabled", True))),
+    )
+    return {"ok": True, "resume_id": existing_id, **updated}
 
 
 @app.delete("/api/resumes/{filename}")
