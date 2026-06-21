@@ -35,6 +35,10 @@ MAX_RESUME_SIZE = 10 * 1024 * 1024  # 10 MB
 
 app = FastAPI(title="SmartJobHunter Console", version="0.2.0")
 
+# Serve resumes as static files for inline preview
+if RESUMES_DIR.exists():
+    app.mount("/resumes", StaticFiles(directory=str(RESUMES_DIR)), name="resumes_static")
+
 
 # ---------------------------------------------------------------------------
 # Static files
