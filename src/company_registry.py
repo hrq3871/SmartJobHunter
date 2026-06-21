@@ -94,6 +94,7 @@ def choose_company_url(company: Dict[str, Any], keyword: str = "产品经理", j
         links.get(job_type)
         or urls.get(job_type)
         or links.get("career_home")
+        or urls.get("campus")
         or urls.get("social")
         or links.get("social")
         or ""

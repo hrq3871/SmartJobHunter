@@ -49,12 +49,12 @@ description: Use when the user asks to run SmartJobHunter, find or evaluate jobs
 完整状态机在 `CLAUDE.md` / `AGENTS.md` 中定义；本 Skill 只保留触发和检查锚点，避免和 Agent 定义重复漂移。
 
 ```text
-INIT -> LOADED -> STRATEGY_INSPECTED -> CRAWLED -> FILTERED -> EVALUATED -> URL_VALIDATED -> REPORTED -> PACKAGED -> DONE
+INIT -> LOADED -> CRAWLED -> FILTERED -> EVALUATED -> URL_VALIDATED -> REPORTED -> PACKAGED -> DONE
 ```
 
 关键状态：
 
-- `STRATEGY_INSPECTED`：运行策略巡检，读取 strategy task 和 evidence。
+- `CRAWLED`：全量抓取，失败公司自动批量收集 → Agent 委派 `crawler-strategy-inspector` 一次性修复 → 重抓。
 - `URL_VALIDATED`：报告前必须过滤空链接、404、不可访问链接。
 - `PACKAGED`：为 Top 3 岗位生成投递包，Cover Letter 必须结合 JD 证据和简历证据。
 

@@ -59,11 +59,15 @@ def batch_add_records(app_token: str, table_id: str, records: List[Dict]) -> Opt
 
     payload = {"fields": fields, "rows": rows}
 
+    # Write JSON to local file (lark-cli requires relative path for @file)
+    tmp_path = Path("_bitable_batch.json")
+    tmp_path.write_text(json.dumps(payload, ensure_ascii=False), encoding='utf-8')
+
     cmd = [
         lark_cli, "base", "+record-batch-create",
         "--base-token", app_token,
         "--table-id", table_id,
-        "--json", json.dumps(payload, ensure_ascii=False),
+        "--json", "@_bitable_batch.json",
         "--as", "user"
     ]
 
@@ -74,16 +78,26 @@ def batch_add_records(app_token: str, table_id: str, records: List[Dict]) -> Opt
             text=True,
             encoding='utf-8',
             timeout=60,
-            shell=True
+            shell=True if os.name == 'nt' else False,
         )
+        tmp_path.unlink(missing_ok=True)
 
         if result.returncode != 0:
-            print(f"[Bitable] 添加失败: {result.stderr}")
+            print(f"[Bitable] 添加失败 (exit={result.returncode}): {result.stderr}")
             return None
 
-        data = json.loads(result.stdout)
+        stdout = result.stdout.strip() if result.stdout else ""
+        if not stdout:
+            print("[Bitable] 添加失败: lark-cli 无输出")
+            return None
+        try:
+            data = json.loads(stdout)
+        except json.JSONDecodeError:
+            print(f"[Bitable] 解析响应失败: {stdout[:200]}")
+            return None
         if data.get('ok'):
             return data.get('data', {})
+        print(f"[Bitable] 添加失败: {data.get('error', {}).get('message', data)}")
         return None
 
     except Exception as e:
@@ -114,9 +128,12 @@ def add_jobs_to_bitable(jobs: List[Dict], profile_name: str, report_url: str = N
         print("[Bitable] 配置不完整，跳过添加")
         return None
 
+    _JOB_TYPE_CN = {"campus": "校招", "internship": "实习", "social": "社招"}
+
     # 构建记录
     records = []
     for job in jobs:
+        jt = job.get("job_type", "社招")
         record = {
             "岗位标题": job.get("title", ""),
             "公司": job.get("company", ""),
@@ -124,7 +141,7 @@ def add_jobs_to_bitable(jobs: List[Dict], profile_name: str, report_url: str = N
             "AI评分": job.get("score", 0),
             "投递状态": "待投递",
             "录取状态": "待定",
-            "岗位类型": job.get("job_type", "社招"),
+            "岗位类型": _JOB_TYPE_CN.get(jt, jt),
             "投递简历": profile_name,
             "报告链接": report_url or "",
             "创建时间": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -171,28 +188,41 @@ def batch_import_from_report(report_path: str, profile_name: str, report_url: st
     # 解析报告中的岗位信息
     jobs = []
 
-    # 匹配岗位块
-    pattern = r'### \d+\. (.+?) \[(Green|Yellow|Red)\] Score: (\d+)'
+    # 匹配岗位块：### N. 公司－标题 [🟢/🟡/🔴] Score: 分数
+    pattern = r'### \d+\. (.+?) \[(?:🟢|🟡|🔴|Green|Yellow|Red)\] Score: (\d+)'
     matches = re.findall(pattern, content)
 
     for match in matches:
-        title = match[0].strip()
-        score = int(match[2])
+        title_raw = match[0].strip()
+        score = int(match[1])
 
-        # 提取公司
-        company_match = re.search(rf'### \d+\. {re.escape(title)}.*?\| Company \| (.+?) \|', content, re.DOTALL)
-        company = company_match.group(1).strip() if company_match else ""
+        # 标题格式: "公司－岗位名"，拆出公司
+        if '－' in title_raw:
+            company, title = title_raw.split('－', 1)
+            company = company.strip()
+            title = title.strip()
+        else:
+            title = title_raw
+            # Fallback: 从表格行提取公司
+            cm = re.search(rf'### \d+\. {re.escape(title_raw)}.*?\| Company \| (.+?) \|', content, re.DOTALL)
+            company = cm.group(1).strip() if cm else ""
 
         # 提取链接
-        link_match = re.search(rf'### \d+\. {re.escape(title)}.*?\*\*Link\*\*: \[(.+?)\]\((.+?)\)', content, re.DOTALL)
+        link_match = re.search(rf'### \d+\. {re.escape(title_raw)}.*?\*\*Link\*\*: \[(.+?)\]\((.+?)\)', content, re.DOTALL)
         url = link_match.group(2) if link_match else ""
+
+        # 提取岗位类型
+        jt = "社招"
+        jt_match = re.search(rf'### \d+\. {re.escape(title_raw)}.*?岗位类型.*?\|\s*(.+?)\s*\|', content, re.DOTALL)
+        if jt_match:
+            jt = jt_match.group(1).strip()
 
         jobs.append({
             "title": title,
             "company": company,
             "url": url,
             "score": score,
-            "job_type": "社招"  # 默认社招
+            "job_type": jt,
         })
 
     if not jobs:

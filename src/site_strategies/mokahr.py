@@ -105,7 +105,7 @@ class Strategy(SiteStrategy):
         url = self.company_config.get("links", {}).get(job_type) or ""
         if not url:
             urls = self.company_config.get("urls", {})
-            url = urls.get(job_type) or urls.get("social") or ""
+            url = urls.get(job_type) or urls.get("campus") or urls.get("social") or ""
         if not url:
             print(f"[Mokahr] No URL configured for {self.company_id}", file=sys.stderr)
             return []
@@ -185,7 +185,7 @@ class Strategy(SiteStrategy):
                     location = info[-1] if len(info) >= 1 else ""
                     category = info[1] if len(info) >= 2 else ""
                     education = info[2] if len(info) >= 3 else ""
-                    inferred_job_type = _detect_job_type(info[0] if info else "")
+                    inferred_job_type = _detect_job_type(info[0] if info else "", job_type)
 
                     duty = ""
                     requirement = ""
@@ -238,11 +238,11 @@ class Strategy(SiteStrategy):
         return jobs
 
 
-def _detect_job_type(raw: str) -> str:
-    """从 info row 第一个字段推断岗位类型."""
+def _detect_job_type(raw: str, default_type: str = "social") -> str:
+    """从 info row 第一个字段推断岗位类型，无匹配时使用请求的默认类型."""
     text = raw.lower()
     if any(kw in text for kw in ["实习", "intern"]):
         return "internship"
     if any(kw in text for kw in ["校招", "应届", "campus", "graduate"]):
         return "campus"
-    return "social"
+    return default_type or "social"

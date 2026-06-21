@@ -68,11 +68,17 @@ class ConfigCrawler(InterceptCrawler):
         duty_mapping = self.field_mappings.get('duty', {})
         requirement_mapping = self.field_mappings.get('requirement', {})
 
-        # 构建岗位URL
-        if self.url_template:
-            job_url = self.url_template.format(id=job_id)
-        else:
-            job_url = f"https://example.com/job/{job_id}"
+        # 构建岗位URL：优先使用 API 返回的真实链接
+        url_mapping = self.field_mappings.get('url', {})
+        job_url = self.parse_field(item, url_mapping) if url_mapping else ""
+        if not job_url:
+            if self.url_template:
+                job_url = self.url_template.format(id=job_id)
+            else:
+                job_url = f"https://example.com/job/{job_id}"
+        # 统一补 https（Tencent API 返回 http）
+        if job_url.startswith("http://"):
+            job_url = job_url.replace("http://", "https://", 1)
 
         # 检测岗位类型
         job_type = self.detect_job_type(title)
@@ -148,6 +154,7 @@ class ConfigCrawler(InterceptCrawler):
             max_jobs=max_jobs,
             headless=headless,
             max_pages=max_pages,
+            job_type=job_type,
         )
 
 

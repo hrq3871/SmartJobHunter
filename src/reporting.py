@@ -87,15 +87,47 @@ def render_full_crawl_audit(records: list[dict]) -> str:
             reasons = [reasons]
         chunks.append(f"- 判断理由：{_cell('；'.join(map(str, reasons)))}")
         evidence = semantic.get("evidence") or {}
-        chunks.append(f"- JD 原文引用：{_cell(evidence)}")
+        if evidence:
+            _EVI_LABELS = {
+                "target_role": "目标岗位命中", "must_have": "关键要求命中",
+                "target_domains": "目标领域命中", "nice_to_have": "加分项命中",
+                "keywords": "关键词命中", "excluded_terms": "排除词命中",
+                "negative_role": "疑似噪声角色",
+            }
+            for k, v in evidence.items():
+                label = _EVI_LABELS.get(k, k)
+                val = "、".join(map(str, (v or [])[:8]))
+                chunks.append(f"- {label}：{_cell(val) if val else '无'}")
         matched = evaluation.get("matched_evidence") or []
         chunks.append(f"- 简历证据：{_cell(matched)}")
-        chunks.append(f"- 风险和缺口：{_cell((evaluation.get('risks') or []) + (evaluation.get('gaps') or []))}")
+        gaps = evaluation.get("gaps") or []
+        if gaps:
+            for g in gaps:
+                if isinstance(g, dict):
+                    chunks.append(f"- 缺口：{_cell(g.get('requirement', '') + ' → ' + g.get('suggestion', ''))}")
+                else:
+                    chunks.append(f"- 缺口：{_cell(str(g))}")
+        risks = evaluation.get("risks") or []
+        for r in risks:
+            chunks.append(f"- 风险：{_cell(str(r))}")
+        _SCORE_LABELS = {
+            "target_role_fit": "目标岗位匹配",
+            "core_responsibility_fit": "核心职责匹配",
+            "core_role_fit": "核心角色匹配",
+            "domain_fit": "领域匹配",
+            "resume_evidence": "简历证据",
+            "preference_fit": "偏好匹配",
+            "evidence_quality": "证据质量",
+            "risk_penalty": "风险扣分",
+            "fallback_quality": "评分类别",
+            "domain_strengths": "领域强度",
+        }
         chunks.extend(["", "#### 评分拆解", "", "| 维度 | 分数 |", "|---|---:|"])
         for key, value in (evaluation.get("scoring_breakdown") or {}).items():
             if isinstance(value, (dict, list)):
                 continue
-            chunks.append(f"| {_cell(key)} | {_cell(value)} |")
+            label = _SCORE_LABELS.get(key, key)
+            chunks.append(f"| {_cell(label)} | {_cell(value)} |")
         chunks.append(f"| 总分与最终结论 | {_cell(evaluation.get('score'))} / {_cell(final_decision)} |")
         chunks.extend(["", "---", ""])
     return "\n".join(chunks)

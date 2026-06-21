@@ -83,8 +83,9 @@ def push_to_feishu(report_path: str, profile_name: str) -> Optional[Dict]:
         return None
 
     wiki_node_token = config.get('wiki_node_token')
-    if not wiki_node_token:
-        print("[Feishu] 未配置 wiki_node_token")
+    wiki_space_id = config.get('wiki_space_id', '')
+    if not wiki_node_token and not wiki_space_id:
+        print("[Feishu] 未配置 wiki_node_token 或 wiki_space_id")
         return None
 
     report_file = Path(report_path)
@@ -116,9 +117,10 @@ def push_markdown_to_feishu(title: str, content: str, wiki_node_token: str = Non
     config = load_feishu_config()
     if not wiki_node_token:
         wiki_node_token = config.get('wiki_node_token')
+    wiki_space_id = config.get('wiki_space_id', '')
 
-    if not wiki_node_token:
-        print("[Feishu] 未配置 wiki_node_token")
+    if not wiki_node_token and not wiki_space_id:
+        print("[Feishu] 未配置 wiki_node_token 或 wiki_space_id")
         return None
 
     # Windows 下需要完整路径
@@ -126,14 +128,18 @@ def push_markdown_to_feishu(title: str, content: str, wiki_node_token: str = Non
     if not os.path.exists(lark_cli):
         lark_cli = "lark-cli"
 
+    wiki_space_id = config.get('wiki_space_id', '')
     # 直接通过 stdin 传递内容
     cmd = [
         lark_cli, "docs", "+create",
         "--title", title,
         "--markdown", "-",  # 从 stdin 读取
-        "--wiki-node", wiki_node_token,
         "--as", "user"
     ]
+    if wiki_space_id:
+        cmd.extend(["--wiki-space", wiki_space_id])
+    elif wiki_node_token:
+        cmd.extend(["--wiki-node", wiki_node_token])
 
     try:
         result = subprocess.run(
@@ -143,27 +149,30 @@ def push_markdown_to_feishu(title: str, content: str, wiki_node_token: str = Non
             text=True,
             encoding='utf-8',
             timeout=120,
-            shell=True
+            shell=True if os.name == 'nt' else False,
         )
 
         if result.returncode != 0:
-            print(f"[Feishu] 推送失败: {result.stderr}")
+            print(f"[Feishu] 推送失败 (exit={result.returncode}): {result.stderr}")
             return None
 
-        # 解析返回结果 (lark-cli 格式: {"ok": true, "data": {...}})
+        stdout = (result.stdout or "").strip()
+        if not stdout:
+            print("[Feishu] 推送失败: lark-cli 无输出")
+            return None
         try:
-            data = json.loads(result.stdout)
-            if data.get('ok'):
-                doc_data = data.get('data', {})
-                doc_url = doc_data.get('doc_url', '')
-                print(f"[Feishu] 推送成功: {doc_url}")
-                return {"url": doc_url, "doc_id": doc_data.get('doc_id')}
-            else:
-                error = data.get('error', {})
-                print(f"[Feishu] 推送失败: {error.get('message', 'unknown error')}")
-                return None
+            data = json.loads(stdout)
         except json.JSONDecodeError:
-            print(f"[Feishu] 解析响应失败: {result.stdout[:200]}")
+            print(f"[Feishu] 解析响应失败: {stdout[:200]}")
+            return None
+        if data.get('ok'):
+            doc_data = data.get('data', {})
+            doc_url = doc_data.get('doc_url', '')
+            print(f"[Feishu] 推送成功: {doc_url}")
+            return {"url": doc_url, "doc_id": doc_data.get('doc_id')}
+        else:
+            error = data.get('error', {})
+            print(f"[Feishu] 推送失败: {error.get('message', 'unknown error')}")
             return None
 
     except subprocess.TimeoutExpired:

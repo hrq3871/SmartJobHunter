@@ -24,7 +24,14 @@
 profiles/<profile_id>.md
 ```
 
-YAML frontmatter 至少包含：`name`、`enabled`、`resume`、`resume_sha256`、`job_types`、`keywords`、`target_roles`、`target_domains`、`must_have`、`nice_to_have`、`avoid`、`locations`、`employment_types`。
+YAML frontmatter 至少包含：`name`、`enabled`、`resume`、`resume_sha256`、`job_types`、`keywords`、`search_keywords`、`target_roles`、`target_domains`、`must_have`、`nice_to_have`、`avoid`、`locations`、`employment_types`。
+
+`search_keywords` 生成规则：
+- 从 `target_roles` 提取 2-3 个能直接写入招聘网站搜索框的词
+- 一个宽泛兜底（如「产品经理」），一个精准定向（如「AI产品」）
+- 必须是中文招聘网站实际会用到的搜索词
+- 禁止填入：公司名、具体工具名（Python/Axure）、过窄术语（MCP/RAG）
+- 优先取 `target_roles` 中频率最高的通用角色词
 
 Markdown 正文使用以下结构，所有能力都附简历证据：
 

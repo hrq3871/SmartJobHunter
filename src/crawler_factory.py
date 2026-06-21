@@ -412,6 +412,7 @@ if __name__ == '__main__':
     parser.add_argument('--crawl', type=str, help='Crawl company ID')
     parser.add_argument('--keyword', type=str, default='产品经理', help='Search keyword')
     parser.add_argument('--max-jobs', type=int, default=5, help='Max jobs per company')
+    parser.add_argument('--job-type', type=str, default='social', help='Job type: social/campus/internship')
 
     args = parser.parse_args()
 
@@ -426,7 +427,7 @@ if __name__ == '__main__':
         test_crawler(args.test, args.keyword, args.max_jobs)
 
     elif args.crawl:
-        jobs = crawl_company(args.crawl, args.keyword, args.max_jobs)
+        jobs = crawl_company(args.crawl, args.keyword, args.max_jobs, job_type=args.job_type)
         print(f"\nCrawled {len(jobs)} jobs:")
         for job in jobs:
             print(f"  - {job.get('title')}")

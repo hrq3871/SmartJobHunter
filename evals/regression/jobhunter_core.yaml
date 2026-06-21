@@ -346,10 +346,10 @@ cases:
       - ".claude/skills/jobhunter/skill.md"
     expected:
       required_text:
-        - "STRATEGY_INSPECTED"
+        - "CRAWLED"
         - "URL_VALIDATED"
         - "PACKAGED"
-        - "python -m src.health_monitor --inspect-strategies"
+        - "crawler-strategy-inspector"
         - "python -m src.scheduler --feishu-push status"
         - "python -m src.evaluation --trials 3 --fail-under 1.0"
         - "evals/regression/jobhunter_core.yaml"
