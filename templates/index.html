@@ -261,7 +261,7 @@ function renderHealthPanel(health){
     h+=`<div class="row" style="grid-template-columns:auto 1fr auto auto"><input type="checkbox" class="checkbox hc-cb" data-cid="${esc(t.company_id)}" onchange="toggleHcSel('${esc(t.company_id)}',this.checked)"><div><strong>${esc(t.company_name)}</strong> <span class="badge ${statusClass(t.status)}">${statusLabel(t.status)}</span><div class="text-sm mt-1" style="color:var(--text-secondary)">${esc(t.reason_label||t.reason)}</div></div><span class="text-muted text-sm">${(t.created_at||'').slice(0,16)}</span><button class="btn btn-outline btn-sm" onclick="retryOne('${esc(t.company_id)}')">&#x1f6e0; 重试</button></div>`;
   }
   h+=`</div>`;
-  wrap.innerHTML=h;
+  sc.innerHTML=h;
 }
 window.refreshHealth=async()=>{
   const h=await api('/api/health');_healthData=h;
@@ -297,7 +297,7 @@ window.retryOne=async(id)=>{
 };
 
 function renderCompanyGrid(companies){
-  const sc=document.getElementById('strategyContent');if(!sc)return;
+  const container=document.getElementById('strategyContent');if(!container)return;
   const healthMap={};if(_healthData)for(const t of _healthData.tasks||[]){healthMap[t.company_id]=t}
   const searchHtml=`<div class="card"><div class="flex-between flex-wrap gap-2"><div class="flex gap-2" style="align-items:center"><button class="btn btn-primary" onclick="showAddModal()">+ 新增公司</button><select id="coFilter" onchange="_coFilter=this.value;renderCompanyGrid(_sortCompanies(_coData,_coFilter))" style="width:auto;padding:9px 12px"><option value="all">全部</option><option value="enabled">已启用</option><option value="disabled">已禁用</option><option value="pending">待修复</option></select></div><div class="search-bar" style="width:260px"><input type="search" id="coSearch" placeholder="搜索公司..." oninput="applyCoFilters()"></div></div></div>`;
   const coHtml=`
@@ -328,10 +328,8 @@ function renderCompanyGrid(companies){
         </div>`;
       }).join('')}
     </div>`;
-  const sc=document.getElementById('strategyContent');if(!sc)return;
-  sc.innerHTML=`<div id="companyGridSection"></div>`;
-  const gridEl=document.getElementById('companyGridSection');
-  gridEl.innerHTML=searchHtml+coHtml;
+  container.innerHTML=`<div id="companyGridSection"></div>`;
+  document.getElementById('companyGridSection').innerHTML=searchHtml+coHtml;
   $('#coFilter').value=_coFilter;
 }
 window.applyCoFilters=()=>{
