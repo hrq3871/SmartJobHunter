@@ -155,10 +155,6 @@ def create_crawler(company_id: str) -> Optional[ConfigCrawler]:
         raise CompanyNotFoundError(f"Company not found: {company_id}")
     config = normalize_company(config)
 
-    if not config.get('enabled', False):
-        print(f"[Warn] Company disabled: {config.get('name', company_id)}", file=sys.stderr)
-        return None
-
     if select_strategy_type(config) != "config":
         print(
             f"[Warn] Company {company_id} is not config-driven: {select_strategy_type(config)}",

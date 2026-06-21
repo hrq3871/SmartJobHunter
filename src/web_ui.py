@@ -967,4 +967,4 @@ async def trigger_health_repair(body: dict):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("src.web_ui:app", host="0.0.0.0", port=8080, reload=True)
+    uvicorn.run("src.web_ui:app", host="127.0.0.1", port=8080, reload=True)

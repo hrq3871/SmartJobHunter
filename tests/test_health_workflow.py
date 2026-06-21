@@ -114,7 +114,8 @@ def test_scheduler_uses_strategy_inspection_and_no_spider_instructions():
     assert "spider.py" not in source
     assert "python health_check.py" not in source
     assert "python -m src.scheduler --schedule" in run_bat
-    assert "push=args.push" in source
+    assert "push=do_push" in source
+    assert 'schedule_cfg.get("git_push", False)' in source
     assert "--feishu-push" in source
 
 

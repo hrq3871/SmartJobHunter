@@ -31,3 +31,10 @@ def test_frontend_uses_search_intent_and_claude_launch_states():
     assert "待补充关键词" in html
     assert "待 Agent 建档" in html
     assert "Claude Code 已在新窗口打开" in html
+
+
+def test_web_module_main_stays_local_only():
+    source = Path("src/web_ui.py").read_text(encoding="utf-8")
+
+    assert 'host="127.0.0.1"' in source
+    assert 'host="0.0.0.0"' not in source
