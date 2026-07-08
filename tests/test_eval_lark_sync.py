@@ -8,6 +8,8 @@ from src.eval_lark_sync import (
     build_labels_doc_from_lark_records,
     format_lark_error,
     lark_field_definitions,
+    make_lark_json_arg,
+    _extract_records,
 )
 from src.eval_real_runs import build_human_label_template, parse_report
 from tests.test_eval_real_runs import _sample_real_report
@@ -104,6 +106,27 @@ def test_labels_doc_from_lark_records_can_be_saved_as_yaml(tmp_path):
     assert loaded["labels"][0]["human_scores"]["role_fit"] == 4
 
 
+def test_build_labels_doc_accepts_lark_cli_field_row_shape(tmp_path):
+    report_path = tmp_path / "eval_profile_20260708_2000.md"
+    report_path.write_text(_sample_real_report(), encoding="utf-8")
+    parsed = parse_report(report_path)
+    template = build_human_label_template(parsed)
+    lark_response = {
+        "fields": ["评估运行ID", "记录ID", "人工标签", "岗位方向分", "人工备注"],
+        "data": [["run_001", "001", ["maybe"], 4, "飞书回拉"]],
+    }
+
+    labels_doc = build_labels_doc_from_lark_records(
+        template,
+        _extract_records(lark_response),
+        run_id="run_001",
+    )
+
+    assert labels_doc["labels"][0]["human_label"] == "maybe"
+    assert labels_doc["labels"][0]["human_scores"]["role_fit"] == 4
+    assert labels_doc["labels"][0]["review_notes"] == "飞书回拉"
+
+
 def test_format_lark_error_suggests_base_auth_and_cli_update():
     error = RuntimeError(
         '{"ok": false, "error": {"message": "API call failed: need_user_authorization"}, '
@@ -114,3 +137,10 @@ def test_format_lark_error_suggests_base_auth_and_cli_update():
 
     assert "lark-cli auth login --domain base" in message
     assert "lark-cli 1.0.56 available" in message
+
+
+def test_make_lark_json_arg_uses_relative_workspace_file():
+    arg = make_lark_json_arg({"fields": ["标题"], "rows": [["任务"]]})
+
+    assert arg.startswith("@.lark_tmp/")
+    assert ":" not in arg

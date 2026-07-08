@@ -73,6 +73,7 @@ Thumbs.db
 # 临时文件
 *.tmp
 *.temp
+.lark_tmp/
 
 # 旧格式文件
 main.py

@@ -14,6 +14,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
+from uuid import uuid4
 
 import yaml
 
@@ -154,18 +155,18 @@ def build_labels_doc_from_lark_records(
     by_record_id = {str(item.get("record_id")): item for item in labels_doc.get("labels", [])}
     for raw in records:
         fields = _record_fields(raw)
-        if run_id and str(fields.get(RUN_ID_FIELD) or "") != run_id:
+        if run_id and _to_text(fields.get(RUN_ID_FIELD)) != run_id:
             continue
-        record_id = str(fields.get(RECORD_ID_FIELD) or "")
+        record_id = _to_text(fields.get(RECORD_ID_FIELD))
         if record_id not in by_record_id:
             continue
-        label = str(fields.get(LABEL_FIELD) or "").strip()
+        label = _to_text(fields.get(LABEL_FIELD)).strip()
         if label and label not in ALLOWED_HUMAN_LABELS:
             raise ValueError(f"Unsupported Feishu human label for {record_id}: {label}")
         target = by_record_id[record_id]
         if label:
             target["human_label"] = label
-        target["review_notes"] = str(fields.get(NOTE_FIELD) or target.get("review_notes") or "")
+        target["review_notes"] = _to_text(fields.get(NOTE_FIELD)) or str(target.get("review_notes") or "")
         scores = target.setdefault("human_scores", {field: None for field in HUMAN_SCORE_FIELDS})
         for lark_name, human_key in LARK_SCORE_TO_HUMAN.items():
             score = _to_score(fields.get(lark_name))
@@ -364,7 +365,22 @@ def _extract_items(data: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def _extract_records(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     payload = data.get("data") if isinstance(data.get("data"), dict) else data
-    return payload.get("items") or payload.get("records") or payload.get("data") or []
+    if not isinstance(payload, dict):
+        return payload if isinstance(payload, list) else []
+    rows = payload.get("items") or payload.get("records")
+    if rows:
+        return rows
+    data_rows = payload.get("data")
+    fields = payload.get("fields")
+    if isinstance(data_rows, list) and isinstance(fields, list):
+        records = []
+        for row in data_rows:
+            if isinstance(row, dict):
+                records.append(row)
+            elif isinstance(row, list):
+                records.append(dict(zip(fields, row)))
+        return records
+    return data_rows if isinstance(data_rows, list) else []
 
 
 def _record_fields(record: Dict[str, Any]) -> Dict[str, Any]:
@@ -393,6 +409,14 @@ def _to_score(value: Any) -> int | None:
     return score if 1 <= score <= 5 else None
 
 
+def _to_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return "；".join(_to_text(item) for item in value if _to_text(item))
+    return str(value)
+
+
 def _load_config(config_path: Path) -> Dict[str, Any]:
     if config_path.exists():
         return yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
@@ -409,12 +433,17 @@ def _lark_cli() -> str:
     return candidate if os.path.exists(candidate) else "lark-cli"
 
 
-def _json_arg(payload: Dict[str, Any]) -> str:
+def make_lark_json_arg(payload: Dict[str, Any]) -> str:
     # Avoid fragile shell quoting for larger unicode payloads.
-    handle = tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8", suffix=".json")
-    with handle:
-        json.dump(payload, handle, ensure_ascii=False)
-    return f"@{handle.name}"
+    tmp_dir = Path(".lark_tmp")
+    tmp_dir.mkdir(exist_ok=True)
+    path = tmp_dir / f"payload_{uuid4().hex}.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return f"@{path.as_posix()}"
+
+
+def _json_arg(payload: Dict[str, Any]) -> str:
+    return make_lark_json_arg(payload)
 
 
 def _run_lark_json(cmd: List[str], input_text: str | None = None) -> Dict[str, Any]:
