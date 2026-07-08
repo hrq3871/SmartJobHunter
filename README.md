@@ -229,6 +229,7 @@ SmartJobHunter/
 │   ├── matching.py          # Semantic matching fallback and scoring rubric
 │   ├── evaluation.py        # Agent evaluation harness
 │   ├── eval_real_runs.py    # Real report parser, human-label template, and real-run metrics
+│   ├── eval_lark_sync.py    # Feishu/Lark annotation table and badcase doc sync
 │   ├── eval_graders.py      # Explicit code/model/human grader helpers
 │   ├── eval_transcript.py   # JSONL transcript recorder for eval cases
 │   ├── resume_parser.py     # Resume parser (PDF/Markdown/TXT)
@@ -306,6 +307,9 @@ feishu:
   wiki_node_token: ""
   bitable_token: ""
   bitable_table_id: ""
+  eval_annotation_table_id: ""
+  eval_badcase_doc_id: ""
+  eval_badcase_doc_url: ""
   enabled: false
 ```
 
@@ -404,12 +408,19 @@ python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 # Real-run report evaluation: first creates human_labels.yaml, then rerun with labels
 python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
 python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
+
+# Optional Feishu/Lark annotation workflow
+lark-cli auth login --domain base
+python -m src.eval_lark_sync setup
+python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases
 ```
 
 Integration crawler tests require browser/network access and are marked with `integration`.
 
 Agent evaluation reports are written under `output/evals/YYYY-MM-DD/` and are local artifacts.
 Real-run evaluation reports are written under `output/evals/real_runs/YYYY-MM-DD/`.
+Real-run reports now include Chinese metric names, optional 1-5 human dimension scores, and a `bad_cases.md` file. Feishu/Lark sync can create a dedicated annotation table in the existing job-tracking Bitable and a managed badcase document for review.
 For the full internal Agent architecture, see `docs/smartjobhunter-agent-design.md`; for evaluation details, see `docs/smartjobhunter-evaluation-design.md`.
 
 ### Crawler Commands

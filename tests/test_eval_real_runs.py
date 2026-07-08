@@ -8,6 +8,8 @@ import yaml
 from src.eval_real_runs import (
     build_human_label_template,
     parse_report,
+    render_badcase_markdown,
+    render_real_run_markdown,
     run_real_run_evaluation,
     score_real_run,
 )
@@ -46,11 +48,17 @@ def _sample_real_report() -> str:
 #### 语义判断及引用证据
 - 是否保留：True
 - 判断理由：AI Agent 支付平台产品匹配
+- 简历证据：Agent 项目、AI 产品评估体系
+- 风险：商业化指标经验不足
 
 #### 评分拆解
 
 | 维度 | 分数 |
 |---|---:|
+| 目标岗位匹配 | 22 |
+| 核心职责匹配 | 20 |
+| 简历证据 | 17 |
+| 风险扣分 | -3 |
 | 总分与最终结论 | 82 / apply |
 
 ---
@@ -152,6 +160,28 @@ def test_human_template_excludes_objective_invalid_and_low_confidence_rejects(tm
     assert all(item["human_label"] is None for item in labels["labels"])
 
 
+def test_human_template_contains_light_evidence_and_dimension_scores(tmp_path):
+    report_path = tmp_path / "eval_profile_20260708_2000.md"
+    report_path.write_text(_sample_real_report(), encoding="utf-8")
+    parsed = parse_report(report_path)
+
+    labels = build_human_label_template(parsed)
+    first = labels["labels"][0]
+
+    assert first["source_report"] == str(report_path)
+    assert first["evidence_summary"]["system_reason"] == "AI Agent 支付平台产品匹配"
+    assert "Agent 项目" in first["evidence_summary"]["resume_evidence"]
+    assert first["scoring_breakdown"]["目标岗位匹配"] == 22
+    assert first["human_scores"] == {
+        "role_fit": None,
+        "skill_match": None,
+        "seniority_fit": None,
+        "jd_quality": None,
+        "risk_level": None,
+        "apply_priority": None,
+    }
+
+
 def test_score_real_run_combines_human_labels_with_auto_metrics(tmp_path):
     report_path = tmp_path / "eval_profile_20260708_2000.md"
     report_path.write_text(_sample_real_report(), encoding="utf-8")
@@ -175,6 +205,73 @@ def test_score_real_run_combines_human_labels_with_auto_metrics(tmp_path):
     assert metrics["full_audit_present"] == 1.0
 
 
+def test_score_real_run_surfaces_badcases_and_human_score_metrics(tmp_path):
+    report_path = tmp_path / "eval_profile_20260708_2000.md"
+    report_path.write_text(_sample_real_report(), encoding="utf-8")
+    parsed = parse_report(report_path)
+    labels = build_human_label_template(parsed)
+    labels["labels"][0]["human_label"] = "should_reject"
+    labels["labels"][0]["human_scores"]["role_fit"] = 2
+    labels["labels"][0]["human_scores"]["skill_match"] = 2
+    labels["labels"][0]["review_notes"] = "看起来是标题党，职责不够产品化"
+    labels["labels"][1]["human_label"] = "should_apply"
+    labels["labels"][1]["human_scores"]["role_fit"] = 5
+    labels["labels"][1]["human_scores"]["skill_match"] = 4
+    labels["labels"][1]["human_scores"]["apply_priority"] = 5
+
+    scored = score_real_run(parsed, labels)
+
+    assert scored["metrics"]["recommendation_precision"] == 0.0
+    assert scored["metrics"]["reviewed_false_negative_rate"] == 1.0
+    assert scored["human_score_metrics"]["role_fit_avg"] == 3.5
+    assert scored["human_score_metrics"]["apply_priority_avg"] == 5.0
+    assert [case["badcase_type"] for case in scored["bad_cases"]] == [
+        "recommendation_false_positive",
+        "filtered_false_negative",
+        "recommended_invalid_url",
+    ]
+    assert scored["bad_cases"][0]["affected_metrics"] == [
+        "recommendation_precision",
+        "strict_recommendation_precision",
+    ]
+    assert scored["bad_cases"][1]["attribution"] == "matching_filtering"
+
+
+def test_render_real_run_markdown_uses_chinese_metric_names_and_badcase_table(tmp_path):
+    report_path = tmp_path / "eval_profile_20260708_2000.md"
+    report_path.write_text(_sample_real_report(), encoding="utf-8")
+    parsed = parse_report(report_path)
+    labels = build_human_label_template(parsed)
+    labels["labels"][0]["human_label"] = "should_reject"
+    labels["labels"][1]["human_label"] = "should_apply"
+    scored = score_real_run(parsed, labels)
+    markdown = render_real_run_markdown(scored)
+
+    assert "| 中文指标 | 英文键 | 数值 | 说明 |" in markdown
+    assert "| 推荐精确率 | `recommendation_precision` | 0.0% |" in markdown
+    assert "## Bad Cases / 坏案例" in markdown
+    assert "推荐误报" in markdown
+    assert "过滤误杀" in markdown
+    assert "## Bad Case 处理方法" in markdown
+
+
+def test_render_badcase_markdown_is_a_local_analysis_doc(tmp_path):
+    report_path = tmp_path / "eval_profile_20260708_2000.md"
+    report_path.write_text(_sample_real_report(), encoding="utf-8")
+    parsed = parse_report(report_path)
+    labels = build_human_label_template(parsed)
+    labels["labels"][0]["human_label"] = "should_reject"
+    labels["labels"][1]["human_label"] = "should_apply"
+    scored = score_real_run(parsed, labels)
+
+    markdown = render_badcase_markdown(scored)
+
+    assert "# SmartJobHunter Bad Cases" in markdown
+    assert "推荐误报" in markdown
+    assert "影响指标" in markdown
+    assert "处理建议" in markdown
+
+
 def test_run_real_run_evaluation_writes_template_and_report(tmp_path):
     report_path = tmp_path / "eval_profile_20260708_2000.md"
     report_path.write_text(_sample_real_report(), encoding="utf-8")
@@ -190,5 +287,6 @@ def test_run_real_run_evaluation_writes_template_and_report(tmp_path):
     labels = yaml.safe_load((output_dir / "human_labels.yaml").read_text(encoding="utf-8"))
     assert [item["record_id"] for item in labels["labels"]] == ["001", "002"]
     report_text = (output_dir / "real_run_eval_report.md").read_text(encoding="utf-8")
-    assert "Label completion rate" in report_text
-    assert "Missing Human Labels" in report_text
+    assert "标注完成率" in report_text
+    assert "Missing Human Labels / 待标注样本" in report_text
+    assert (output_dir / "bad_cases.md").exists()

@@ -92,6 +92,10 @@ python -m src.evaluation --trials 3 --fail-under 1.0
 python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
 python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
+lark-cli auth login --domain base
+python -m src.eval_lark_sync setup
+python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases
 ```
 
 默认 regression 数据集是 `evals/regression/jobhunter_core.yaml`。eval 输出写入 `output/evals/{YYYY-MM-DD}/...`，真实巡检评估输出写入 `output/evals/real_runs/{YYYY-MM-DD}/...`，正式巡检报告写入 `output/{YYYY-MM-DD}/...`。
@@ -102,7 +106,8 @@ python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "
 - 再看 `transcripts/<case_id>.jsonl` 回放轨迹。
 - 根据 `bad_case_attribution` 定位到 `crawler_strategy`、`matching_filtering`、`recommendation_quality`、`output_quality` 或 `instruction_drift`。
 - Code graders 是默认启用的确定性判分；model/human grader 目前只保留 schema。
-- 真实巡检评估只编辑 `human_labels.yaml` 的 `human_label` 和备注；客观项由 `src.eval_real_runs` 自动判定。
+- 真实巡检评估可以编辑 `human_labels.yaml`，也可以在飞书 `SmartHunter真实评估标注` 表中填写 `human_label`、1-5 维度分和备注；客观项由 `src.eval_real_runs` 自动判定。
+- 真实巡检评估会生成中文指标、badcase 表和 `bad_cases.md`；飞书同步后 badcase 文档用于复盘。
 
 ## 维护规则
 

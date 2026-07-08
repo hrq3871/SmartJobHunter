@@ -476,12 +476,16 @@ python -m src.evaluation --trials 3 --fail-under 1.0
 python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
 python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
-python -m pytest tests/test_evaluation.py tests/test_eval_real_runs.py -v
+lark-cli auth login --domain base
+python -m src.eval_lark_sync setup
+python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases
+python -m pytest tests/test_evaluation.py tests/test_eval_real_runs.py tests/test_eval_lark_sync.py -v
 ```
 
 默认 regression 数据集：`evals/regression/jobhunter_core.yaml`。
 
-真实巡检评估只读取已生成的报告，不重新抓取网页。第一次运行 `src.eval_real_runs` 会生成 `human_labels.yaml`；人工只填写 `human_label` 和必要备注。URL 格式、推荐状态、报告存在、投递包存在等客观项由代码自动判定。详细标注规则和指标定义见 `docs/smartjobhunter-evaluation-design.md`。
+真实巡检评估只读取已生成的报告，不重新抓取网页。第一次运行 `src.eval_real_runs` 会生成 `human_labels.yaml`；人工填写 `human_label`、必要备注和可选 1-5 维度分。URL 格式、推荐状态、报告存在、投递包存在等客观项由代码自动判定。标注入口可以是本地 YAML，也可以通过 `src.eval_lark_sync` 同步到飞书多维表格标注表；badcase 会写入本地 `bad_cases.md` 并可同步到飞书文档。详细标注规则和指标定义见 `docs/smartjobhunter-evaluation-design.md`。
 
 输出：
 
@@ -497,7 +501,8 @@ output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
 ├── real_run_samples.json
 ├── human_labels.yaml
 ├── real_run_eval_results.json
-└── real_run_eval_report.md
+├── real_run_eval_report.md
+└── bad_cases.md
 ```
 
 指标：
@@ -516,6 +521,8 @@ output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
 - real-run `reviewed_false_negative_rate`
 - real-run `invalid_url_rate`
 - real-run `label_completion_rate`
+- real-run human dimension averages: `role_fit_avg`, `skill_match_avg`, `seniority_fit_avg`, `jd_quality_avg`, `risk_level_avg`, `apply_priority_avg`
+- real-run badcase counts by type: 推荐误报、过滤误杀、推荐区坏链接、人工确认坏链接、证据不足
 
 归因：
 
@@ -531,7 +538,7 @@ output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
 +------------------------+-----------------------------------------------+
 ```
 
-Code graders 是默认启用的机器判分；model/human grader 在回归 runner 中只保留 schema，离线 runner 默认 skipped。真实巡检评估通过 `human_labels.yaml` 引入人工 gold labels。具体 rubric 见 `evals/evaluation-grader-rubrics.md`，完整真实评估设计见 `docs/smartjobhunter-evaluation-design.md`。
+Code graders 是默认启用的机器判分；model/human grader 在回归 runner 中只保留 schema，离线 runner 默认 skipped。真实巡检评估通过本地 `human_labels.yaml` 或飞书标注表引入人工 gold labels，并输出中文指标、人工维度分和 badcase 表。具体 rubric 见 `evals/evaluation-grader-rubrics.md`，完整真实评估设计见 `docs/smartjobhunter-evaluation-design.md`。
 
 ## 8. 失败处理
 
@@ -542,7 +549,7 @@ Code graders 是默认启用的机器判分；model/human grader 在回归 runne
 3. 判断问题属于抓取策略、匹配过滤、推荐质量、输出质量还是 instruction_drift。
 4. 修复代码、配置、prompt、Skill 或项目规则。
 5. 重新运行 regression eval。
-6. 如果是新真实失败，按 `evals/eval-case-feedback-loop.md` 和真实巡检 `human_labels.yaml` 沉淀到 `evals/candidates/`。
+6. 如果是新真实失败，按 `evals/eval-case-feedback-loop.md`、真实巡检 `human_labels.yaml`、飞书标注表或 `bad_cases.md` 沉淀到 `evals/candidates/`。
 
 ## 9. 文档与规范演进
 

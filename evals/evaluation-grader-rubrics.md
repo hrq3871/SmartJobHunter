@@ -98,7 +98,7 @@ Human labels should use a small, stable set:
 
 ## Real-Run Human Labels
 
-真实巡检评估使用 `src.eval_real_runs` 生成的 `human_labels.yaml`。人工只填写 `human_label` 和必要的 `review_notes`；以下客观项由代码自动判定，不需要人工标：
+真实巡检评估使用 `src.eval_real_runs` 生成的 `human_labels.yaml`，或使用 `src.eval_lark_sync` 同步到飞书多维表格标注表。人工填写 `human_label`、必要的 `review_notes`，以及可选 1-5 维度分；以下客观项由代码自动判定，不需要人工标：
 
 - URL 是否为空、格式非法或含截断符。
 - 岗位是否进入推荐区。
@@ -110,6 +110,9 @@ Human labels should use a small, stable set:
 - 推荐岗位是否真的值得投。
 - 高分但未推荐岗位是否被误杀。
 - `maybe` 或 `unclear` 的边界样本是否需要后续沉淀。
+- `role_fit`、`skill_match`、`seniority_fit`、`jd_quality`、`risk_level`、`apply_priority` 等维度分，用来解释系统错在哪里；留空则不参与该维度指标。
+
+真实巡检报告会输出中文指标名、人工维度均分、badcase 表和 `bad_cases.md`。badcase 类型包括推荐误报、过滤误杀、推荐区坏链接、人工确认坏链接和证据不足。
 
 真实巡检指标和操作流程见 `docs/smartjobhunter-evaluation-design.md`。
 

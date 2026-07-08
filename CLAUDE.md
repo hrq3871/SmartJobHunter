@@ -322,11 +322,15 @@ python -m src.evaluation --trials 3 --fail-under 1.0
 python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 ```
 
-真实巡检报告评估不重新抓取网页，只读取已生成报告。第一次运行生成 `human_labels.yaml`，人工只填写 `human_label` 和必要备注；URL、推荐状态、报告/投递包存在等客观项由代码自动判定。
+真实巡检报告评估不重新抓取网页，只读取已生成报告。第一次运行生成 `human_labels.yaml`，人工填写 `human_label`、必要备注和可选 1-5 维度分；URL、推荐状态、报告/投递包存在等客观项由代码自动判定。标注入口可以是本地 YAML，也可以是飞书多维表格标注表。
 
 ```powershell
 python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
 python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
+lark-cli auth login --domain base
+python -m src.eval_lark_sync setup
+python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases
 ```
 
 评估输出：
@@ -343,8 +347,11 @@ output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
 ├── real_run_samples.json
 ├── human_labels.yaml
 ├── real_run_eval_results.json
-└── real_run_eval_report.md
+├── real_run_eval_report.md
+└── bad_cases.md
 ```
+
+飞书标注表由 `src.eval_lark_sync setup` 在既有岗位追踪多维表格中创建或复用，表名为 `SmartHunter真实评估标注`；badcase 文档名为 `SmartHunter真实评估BadCases`。生成的 `eval_annotation_table_id`、`eval_badcase_doc_id` 和 `eval_badcase_doc_url` 只写入本地 `config/agent.yaml`，不得提交。
 
 评估归因：
 
@@ -360,7 +367,7 @@ output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
 +------------------------+-----------------------------------------------+
 ```
 
-Code graders 是默认启用的机器判分；model/human grader 在离线回归 runner 中只保留 schema，默认 skipped。真实巡检评估通过 `human_labels.yaml` 引入人工 gold labels。具体规则见 `evals/evaluation-grader-rubrics.md` 和 `docs/smartjobhunter-evaluation-design.md`。
+Code graders 是默认启用的机器判分；model/human grader 在离线回归 runner 中只保留 schema，默认 skipped。真实巡检评估通过本地 `human_labels.yaml` 或飞书标注表引入人工 gold labels，并生成中文指标和 badcase 表。具体规则见 `evals/evaluation-grader-rubrics.md` 和 `docs/smartjobhunter-evaluation-design.md`。
 
 评估失败时：
 
@@ -401,6 +408,10 @@ python -m src.scheduler --feishu-push off
 # 真实巡检评估
 python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
 python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
+lark-cli auth login --domain base
+python -m src.eval_lark_sync setup
+python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases
 ```
 
 ## 确认机制

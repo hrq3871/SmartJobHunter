@@ -227,6 +227,7 @@ SmartJobHunter/
 │   ├── matching.py          # 语义匹配 fallback 与评分规则
 │   ├── evaluation.py        # Agent 评估 harness
 │   ├── eval_real_runs.py    # 真实报告解析、人工标注模板和实测指标
+│   ├── eval_lark_sync.py    # 飞书标注表与 badcase 文档同步
 │   ├── eval_graders.py      # 显式 code/model/human grader helper
 │   ├── eval_transcript.py   # eval case 的 JSONL 轨迹记录器
 │   ├── resume_parser.py     # 简历解析（PDF/Markdown/TXT）
@@ -304,6 +305,9 @@ feishu:
   wiki_node_token: ""
   bitable_token: ""
   bitable_table_id: ""
+  eval_annotation_table_id: ""
+  eval_badcase_doc_id: ""
+  eval_badcase_doc_url: ""
   enabled: false
 ```
 
@@ -402,11 +406,18 @@ python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 # 真实巡检报告评估：第一次生成 human_labels.yaml，标注后带 labels 参数重算
 python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
 python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
+
+# 可选：飞书多维表格标注工作流
+lark-cli auth login --domain base
+python -m src.eval_lark_sync setup
+python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases
 ```
 
 集成爬虫测试需要浏览器和网络访问，并使用 `integration` 标记。
 
 Agent 回归评估报告会写入 `output/evals/YYYY-MM-DD/`，真实巡检评估报告会写入 `output/evals/real_runs/YYYY-MM-DD/`，都属于本地运行产物。
+真实巡检评估报告包含中文指标名、可选 1-5 人工维度分和 `bad_cases.md`。飞书同步可在已有岗位追踪多维表格中新建标注表，并同步一份托管 badcase 文档，方便复盘。
 完整内部 Agent 架构见 `docs/smartjobhunter-agent-design.md`；评估详细设计见 `docs/smartjobhunter-evaluation-design.md`。
 
 ### 爬虫命令

@@ -23,6 +23,66 @@ ALLOWED_HUMAN_LABELS = ["should_apply", "maybe", "should_reject", "invalid_link"
 POSITIVE_LABELS = {"should_apply", "maybe"}
 STRICT_POSITIVE_LABELS = {"should_apply"}
 UNCLEAR_LABELS = {"unclear"}
+HUMAN_SCORE_FIELDS = {
+    "role_fit": "岗位方向分",
+    "skill_match": "技能匹配分",
+    "seniority_fit": "职级匹配分",
+    "jd_quality": "JD质量分",
+    "risk_level": "风险等级分",
+    "apply_priority": "投递优先级分",
+}
+METRIC_DEFINITIONS = {
+    "total_records": ("全量岗位数", "本次报告全量审计记录中的岗位数量。"),
+    "recommended_records": ("推荐岗位数", "系统进入推荐区的岗位数量。"),
+    "filtered_records": ("过滤岗位数", "系统在推荐前过滤掉的岗位数量。"),
+    "label_required_count": ("需标注数", "推荐岗位和高置信被过滤岗位中需要人工语义复核的数量。"),
+    "label_completed_count": ("已标注数", "已经填写人工标签的需标注样本数。"),
+    "label_completion_rate": ("标注完成率", "已标注数 / 需标注数。"),
+    "recommendation_precision": ("推荐精确率", "已标推荐岗位中，人工认为 should_apply 或 maybe 的比例。"),
+    "strict_recommendation_precision": ("严格推荐精确率", "已标推荐岗位中，人工认为 should_apply 的比例。"),
+    "reviewed_recall": ("人工复核召回率", "人工标为 should_apply 或 maybe 的样本中，系统成功推荐的比例。"),
+    "reviewed_false_negative_rate": ("误杀率", "人工标为 should_apply 或 maybe 的样本中，系统没有推荐的比例。"),
+    "invalid_url_rate": ("全量无效链接率", "全量岗位里 URL 为空、格式非法或明显截断的比例。"),
+    "recommended_invalid_url_rate": ("推荐区无效链接率", "推荐岗位里 URL 为空、格式非法或明显截断的比例。"),
+    "report_exists": ("报告落盘", "真实巡检报告是否存在。"),
+    "full_audit_present": ("全量审计存在", "报告是否包含全量抓取与判断记录。"),
+    "application_package_exists": ("投递包落盘", "同日期投递包目录是否存在。"),
+    "maybe_rate": ("模糊推荐率", "已标注样本中 maybe 的比例。"),
+    "unclear_rate": ("证据不足率", "已标注样本中 unclear 的比例。"),
+    "recommendation_volume": ("推荐收敛率", "推荐岗位数 / 全量岗位数，用来观察报告是否过宽或过窄。"),
+}
+BADCASE_TYPE_DEFINITIONS = {
+    "recommendation_false_positive": {
+        "zh": "推荐误报",
+        "attribution": "recommendation_quality",
+        "affected_metrics": ["recommendation_precision", "strict_recommendation_precision"],
+        "suggested_action": "复核评分拆解、负向风险和标题党降权；修复后沉淀为推荐质量回归 case。",
+    },
+    "filtered_false_negative": {
+        "zh": "过滤误杀",
+        "attribution": "matching_filtering",
+        "affected_metrics": ["reviewed_recall", "reviewed_false_negative_rate"],
+        "suggested_action": "复核语义过滤、阈值和报告数量上限；修复后沉淀为语义过滤或召回 case。",
+    },
+    "recommended_invalid_url": {
+        "zh": "推荐区坏链接",
+        "attribution": "output_quality",
+        "affected_metrics": ["recommended_invalid_url_rate", "invalid_url_rate"],
+        "suggested_action": "复核 URL 校验、报告过滤和原始链接保真规则。",
+    },
+    "manual_invalid_link": {
+        "zh": "人工确认坏链接",
+        "attribution": "output_quality",
+        "affected_metrics": ["recommended_invalid_url_rate", "invalid_url_rate"],
+        "suggested_action": "补充真实访问校验或招聘系统过期链接规则。",
+    },
+    "evidence_unclear": {
+        "zh": "证据不足",
+        "attribution": "recommendation_quality",
+        "affected_metrics": ["unclear_rate"],
+        "suggested_action": "补充 JD 证据、简历证据或降低强推荐等级。",
+    },
+}
 
 
 def parse_report(report_path: str | Path) -> Dict[str, Any]:
@@ -60,11 +120,15 @@ def build_human_label_template(parsed_report: Dict[str, Any]) -> Dict[str, Any]:
                 "company": record.get("company"),
                 "title": record.get("title"),
                 "url": record.get("url"),
+                "source_report": parsed_report.get("report_path"),
                 "system_decision": record.get("system_decision"),
                 "final_decision": record.get("final_decision"),
                 "score": record.get("score"),
                 "review_reason": reason,
+                "evidence_summary": _label_evidence_summary(record),
+                "scoring_breakdown": record.get("scoring_breakdown") or {},
                 "human_label": None,
+                "human_scores": {field: None for field in HUMAN_SCORE_FIELDS},
                 "severity": _default_severity(reason),
                 "review_notes": "",
             }
@@ -136,6 +200,8 @@ def score_real_run(parsed_report: Dict[str, Any], labels_doc: Dict[str, Any] | N
     ]
 
     completed_labels = [item for item in completed_required if item.get("human_label")]
+    human_score_metrics = _score_human_dimensions(completed_labels)
+    bad_cases = _detect_bad_cases(records, completed_required, recommended_invalid, record_by_id)
     metrics = {
         "total_records": total_records,
         "recommended_records": len(recommended_records),
@@ -183,6 +249,8 @@ def score_real_run(parsed_report: Dict[str, Any], labels_doc: Dict[str, Any] | N
             "application_package_path": parsed_report.get("application_package_path"),
         },
         "metrics": metrics,
+        "human_score_metrics": human_score_metrics,
+        "bad_cases": bad_cases,
         "missing_labels": [
             {
                 "record_id": item.get("record_id"),
@@ -216,6 +284,7 @@ def run_real_run_evaluation(
     labels_out = run_dir / "human_labels.yaml"
     results_path = run_dir / "real_run_eval_results.json"
     report_out = run_dir / "real_run_eval_report.md"
+    badcase_out = run_dir / "bad_cases.md"
 
     samples_path.write_text(json.dumps(parsed, ensure_ascii=False, indent=2), encoding="utf-8")
     labels_out.write_text(yaml.safe_dump(labels_doc, allow_unicode=True, sort_keys=False), encoding="utf-8")
@@ -226,9 +295,11 @@ def run_real_run_evaluation(
         "labels_path": str(labels_out),
         "json_report": str(results_path),
         "markdown_report": str(report_out),
+        "badcase_report": str(badcase_out),
     }
     results_path.write_text(json.dumps(report_payload, ensure_ascii=False, indent=2), encoding="utf-8")
     report_out.write_text(render_real_run_markdown(report_payload), encoding="utf-8")
+    badcase_out.write_text(render_badcase_markdown(report_payload), encoding="utf-8")
     return report_payload
 
 
@@ -240,16 +311,16 @@ def render_real_run_markdown(result: Dict[str, Any]) -> str:
         "# SmartJobHunter Real Run Evaluation Report",
         "",
         f"- Status: {result.get('status')}",
-        f"- Source report: `{report.get('path')}`",
+        f"- Source report / 源报告: `{report.get('path')}`",
         f"- Profile ID: {report.get('profile_id') or 'N/A'}",
-        f"- Generated: {report.get('generated') or 'N/A'}",
-        f"- Full audit present: {bool(report.get('has_full_audit'))}",
-        f"- Label completion rate: {_pct(metrics.get('label_completion_rate', 0.0))}",
+        f"- Generated / 生成时间: {report.get('generated') or 'N/A'}",
+        f"- Full audit present / 全量审计存在: {bool(report.get('has_full_audit'))}",
+        f"- Label completion rate / 标注完成率: {_pct(metrics.get('label_completion_rate', 0.0))}",
         "",
-        "## Metrics",
+        "## Metrics / 指标",
         "",
-        "| Metric | Value |",
-        "|:--|--:|",
+        "| 中文指标 | 英文键 | 数值 | 说明 |",
+        "|:--|:--|--:|:--|",
     ]
     metric_order = [
         "total_records",
@@ -272,9 +343,49 @@ def render_real_run_markdown(result: Dict[str, Any]) -> str:
     ]
     for name in metric_order:
         value = metrics.get(name)
-        lines.append(f"| {name} | {_format_metric(value)} |")
+        zh, desc = METRIC_DEFINITIONS.get(name, (name, ""))
+        lines.append(f"| {zh} | `{name}` | {_format_metric(value)} | {desc} |")
 
-    lines.extend(["", "## Missing Human Labels", ""])
+    score_metrics = result.get("human_score_metrics") or {}
+    if score_metrics:
+        lines.extend(["", "## Human Score Metrics / 人工维度分", ""])
+        lines.extend(["| 中文维度 | 英文键 | 平均分 | 样本数 |", "|:--|:--|--:|--:|"])
+        for key, zh in HUMAN_SCORE_FIELDS.items():
+            avg_key = f"{key}_avg"
+            count_key = f"{key}_count"
+            if avg_key not in score_metrics:
+                continue
+            lines.append(
+                f"| {zh} | `{key}` | {score_metrics.get(avg_key)} | {score_metrics.get(count_key, 0)} |"
+            )
+
+    lines.extend(["", "## Bad Cases / 坏案例", ""])
+    bad_cases = result.get("bad_cases") or []
+    if bad_cases:
+        lines.extend([
+            "| 类型 | Record ID | 公司 | 岗位 | 系统判断 | 人工标签 | 归因 | 影响指标 | 处理建议 |",
+            "|:--|:--|:--|:--|:--|:--|:--|:--|:--|",
+        ])
+        for case in bad_cases:
+            affected = ", ".join(case.get("affected_metrics") or [])
+            lines.append(
+                "| {type_zh} | `{record_id}` | {company} | {title} | {system_decision} | "
+                "{human_label} | `{attribution}` | {affected} | {suggested_action} |".format(
+                    type_zh=case.get("badcase_type_zh"),
+                    record_id=case.get("record_id"),
+                    company=_md_cell(case.get("company")),
+                    title=_md_cell(case.get("title")),
+                    system_decision=_md_cell(case.get("system_decision")),
+                    human_label=_md_cell(case.get("human_label") or "auto"),
+                    attribution=case.get("attribution"),
+                    affected=_md_cell(affected),
+                    suggested_action=_md_cell(case.get("suggested_action")),
+                )
+            )
+    else:
+        lines.append("- None.")
+
+    lines.extend(["", "## Missing Human Labels / 待标注样本", ""])
     missing = result.get("missing_labels") or []
     if missing:
         for item in missing:
@@ -287,11 +398,67 @@ def render_real_run_markdown(result: Dict[str, Any]) -> str:
 
     lines.extend([
         "",
-        "## Human Label Instructions",
+        "## Human Label Instructions / 人工标注说明",
         "",
         "- Only edit `human_labels.yaml`.",
         "- Fill `human_label` with one of: `should_apply`, `maybe`, `should_reject`, `invalid_link`, `unclear`.",
+        "- Optional human dimension scores use 1-5: role_fit, skill_match, seniority_fit, jd_quality, risk_level, apply_priority.",
         "- Objective checks such as URL format, report existence, and recommendation inclusion are computed automatically.",
+        "",
+        "## Bad Case 处理方法",
+        "",
+        "1. 先看 `Bad Cases / 坏案例` 表，定位 record_id。",
+        "2. 回到源报告的全量审计记录，核对 JD 证据、简历证据、评分拆解和人工标注理由。",
+        "3. 按 attribution 修复：matching_filtering 修过滤，recommendation_quality 修评分和风险，output_quality 修链接/报告/投递包。",
+        "4. 修复后把稳定坏例沉淀到 `evals/candidates/`，必要时晋升到 regression 或 capability eval。",
+    ])
+    return "\n".join(lines) + "\n"
+
+
+def render_badcase_markdown(result: Dict[str, Any]) -> str:
+    """Render a standalone badcase analysis document for local and Feishu sync."""
+    report = result.get("report", {})
+    bad_cases = result.get("bad_cases") or []
+    lines = [
+        "# SmartJobHunter Bad Cases",
+        "",
+        f"- 源报告：`{report.get('path')}`",
+        f"- Profile ID：{report.get('profile_id') or 'N/A'}",
+        f"- 生成时间：{report.get('generated') or 'N/A'}",
+        f"- Badcase 数量：{len(bad_cases)}",
+        "",
+        "## 汇总",
+        "",
+    ]
+    if not bad_cases:
+        lines.append("- 本次没有发现 badcase。")
+    else:
+        lines.extend([
+            "| 类型 | Record ID | 公司 | 岗位 | 归因 | 影响指标 | 处理建议 |",
+            "|:--|:--|:--|:--|:--|:--|:--|",
+        ])
+        for case in bad_cases:
+            lines.append(
+                "| {type_zh} | `{record_id}` | {company} | {title} | `{attribution}` | {affected} | {action} |".format(
+                    type_zh=case.get("badcase_type_zh"),
+                    record_id=case.get("record_id"),
+                    company=_md_cell(case.get("company")),
+                    title=_md_cell(case.get("title")),
+                    attribution=case.get("attribution"),
+                    affected=_md_cell(", ".join(case.get("affected_metrics") or [])),
+                    action=_md_cell(case.get("suggested_action")),
+                )
+            )
+
+    lines.extend([
+        "",
+        "## 分析步骤",
+        "",
+        "1. 打开源报告，搜索对应 `record_id` 或公司岗位标题。",
+        "2. 核对完整职责、完整任职要求、系统推荐理由、评分拆解、风险和人工备注。",
+        "3. 判断问题属于抓取数据、语义过滤、推荐评分、输出质量还是文档漂移。",
+        "4. 修复后重跑 `python -m src.evaluation --fail-under 1.0` 和真实巡检评估。",
+        "5. 真实坏例稳定后，按 `evals/eval-case-feedback-loop.md` 回流到候选 case。",
     ])
     return "\n".join(lines) + "\n"
 
@@ -325,6 +492,7 @@ def _parse_audit_records(text: str) -> List[Dict[str, Any]]:
         heading = parts[index + 1].strip()
         body = parts[index + 2]
         fields = _parse_markdown_tables(body)
+        scoring_breakdown = _extract_score_breakdown(fields)
         company, title = _split_heading(heading)
         company = fields.get("公司") or company
         title = fields.get("岗位名称") or title
@@ -353,6 +521,10 @@ def _parse_audit_records(text: str) -> List[Dict[str, Any]]:
                 "judgment_source": fields.get("判断来源"),
                 "final_decision": final_decision,
                 "score": score,
+                "scoring_breakdown": scoring_breakdown,
+                "system_reason": _extract_bullet_value(body, "判断理由"),
+                "resume_evidence": _extract_bullet_value(body, "简历证据"),
+                "risks": _extract_bullets(body, "风险"),
             }
         )
     return records
@@ -471,8 +643,142 @@ def _normalize_labels(labels: Iterable[Dict[str, Any]], record_by_id: Dict[str, 
         label = item.get("human_label")
         if label is not None and label not in ALLOWED_HUMAN_LABELS:
             raise ValueError(f"Unsupported human_label for {record_id}: {label}")
-        normalized.append({**item, "record_id": record_id})
+        normalized.append({
+            **item,
+            "record_id": record_id,
+            "human_scores": _normalize_human_scores(item.get("human_scores") or {}),
+        })
     return normalized
+
+
+def _label_evidence_summary(record: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "system_reason": record.get("system_reason") or "",
+        "resume_evidence": record.get("resume_evidence") or "",
+        "risks": record.get("risks") or [],
+    }
+
+
+def _extract_score_breakdown(fields: Dict[str, str]) -> Dict[str, int | float | str]:
+    metadata_keys = {
+        "公司", "岗位名称", "地点", "类别", "完整职责", "完整任职要求", "发布时间",
+        "工作年限", "原始链接", "处理状态", "判断来源", "最终结论", "总分与最终结论",
+    }
+    breakdown: Dict[str, int | float | str] = {}
+    for key, value in fields.items():
+        if key in metadata_keys:
+            continue
+        number = _to_number(value)
+        breakdown[key] = number if number is not None else value
+    return breakdown
+
+
+def _extract_bullet_value(text: str, label: str) -> str:
+    match = re.search(rf"(?m)^-\s*{re.escape(label)}：\s*(.*)$", text)
+    return _clean_inline(match.group(1)) if match else ""
+
+
+def _extract_bullets(text: str, label: str) -> List[str]:
+    values = []
+    for match in re.finditer(rf"(?m)^-\s*{re.escape(label)}：\s*(.*)$", text):
+        values.append(_clean_inline(match.group(1)))
+    return values
+
+
+def _clean_inline(value: Any) -> str:
+    return str(value or "").replace("<br>", "\n").strip()
+
+
+def _normalize_human_scores(value: Dict[str, Any]) -> Dict[str, int | None]:
+    scores: Dict[str, int | None] = {}
+    for key in HUMAN_SCORE_FIELDS:
+        raw = value.get(key)
+        if raw in {"", None}:
+            scores[key] = None
+            continue
+        try:
+            score = int(float(raw))
+        except (TypeError, ValueError):
+            scores[key] = None
+            continue
+        scores[key] = score if 1 <= score <= 5 else None
+    return scores
+
+
+def _score_human_dimensions(labels: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+    metrics: Dict[str, Any] = {}
+    for key in HUMAN_SCORE_FIELDS:
+        values = []
+        for item in labels:
+            score = (item.get("human_scores") or {}).get(key)
+            if isinstance(score, (int, float)):
+                values.append(float(score))
+        if values:
+            metrics[f"{key}_avg"] = round(sum(values) / len(values), 2)
+            metrics[f"{key}_count"] = len(values)
+    return metrics
+
+
+def _detect_bad_cases(
+    records: List[Dict[str, Any]],
+    completed_labels: List[Dict[str, Any]],
+    recommended_invalid: List[Dict[str, Any]],
+    record_by_id: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    cases: List[Dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    for item in completed_labels:
+        label = item.get("human_label")
+        if not label:
+            continue
+        record = record_by_id.get(item["record_id"])
+        if not record:
+            continue
+        if record.get("is_recommended") and label == "should_reject":
+            cases.append(_badcase_entry("recommendation_false_positive", record, item))
+            seen.add((record["record_id"], "recommendation_false_positive"))
+        elif not record.get("is_recommended") and label in POSITIVE_LABELS:
+            cases.append(_badcase_entry("filtered_false_negative", record, item))
+            seen.add((record["record_id"], "filtered_false_negative"))
+        elif record.get("is_recommended") and label == "invalid_link":
+            cases.append(_badcase_entry("manual_invalid_link", record, item))
+            seen.add((record["record_id"], "manual_invalid_link"))
+        elif label == "unclear":
+            cases.append(_badcase_entry("evidence_unclear", record, item))
+            seen.add((record["record_id"], "evidence_unclear"))
+
+    for record in recommended_invalid:
+        key = (record["record_id"], "recommended_invalid_url")
+        if key in seen:
+            continue
+        cases.append(_badcase_entry("recommended_invalid_url", record, None))
+    return cases
+
+
+def _badcase_entry(
+    badcase_type: str,
+    record: Dict[str, Any],
+    label_item: Dict[str, Any] | None,
+) -> Dict[str, Any]:
+    definition = BADCASE_TYPE_DEFINITIONS[badcase_type]
+    return {
+        "badcase_type": badcase_type,
+        "badcase_type_zh": definition["zh"],
+        "record_id": record.get("record_id"),
+        "company": record.get("company"),
+        "title": record.get("title"),
+        "url": record.get("url"),
+        "system_decision": record.get("system_decision"),
+        "final_decision": record.get("final_decision"),
+        "score": record.get("score"),
+        "human_label": (label_item or {}).get("human_label"),
+        "human_scores": (label_item or {}).get("human_scores") or {},
+        "human_reason": (label_item or {}).get("review_notes") or "",
+        "attribution": definition["attribution"],
+        "affected_metrics": list(definition["affected_metrics"]),
+        "suggested_action": definition["suggested_action"],
+    }
 
 
 def _real_run_dir(output_root: Path, report_path: Path, parsed: Dict[str, Any]) -> Path:
@@ -494,6 +800,17 @@ def _to_int(value: Any) -> int | None:
     return int(match.group(0)) if match else None
 
 
+def _to_number(value: Any) -> int | float | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    match = re.fullmatch(r"-?\d+(?:\.\d+)?", text)
+    if not match:
+        return None
+    number = float(text)
+    return int(number) if number.is_integer() else number
+
+
 def _safe_rate(numerator: float, denominator: float) -> float:
     if not denominator:
         return 0.0
@@ -510,6 +827,12 @@ def _format_metric(value: Any) -> str:
     if value is None:
         return "N/A"
     return str(value)
+
+
+def _md_cell(value: Any) -> str:
+    if value is None or value == "":
+        return "N/A"
+    return str(value).replace("|", "\\|").replace("\n", "<br>")
 
 
 def main(argv: List[str] | None = None) -> int:
