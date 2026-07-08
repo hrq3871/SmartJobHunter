@@ -16,7 +16,7 @@ future workflow explicitly enables them.
 |:--|:--|:--|:--|
 | `code` | Active | Objective facts: files, URLs, action names, score ranges, counts, required/forbidden text | Fast, cheap, repeatable. Use this whenever possible. |
 | `model` | Schema only | Semantic quality: cover letter fit, recommendation explanation, evidence quality | Must use a rubric and should be calibrated by human review before gating releases. |
-| `human` | Schema only | High-risk or ambiguous samples, final gold-set labels | Used to define and audit standards, not for every run. |
+| `human` | Active for real-run labels; schema only in offline regression | High-risk or ambiguous samples, final gold-set labels | Used to define and audit standards, not for every run. |
 
 ## Code Grader Contract
 
@@ -77,7 +77,7 @@ Suggested output shape for a future model grader:
 
 ## Human Grader Schema
 
-Human graders mark samples that need manual judgment:
+Human graders in YAML regression cases mark samples that need manual judgment, but remain skipped in the offline regression runner:
 
 ```yaml
 graders:
@@ -95,6 +95,23 @@ Human labels should use a small, stable set:
 | `should_reject` | Should not enter the main recommendation report. |
 | `invalid_link` | Job link is missing, expired, or unusable. |
 | `unclear` | The evidence is insufficient or ambiguous. |
+
+## Real-Run Human Labels
+
+真实巡检评估使用 `src.eval_real_runs` 生成的 `human_labels.yaml`。人工只填写 `human_label` 和必要的 `review_notes`；以下客观项由代码自动判定，不需要人工标：
+
+- URL 是否为空、格式非法或含截断符。
+- 岗位是否进入推荐区。
+- 岗位是否因阈值、数量上限或 URL 校验被过滤。
+- 报告、投递包和全量审计附录是否存在。
+
+人工只标语义质量：
+
+- 推荐岗位是否真的值得投。
+- 高分但未推荐岗位是否被误杀。
+- `maybe` 或 `unclear` 的边界样本是否需要后续沉淀。
+
+真实巡检指标和操作流程见 `docs/smartjobhunter-evaluation-design.md`。
 
 ## When To Promote A Case To Regression
 

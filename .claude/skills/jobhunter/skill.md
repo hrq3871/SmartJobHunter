@@ -40,6 +40,7 @@ description: Use when the user asks to run SmartJobHunter, find or evaluate jobs
 | 过滤                                 | tools/filter.md                               | filtered jobs                                |
 | 更新 memory                          | tools/update_memory.md                        | memory/seen_jobs.md                          |
 | eval 失败排查                        | evals/evaluation-grader-rubrics.md            | agent_eval_report.md + transcripts           |
+| 真实巡检评估                         | docs/smartjobhunter-evaluation-design.md      | python -m src.eval_real_runs                 |
 | 真实失败回流                         | evals/eval-case-feedback-loop.md              | evals/candidates/                            |
 +--------------------------------------+----------------------------------------------+----------------------------------------------+
 ```
@@ -89,9 +90,11 @@ python -m src.scheduler --feishu-push off
 python -m src.evaluation --fail-under 1.0
 python -m src.evaluation --trials 3 --fail-under 1.0
 python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
 ```
 
-默认 regression 数据集是 `evals/regression/jobhunter_core.yaml`。eval 输出写入 `output/evals/{YYYY-MM-DD}/...`，正式巡检报告写入 `output/{YYYY-MM-DD}/...`。
+默认 regression 数据集是 `evals/regression/jobhunter_core.yaml`。eval 输出写入 `output/evals/{YYYY-MM-DD}/...`，真实巡检评估输出写入 `output/evals/real_runs/{YYYY-MM-DD}/...`，正式巡检报告写入 `output/{YYYY-MM-DD}/...`。
 
 ## Eval 排查速记
 
@@ -99,6 +102,7 @@ python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 - 再看 `transcripts/<case_id>.jsonl` 回放轨迹。
 - 根据 `bad_case_attribution` 定位到 `crawler_strategy`、`matching_filtering`、`recommendation_quality`、`output_quality` 或 `instruction_drift`。
 - Code graders 是默认启用的确定性判分；model/human grader 目前只保留 schema。
+- 真实巡检评估只编辑 `human_labels.yaml` 的 `human_label` 和备注；客观项由 `src.eval_real_runs` 自动判定。
 
 ## 维护规则
 

@@ -23,6 +23,7 @@ SmartJobHunter/
 ├── CLAUDE.md / AGENTS.md                       # 本 Agent 定义文件，自动加载
 ├── docs/
 │   ├── smartjobhunter-agent-design.md          # AI 自动维护的全局设计文档
+│   ├── smartjobhunter-evaluation-design.md     # 回归/真实巡检评估与人工标注设计
 │   └── plans/                                  # 历史计划，不作为当前运行规则
 ├── config/
 │   ├── companies.yaml                          # 公司官网链接和抓取策略
@@ -95,6 +96,7 @@ SmartJobHunter/
 | 批量策略巡检与修复                     | crawler-strategy-inspector 子 Agent           | 全部 pending strategy tasks                  |
 | 生成或复核报告                        | report.md                                     | output/{YYYY-MM-DD}/                         |
 | 评估失败或 instruction_drift          | evals/evaluation-grader-rubrics.md            | transcripts/<case_id>.jsonl                  |
+| 真实巡检评估                          | docs/smartjobhunter-evaluation-design.md      | python -m src.eval_real_runs                 |
 | 真实失败样本回流                      | evals/eval-case-feedback-loop.md              | evals/candidates/                            |
 +--------------------------------------+----------------------------------------------+----------------------------------------------+
 ```
@@ -320,6 +322,13 @@ python -m src.evaluation --trials 3 --fail-under 1.0
 python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 ```
 
+真实巡检报告评估不重新抓取网页，只读取已生成报告。第一次运行生成 `human_labels.yaml`，人工只填写 `human_label` 和必要备注；URL、推荐状态、报告/投递包存在等客观项由代码自动判定。
+
+```powershell
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
+```
+
 评估输出：
 
 ```text
@@ -329,6 +338,12 @@ output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/
 ├── transcripts/<case_id>.jsonl
 ├── artifacts/
 └── wf/
+
+output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
+├── real_run_samples.json
+├── human_labels.yaml
+├── real_run_eval_results.json
+└── real_run_eval_report.md
 ```
 
 评估归因：
@@ -345,7 +360,7 @@ output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/
 +------------------------+-----------------------------------------------+
 ```
 
-Code graders 是默认启用的机器判分；model/human grader 目前只保留 schema，离线 runner 默认 skipped。具体规则见 `evals/evaluation-grader-rubrics.md`。
+Code graders 是默认启用的机器判分；model/human grader 在离线回归 runner 中只保留 schema，默认 skipped。真实巡检评估通过 `human_labels.yaml` 引入人工 gold labels。具体规则见 `evals/evaluation-grader-rubrics.md` 和 `docs/smartjobhunter-evaluation-design.md`。
 
 评估失败时：
 
@@ -354,7 +369,7 @@ Code graders 是默认启用的机器判分；model/human grader 目前只保留
 3. 根据 `bad_case_attribution` 判断归因。
 4. 修复代码、配置、prompt、Skillmap 或 Agent 定义。
 5. 重新运行评估直到通过。
-6. 真实失败按 `evals/eval-case-feedback-loop.md` 沉淀为候选 eval case。
+6. 真实失败按 `evals/eval-case-feedback-loop.md` 和真实巡检 `human_labels.yaml` 沉淀为候选 eval case。
 
 ## 常用命令
 
@@ -382,6 +397,10 @@ python tests/test_all_crawlers.py --company <company_id> --keyword "<关键词>"
 python -m src.scheduler --feishu-push status
 python -m src.scheduler --feishu-push on
 python -m src.scheduler --feishu-push off
+
+# 真实巡检评估
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
 ```
 
 ## 确认机制

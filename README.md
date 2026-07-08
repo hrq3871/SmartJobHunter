@@ -75,8 +75,9 @@ The system can analyze:
 - Validate job detail URLs before reporting, keeping only reachable links
 - Generate a Top 3 application package with JD-specific Cover Letters
 - Run daily career-site strategy inspection and create evidence packages for Agent-side fixes
+- Use a local Web console to upload/manage resumes, edit search intents, enable/disable companies, start inspections, and trigger strategy repair
 - Optionally push finished daily results to Feishu Wiki and Bitable
-- Run an offline Agent evaluation suite for strategy routing, matching quality, output quality, and instruction drift
+- Run Agent evaluation in two layers: offline regression cases before changes, and real-run report scoring after human labels are added
 
 ## Planned Capabilities
 
@@ -88,9 +89,6 @@ The system can analyze:
 
 - **Feishu conversation and daily reminders**
   Mount a Feishu chat/dialog entry so the system can send daily reminders after job crawling, including newly found roles, high-score recommendations, and roles that need manual review.
-
-- **Frontend management console**
-  Provide a visual interface for configurable and interactive workflows: maintaining resumes, maintaining target companies, tracking application status, and recording which resume or generated file was used for each job.
 
 - **Post-interview review and strategy improvement**
   Support interview retrospectives from uploaded recordings or transcripts, compare actual questions against predicted questions, calculate hit rate, summarize gaps, and improve future JD-specific prediction strategy.
@@ -117,9 +115,10 @@ The system can analyze:
 | 🔧 **Daily Strategy Inspection** | Inspect company links before crawling, collect evidence, and let the current Agent solidify crawler strategies |
 | 🏢 **Company Sites** | Enabled company configs are validated by current test results |
 | ⚙️ **Config-Driven** | Prefer config-driven company support; special sites may still need code adapters |
+| 💻 **Local Web Console** | Upload/manage resumes, edit search intent, enable/disable companies, start inspections, and manage strategy repair |
 | 📦 **Application Package** | Generate Top 3 JD-specific Cover Letters after link validation |
 | 🗂️ **Date Archives** | Reports and application packages are stored by run date |
-| 🧪 **Agent Evaluation** | Regression dataset and metrics for crawler strategy, matching, output quality, and Agent instructions |
+| 🧪 **Agent Evaluation** | Offline regression suite plus real-run report evaluation with focused human labels |
 
 ## Quickest Start
 
@@ -229,9 +228,10 @@ SmartJobHunter/
 │   ├── filters.py           # Filter functions (time, dedup, clean)
 │   ├── matching.py          # Semantic matching fallback and scoring rubric
 │   ├── evaluation.py        # Agent evaluation harness
+│   ├── eval_real_runs.py    # Real report parser, human-label template, and real-run metrics
 │   ├── eval_graders.py      # Explicit code/model/human grader helpers
 │   ├── eval_transcript.py   # JSONL transcript recorder for eval cases
-│   ├── resume_parser.py     # Resume parser (txt/md/docx/pdf/image)
+│   ├── resume_parser.py     # Resume parser (PDF/Markdown/TXT)
 │   ├── scheduler.py         # Job scheduler (daily at 20:00)
 │   ├── site_strategies/     # Custom Python site strategies
 │   └── git_auto_push.py     # Optional Git auto push
@@ -400,12 +400,17 @@ python -m src.evaluation --trials 3 --fail-under 1.0
 
 # Capability boundary suite
 python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
+
+# Real-run report evaluation: first creates human_labels.yaml, then rerun with labels
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
 ```
 
 Integration crawler tests require browser/network access and are marked with `integration`.
 
 Agent evaluation reports are written under `output/evals/YYYY-MM-DD/` and are local artifacts.
-For the full internal Agent architecture and evaluation design, see `docs/smartjobhunter-agent-design.md`.
+Real-run evaluation reports are written under `output/evals/real_runs/YYYY-MM-DD/`.
+For the full internal Agent architecture, see `docs/smartjobhunter-agent-design.md`; for evaluation details, see `docs/smartjobhunter-evaluation-design.md`.
 
 ### Crawler Commands
 
@@ -675,8 +680,8 @@ User Request → Agent (Claude) → Tools (Python) → Output
               │ Machine │
               └─────────┘
                     ↓
-    INIT → LOADED → STRATEGY_INSPECTED → CRAWLED → FILTERED
-         → EVALUATED → URL_VALIDATED → REPORTED → PACKAGED → DONE
+    INIT → LOADED → CRAWLED → FILTERED → EVALUATED
+         → URL_VALIDATED → REPORTED → PACKAGED → DONE
 ```
 
 ### Agent Skills

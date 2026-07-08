@@ -86,7 +86,7 @@ def test_render_full_crawl_audit_uses_confirmed_structure():
     assert "核心职责包含 Agent 产品规划" in markdown
     assert "简历包含企业级产品项目" in markdown
     assert "#### 评分拆解" in markdown
-    assert "target_role_fit" in markdown
+    assert "目标岗位匹配" in markdown
     assert "88" in markdown
 
 
