@@ -25,8 +25,9 @@
 
 | 文件/目录 | 谁维护 | 用来做什么 |
 |-----------|--------|------------|
-| `resumes/` | 用户 | 放简历文件，支持 Markdown、Word、PDF、图片等格式 |
-| `profiles/*.md` | 用户 | 写求职目标、岗位类型、关键词、必须项、排除项 |
+| `resumes/` | 用户 | 放简历原件，仅支持 PDF、Markdown、TXT |
+| `config/resume_intents.yaml` | Web / 程序 | 保存用户填写的搜索关键词、岗位类型、启用状态；本地私有，不提交 |
+| `profiles/*.md` | Agent 生成 | Agent 读取简历原件和 `search_intent` 后生成的正式求职画像 |
 | `config/companies.yaml` | 用户 + AI | 维护公司官网/招聘链接、是否启用、抓取策略 |
 | `config/agent.yaml` | 用户本地 | 飞书配置、通知配置等私有配置；从 `config/agent.sample.yaml` 复制 |
 | `memory/seen_jobs.md` | 程序自动维护 | 记录已经处理过的岗位，避免重复报告 |
@@ -35,9 +36,16 @@
 | `CLAUDE.md` / `AGENTS.md` | 维护者 | 定义 AI Agent 的运行规则；普通使用不需要改 |
 | `.claude/skills/jobhunter/skill.md` | 维护者 | Skillmap，告诉 AI 什么时候进入求职巡检、策略修复、评估等路径 |
 
-## Profile 怎么写
+## Profile 怎么来
 
-每个求职意向放在 `profiles/` 下，一个文件代表一个巡检任务。核心是让 Agent 知道“我要什么、不能要什么、用哪份简历判断”。
+新用户不应该手写 `profiles/*.md`。正确链路是：
+
+1. 用户把 PDF、Markdown 或 TXT 简历放入 `resumes/`，或通过 Web 控制台上传。
+2. 用户在 Web 控制台填写搜索关键词和岗位类型，这只会保存为 `config/resume_intents.yaml` 中的 `search_intent`。
+3. 点击“启动巡检”后，Claude Code 读取完整简历和 `search_intent`，生成或刷新 `profiles/<profile_id>.md`。
+4. 后续 CLI 的 `python -m src.cli -p "<profile_id>"` 读取的是这个 Agent 生成后的正式 profile。
+
+`profiles/*.md` 可以作为生成结果复核和维护。它应包含目标角色、必须项、排除项、简历证据和偏好；不要把简单关键词列表手动冒充正式画像。
 
 ```yaml
 ---
@@ -78,13 +86,13 @@ avoid:
 这里可以补充更自然语言的偏好，比如行业、城市、薪资、公司阶段、不能接受的工作内容。
 ```
 
-关键字段：
+生成后的关键字段：
 
 | 字段 | 必填 | 说明 |
 |------|:----:|------|
 | `enabled` | 是 | 是否启用这个巡检任务 |
 | `job_type` | 是 | Profile 文件里写 `社招`、`校招`、`实习`；命令行 `-t` 才使用 `social`、`campus`、`internship` |
-| `resume` | 是 | 关联的简历文件 |
+| `resume` | 是 | 关联的简历原件 |
 | `search_keywords` | 建议 | 实际写入招聘网站搜索框的 2-3 个抓取词，建议一宽一窄 |
 | `keywords` | 建议 | 语义匹配和证据判断使用的辅助关键词，不建议只靠它决定抓取范围 |
 | `target_roles` | 是 | 目标岗位名，不要只写一个过窄关键词 |
@@ -229,10 +237,11 @@ output/
 
 ### 新增一个求职方向
 
-1. 在 `resumes/` 放对应简历。
-2. 在 `profiles/` 新建一个 profile。
-3. 写清楚 `target_roles`、`must_have`、`avoid`。
-4. 运行：
+1. 在 `resumes/` 放对应简历，或通过 Web 上传。
+2. 在 Web 控制台填写搜索关键词和岗位类型，保存 `search_intent`。
+3. 点击“启动巡检”，让 Claude Code 读取简历并生成正式 profile。
+4. 生成后如需复核，可查看 `profiles/<profile_id>.md` 中的 `target_roles`、`must_have`、`avoid`。
+5. 后续可运行：
 
 ```powershell
 python -m src.cli -p "新意向名称"

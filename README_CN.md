@@ -158,32 +158,17 @@ Copy-Item config\agent.sample.yaml config\agent.yaml
 然后在本地 `config/agent.yaml` 中填写飞书应用凭证、Wiki 节点 token、多维表格 token 等私有配置。
 如果真实密钥曾经被提交或推送过，需要在飞书开发者后台轮换或重置。
 
-### 3️⃣ 配置求职意向
+### 3️⃣ 添加简历和搜索意向
 
-在 `profiles/` 目录创建配置文件：
+不要手写 `profiles/*.md` 作为第一步。正式 profile 是 Agent 读取简历原件后生成的画像文件。
 
-```bash
-# 创建带 YAML frontmatter 的配置文件
-cat > profiles/my_profile.md << 'EOF'
----
-name: 产品经理
-enabled: true
-job_type: 社招
-resume: resumes/my_resume.md
-search_keywords:
-  - 产品经理
-  - AI产品
-keywords:
-  - 产品经理
-  - TOB
-  - AI产品
----
+推荐方式：
 
-# 求职意向
+1. 把 PDF、Markdown 或 TXT 简历放到 `resumes/`，或在本地 Web 控制台上传。
+2. 在 Web 控制台填写搜索关键词和岗位类型；这些内容只会保存到本地 `config/resume_intents.yaml`。
+3. 点击“启动巡检”后，Claude Code 会读取完整简历和 `search_intent`，生成或刷新 `profiles/<profile_id>.md`，再开始抓取和匹配。
 
-寻找 TOB SaaS 产品经理岗位...
-EOF
-```
+已有的 `profiles/*.md` 可以作为 Agent 生成后的画像结果查看、复核、启用或禁用；不建议把关键词列表手动包装成正式 profile。
 
 ### 4️⃣ 运行巡检
 
@@ -247,7 +232,7 @@ SmartJobHunter/
 │   ├── companies.yaml       # 公司列表（56 家）
 │   └── system_templates.yaml # 招聘系统模板
 │
-├── 📂 profiles/             # 求职意向（Markdown + YAML frontmatter）
+├── 📂 profiles/             # Agent 读取简历后生成的正式求职画像
 ├── 📂 resumes/              # 简历文件
 ├── 📂 memory/               # 去重数据（seen_jobs.md）
 ├── 📂 output/               # 按日期归档的报告和投递包
@@ -265,7 +250,9 @@ SmartJobHunter/
 
 ## ⚙️ 配置说明
 
-### 📋 意向配置格式 (profiles/*.md)
+### 📋 Agent 生成的 Profile 格式 (profiles/*.md)
+
+`profiles/*.md` 是 Agent 读取简历原件和 `config/resume_intents.yaml` 后生成的正式画像，不是新用户需要手写的起始配置。下面格式用于检查和维护生成结果：
 
 ```markdown
 ---
