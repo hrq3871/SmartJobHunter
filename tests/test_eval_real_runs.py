@@ -216,6 +216,7 @@ def test_score_real_run_combines_human_labels_with_auto_metrics(tmp_path):
     assert metrics["reviewed_false_negative_rate"] == 0.5
     assert metrics["invalid_url_rate"] == 0.25
     assert metrics["recommended_invalid_url_rate"] == 0.5
+    assert metrics["agent_reviewed_recommendation_rate"] == 0.0
     assert metrics["report_exists"] == 1.0
     assert metrics["full_audit_present"] == 1.0
 
@@ -242,6 +243,7 @@ def test_score_real_run_surfaces_badcases_and_human_score_metrics(tmp_path):
     assert scored["human_score_metrics"]["apply_priority_avg"] == 5.0
     assert [case["badcase_type"] for case in scored["bad_cases"]] == [
         "recommendation_false_positive",
+        "agent_review_missing",
         "filtered_false_negative",
         "recommended_invalid_url",
     ]
@@ -249,7 +251,7 @@ def test_score_real_run_surfaces_badcases_and_human_score_metrics(tmp_path):
         "recommendation_precision",
         "strict_recommendation_precision",
     ]
-    assert scored["bad_cases"][1]["attribution"] == "matching_filtering"
+    assert scored["bad_cases"][2]["attribution"] == "matching_filtering"
 
 
 def test_render_real_run_markdown_uses_chinese_metric_names_and_badcase_table(tmp_path):
@@ -266,6 +268,7 @@ def test_render_real_run_markdown_uses_chinese_metric_names_and_badcase_table(tm
     assert "| 推荐精确率 | `recommendation_precision` | 0.0% |" in markdown
     assert "## Bad Cases / 坏案例" in markdown
     assert "推荐误报" in markdown
+    assert "缺少Agent语义复核" in markdown
     assert "过滤误杀" in markdown
     assert "## Bad Case 处理方法" in markdown
 

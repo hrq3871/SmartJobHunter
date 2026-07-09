@@ -13,6 +13,8 @@
 - Python 是可复现工具层，负责抓取、清洗、确定性过滤、fallback 粗评分、URL 校验、报告/投递包落盘和 eval harness。
 - 当前 Agent 是判断层，负责候选人画像、岗位画像、语义过滤、最终匹配判断、策略证据分析、异常归因和规则演进。
 - Python 不调用外部 LLM API。所有需要 AI 判断的步骤由当前 Agent 在会话中完成。
+- Python fallback 只能生成候选排序和机械事实，不得单独把岗位送入正式推荐区、Top 3 投递包或飞书推荐。
+- 正式语义分数、推荐等级和推荐理由必须由 Agent 读取 `agent_review_queue` 后输出，除非本地配置显式关闭 `agent_review.required_for_recommendation` 用于调试。
 - `search_intent` 只是用户提供的搜索关键词和岗位类型；正式 profile 必须由 Agent 阅读完整简历后生成，不能把关键词列表冒充候选人画像。
 
 ## 目录结构
@@ -206,12 +208,12 @@ raw jobs -> filter_by_time -> dedup -> clean_data -> match_job_intent -> Agent s
 
 - 时间过滤和去重由 Python 执行。
 - 语义过滤用 `prompts/semantic_filter.md` 复核。
-- 标题含 AI 但本质是工程、运营、销售、标注、审核、客服的岗位，应拒绝或降权。
+- 标题含 AI 但本质是工程、研发、前端、后端、运营、销售、标注、审核、客服、公关传播、品牌、社媒或舆情的岗位，应拒绝或降权。
 - 岗位职责与 profile 不闭环时，不进入强推荐。
 
 ### EVALUATED
 
-目标：生成岗位画像和最终匹配判断。
+目标：生成岗位画像和最终匹配判断。这里由 Agent 主导评分，Python 只负责准备候选队列和读取 Agent 结果。
 
 默认链路：
 
@@ -219,12 +221,35 @@ raw jobs -> filter_by_time -> dedup -> clean_data -> match_job_intent -> Agent s
 match.md
   -> prompts/analyze_job.md
   -> prompts/match_candidate_job.md
+  -> output/{YYYY-MM-DD}/agent_review_queues/<profile_id>_<run_id>_results.json
 ```
 
 兼容链路：
 
 - `prompts/evaluate.md` 用于旧版深度评分格式、评分拆解或对齐 Python fallback。
-- `src.matching.evaluate_job_fit()` 是无 Agent prompt 时的 deterministic fallback。
+- `src.matching.evaluate_job_fit()` 是 deterministic fallback，只能提供候选排序、风险提示和回归测试兜底，不能替代正式 Agent 推荐。
+
+Agent review 运行约束：
+
+- CLI 会先把 Python 候选写入 `output/{YYYY-MM-DD}/agent_review_queues/<profile_id>_<run_id>.json`。
+- 当前 Agent 必须读取 queue 中的完整 JD、profile、Python 机械事实和 fallback 参考，再用 `prompts/match_candidate_job.md` 独立评分。
+- Agent 结果默认写到同目录 `<queue_stem>_results.json`；也可由 `config/agent.yaml` 的 `agent_review.results_path` 指定。
+- 如果 `agent_review.required_for_recommendation: true` 且结果文件不存在，CLI 只能生成含 `needs_agent_review` 的审计报告，不得生成正式推荐。
+- 只有 `判断来源=agent` 且 Agent 分数达到 `threshold_score` 的岗位可以进入正式推荐、URL 校验和投递包。
+
+Agent 打分维度：
+
+| 字段 | 分值 | 说明 |
+|:--|:--:|:--|
+| `role_fit` | 1-5 | 岗位本体是否是目标角色，先看标题和核心职责，不看关键词堆叠 |
+| `core_responsibility_fit` | 1-5 | 核心工作是否包含产品规划、需求分析、落地推进、指标闭环等目标职责 |
+| `domain_fit` | 1-5 | AI/Agent/大模型/ToB 等目标领域是否真实出现在职责或要求中 |
+| `resume_evidence_fit` | 1-5 | 简历项目和经历是否能直接支撑 JD 要求 |
+| `seniority_fit` | 1-5 | 年限、复杂度、职责层级是否匹配 |
+| `risk_level` | 1-5 | 非目标角色、标题党、证据不足、硬性缺口等风险；5 表示高风险 |
+| `apply_priority` | 1-5 | 综合角色、领域、证据、风险后的投递优先级 |
+
+硬性规则：如果岗位真实角色是公关传播、品牌、社媒、舆情、前端工程、后端工程、算法研发、销售、客服、审核、标注或纯运营，而 profile 目标不是这些角色，`role_fit` 和 `core_responsibility_fit` 应低分，`agent_decision` 应为 `reject` 或至多 `maybe`，不得进入强推荐。
 
 输出必须包含：
 

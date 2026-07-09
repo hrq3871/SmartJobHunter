@@ -102,6 +102,7 @@ Human labels should use a small, stable set:
 
 - URL 是否为空、格式非法或含截断符。
 - 岗位是否进入推荐区。
+- 推荐岗位的 `判断来源` 是否为 `agent`。
 - 岗位是否因阈值、数量上限或 URL 校验被过滤。
 - 报告、投递包和全量审计附录是否存在。
 
@@ -112,7 +113,7 @@ Human labels should use a small, stable set:
 - `maybe` 或 `unclear` 的边界样本是否需要后续沉淀。
 - `role_fit`、`skill_match`、`seniority_fit`、`jd_quality`、`risk_level`、`apply_priority` 等维度分，用来解释系统错在哪里；留空则不参与该维度指标。
 
-真实巡检报告会输出中文指标名、人工维度均分、badcase 表和 `bad_cases.md`。badcase 类型包括推荐误报、过滤误杀、推荐区坏链接、人工确认坏链接和证据不足。
+真实巡检报告会输出中文指标名、人工维度均分、badcase 表和 `bad_cases.md`。badcase 类型包括推荐误报、缺少Agent语义复核、过滤误杀、推荐区坏链接、人工确认坏链接和证据不足。
 
 真实巡检指标和操作流程见 `docs/smartjobhunter-evaluation-design.md`。
 

@@ -4,6 +4,13 @@ time_filter_days: 3
 threshold_score: 70
 jd_truncate_length: 6000
 
+# Agent-led semantic review.
+# Python writes candidate queues under output/<date>/agent_review_queues/.
+# Formal recommendations require the current Agent to write matching *_results.json.
+agent_review:
+  required_for_recommendation: true
+  results_path: ""
+
 # Model selection strategy
 model_strategy:
   simple_tasks: "haiku"

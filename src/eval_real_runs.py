@@ -40,6 +40,10 @@ HUMAN_SCORE_FIELDS = {
 METRIC_DEFINITIONS = {
     "total_records": ("全量岗位数", "本次报告全量审计记录中的岗位数量。"),
     "recommended_records": ("推荐岗位数", "系统进入推荐区的岗位数量。"),
+    "agent_reviewed_recommendation_rate": (
+        "推荐区Agent复核率",
+        "推荐岗位中判断来源为 agent 的比例；正式推荐应由 Agent 语义评分产生。",
+    ),
     "filtered_records": ("过滤岗位数", "系统在推荐前过滤掉的岗位数量。"),
     "label_required_count": ("需标注数", "推荐岗位和高置信被过滤岗位中需要人工语义复核的数量。"),
     "label_completed_count": ("已标注数", "已经填写人工标签的需标注样本数。"),
@@ -63,6 +67,12 @@ BADCASE_TYPE_DEFINITIONS = {
         "attribution": "recommendation_quality",
         "affected_metrics": ["recommendation_precision", "strict_recommendation_precision"],
         "suggested_action": "复核评分拆解、负向风险和标题党降权；修复后沉淀为推荐质量回归 case。",
+    },
+    "agent_review_missing": {
+        "zh": "缺少Agent语义复核",
+        "attribution": "recommendation_quality",
+        "affected_metrics": ["agent_reviewed_recommendation_rate"],
+        "suggested_action": "正式推荐必须由 Agent 输出语义评分；Python fallback 只能进入待复核候选队列。",
     },
     "filtered_false_negative": {
         "zh": "过滤误杀",
@@ -173,6 +183,10 @@ def score_real_run(parsed_report: Dict[str, Any], labels_doc: Dict[str, Any] | N
 
     total_records = len(records)
     recommended_records = [record for record in records if record.get("is_recommended")]
+    agent_reviewed_recommended = [
+        record for record in recommended_records
+        if _is_agent_reviewed(record)
+    ]
     invalid_url_records = [record for record in records if not record.get("url_valid")]
     recommended_invalid = [
         record for record in recommended_records
@@ -211,6 +225,10 @@ def score_real_run(parsed_report: Dict[str, Any], labels_doc: Dict[str, Any] | N
     metrics = {
         "total_records": total_records,
         "recommended_records": len(recommended_records),
+        "agent_reviewed_recommendation_rate": _safe_rate(
+            len(agent_reviewed_recommended),
+            len(recommended_records),
+        ),
         "filtered_records": sum(1 for record in records if record.get("is_filtered")),
         "label_required_count": len(required_ids),
         "label_completed_count": len(completed_required),
@@ -331,6 +349,7 @@ def render_real_run_markdown(result: Dict[str, Any]) -> str:
     metric_order = [
         "total_records",
         "recommended_records",
+        "agent_reviewed_recommendation_rate",
         "filtered_records",
         "label_required_count",
         "label_completed_count",
@@ -730,6 +749,18 @@ def _score_human_dimensions(labels: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
     return metrics
 
 
+def _is_agent_reviewed(record: Dict[str, Any]) -> bool:
+    return str(record.get("judgment_source") or "").strip().lower() == "agent"
+
+
+def _needs_agent_review_badcase(record: Dict[str, Any]) -> bool:
+    return (
+        bool(record.get("is_recommended"))
+        and bool(record.get("url_valid"))
+        and not _is_agent_reviewed(record)
+    )
+
+
 def _detect_bad_cases(
     records: List[Dict[str, Any]],
     completed_labels: List[Dict[str, Any]],
@@ -749,13 +780,18 @@ def _detect_bad_cases(
         if record.get("is_recommended") and label == "should_reject":
             cases.append(_badcase_entry("recommendation_false_positive", record, item))
             seen.add((record["record_id"], "recommendation_false_positive"))
-        elif not record.get("is_recommended") and label in POSITIVE_LABELS:
+        if _needs_agent_review_badcase(record):
+            key = (record["record_id"], "agent_review_missing")
+            if key not in seen:
+                cases.append(_badcase_entry("agent_review_missing", record, item))
+                seen.add(key)
+        if not record.get("is_recommended") and label in POSITIVE_LABELS:
             cases.append(_badcase_entry("filtered_false_negative", record, item))
             seen.add((record["record_id"], "filtered_false_negative"))
-        elif record.get("is_recommended") and label == "invalid_link":
+        if record.get("is_recommended") and label == "invalid_link":
             cases.append(_badcase_entry("manual_invalid_link", record, item))
             seen.add((record["record_id"], "manual_invalid_link"))
-        elif label == "unclear":
+        if label == "unclear":
             cases.append(_badcase_entry("evidence_unclear", record, item))
             seen.add((record["record_id"], "evidence_unclear"))
 
@@ -764,6 +800,14 @@ def _detect_bad_cases(
         if key in seen:
             continue
         cases.append(_badcase_entry("recommended_invalid_url", record, None))
+    for record in records:
+        if not _needs_agent_review_badcase(record):
+            continue
+        key = (record["record_id"], "agent_review_missing")
+        if key in seen:
+            continue
+        cases.append(_badcase_entry("agent_review_missing", record, None))
+        seen.add(key)
     return cases
 
 

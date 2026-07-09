@@ -25,6 +25,11 @@ from . import crawler_factory
 from . import filters
 from . import matching
 from . import resume_parser
+from .agent_review import (
+    build_agent_review_queue,
+    load_agent_review_results,
+    write_agent_review_queue,
+)
 from .reporting import render_full_crawl_audit
 from .run_records import (
     attach_evaluation,
@@ -524,6 +529,38 @@ class JobHunter:
         date_dir.mkdir(parents=True, exist_ok=True)
         return date_dir
 
+    def _agent_review_required(self) -> bool:
+        agent_review = self.config.get('agent_review', {}) if self.config else {}
+        return bool(agent_review.get('required_for_recommendation', True))
+
+    def _agent_review_results_path(self, queue_path: Path) -> Path:
+        agent_review = self.config.get('agent_review', {}) if self.config else {}
+        configured = agent_review.get('results_path')
+        if configured:
+            return Path(configured)
+        return queue_path.with_name(f"{queue_path.stem}_results.json")
+
+    def _write_agent_review_queue(
+        self,
+        records: List[dict],
+        profile: dict,
+        run_id: str,
+    ) -> Path:
+        """Write the Agent semantic scoring queue for ranked fallback candidates."""
+        profile_id = profile.get('_profile_id') or profile.get('name', 'unknown')
+        queue_dir = self._daily_output_dir() / "agent_review_queues"
+        queue_path = queue_dir / f"{profile_id}_{run_id}.json"
+        queue = build_agent_review_queue(
+            records,
+            profile,
+            queue_id=f"{profile_id}_{run_id}",
+        )
+        return write_agent_review_queue(queue, queue_path)
+
+    @staticmethod
+    def _records_by_id(records: List[dict]) -> Dict[str, dict]:
+        return {str(record.get("run_record_id")): record for record in records}
+
     def _url_is_available(self, url: str, timeout: int = 8) -> bool:
         """Return True only when a report URL is reachable and not 404-like."""
         if not url or not str(url).startswith(("http://", "https://")):
@@ -865,6 +902,68 @@ class JobHunter:
                 self.seen_hashes.add(job.get('hash', ''))
             return []
 
+        ranked_records = [
+            record for record in run_records
+            if record.get("run_record_id") in ranked_record_ids
+        ]
+        agent_review_required = self._agent_review_required()
+        queue_path = self._write_agent_review_queue(ranked_records, profile, run_id)
+        results_path = self._agent_review_results_path(queue_path)
+        profile["_agent_review_queue_path"] = str(queue_path)
+        profile["_agent_review_results_path"] = str(results_path)
+        print(f"\n[Agent Review] Queue written: {queue_path}")
+
+        if results_path.exists():
+            print(f"[Agent Review] Loading results: {results_path}")
+            agent_results = load_agent_review_results(
+                results_path,
+                required_record_ids=ranked_record_ids,
+            )
+            records_by_id = self._records_by_id(run_records)
+            for record_id, agent_evaluation in agent_results.items():
+                record = records_by_id.get(record_id)
+                if record:
+                    attach_evaluation(record, agent_evaluation, source="agent")
+
+            agent_pairs = []
+            for record_id in ranked_record_ids:
+                record = records_by_id.get(record_id)
+                if not record:
+                    continue
+                evaluation = (record.get("evaluation") or {}).get("raw") or {}
+                decision = evaluation.get("recommendation")
+                score = evaluation.get("score", 0) or 0
+                if decision in {"strong_apply", "apply", "maybe"} and score >= threshold_score:
+                    agent_pairs.append((record.get("raw_job") or {}, evaluation))
+                else:
+                    update_record_stage(
+                        run_records,
+                        {record_id},
+                        "agent_rejected",
+                        "agent_semantic_decision_not_recommended",
+                    )
+
+            agent_pairs.sort(key=lambda item: item[1].get("score", 0), reverse=True)
+            max_jobs = self.config.get('output', {}).get('max_jobs_per_report') if self.config else None
+            if max_jobs:
+                agent_pairs = agent_pairs[:int(max_jobs)]
+            if agent_pairs:
+                report_jobs, report_evaluations = map(list, zip(*agent_pairs))
+            else:
+                report_jobs, report_evaluations = [], []
+            ranked_record_ids = select_record_ids_for_jobs(run_records, report_jobs)
+            update_record_stage(run_records, ranked_record_ids, "agent_ranked_candidate")
+        elif agent_review_required:
+            print("[Agent Review] Results missing; formal recommendations require Agent scoring.")
+            update_record_stage(
+                run_records,
+                ranked_record_ids,
+                "needs_agent_review",
+                "agent_review_required_for_final_recommendation",
+            )
+            self.generate_report([], profile, [], run_records=run_records)
+            return []
+
         # Step 5: URL 校验
         print("\n[Step 5] Validating job links...")
         report_jobs, report_evaluations = self._filter_live_urls(report_jobs, report_evaluations)
@@ -893,28 +992,36 @@ class JobHunter:
         self.generate_application_package(report_jobs, profile, report_evaluations)
 
         # Step 7: 推送到飞书
-        print("\n[Step 7] Pushing to Feishu...")
         profile_export_name = profile.get('_profile_id') or profile_name
-        try:
-            from .feishu_push import push_to_feishu
-            feishu_result = push_to_feishu(report_path, profile_export_name)
-            report_url = feishu_result.get('url') if feishu_result else None
-        except ImportError:
-            print("[Feishu] 模块未安装，跳过推送")
+        feishu_config = self.config.get('feishu', {}) if self.config else {}
+        if feishu_config.get('enabled'):
+            print("\n[Step 7] Pushing to Feishu...")
+            try:
+                from .feishu_push import push_to_feishu
+                feishu_result = push_to_feishu(report_path, profile_export_name)
+                report_url = feishu_result.get('url') if feishu_result else None
+            except ImportError:
+                print("[Feishu] 模块未安装，跳过推送")
+                report_url = None
+        else:
+            print("\n[Step 7] Feishu push disabled")
             report_url = None
 
         # Step 8: 添加到多维表格
-        print("\n[Step 8] Adding to Bitable...")
-        try:
-            from .feishu_bitable import add_jobs_to_bitable
-            # 为岗位添加评分信息
-            for i, job in enumerate(report_jobs):
-                if i < len(report_evaluations):
-                    job['score'] = report_evaluations[i].get('score', 0)
-                job['job_type'] = job_type or profile.get('job_type', '社招')
-            add_jobs_to_bitable(report_jobs, profile_export_name, report_url)
-        except ImportError:
-            print("[Bitable] 模块未安装，跳过添加")
+        if feishu_config.get('enabled') and feishu_config.get('bitable_token') and feishu_config.get('bitable_table_id'):
+            print("\n[Step 8] Adding to Bitable...")
+            try:
+                from .feishu_bitable import add_jobs_to_bitable
+                # 为岗位添加评分信息
+                for i, job in enumerate(report_jobs):
+                    if i < len(report_evaluations):
+                        job['score'] = report_evaluations[i].get('score', 0)
+                    job['job_type'] = job_type or profile.get('job_type', '社招')
+                add_jobs_to_bitable(report_jobs, profile_export_name, report_url)
+            except ImportError:
+                print("[Bitable] 模块未安装，跳过添加")
+        else:
+            print("\n[Step 8] Bitable push disabled")
 
         # Step 9: 更新去重数据库
         print("\n[Step 9] Updating seen jobs...")

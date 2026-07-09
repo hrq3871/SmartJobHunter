@@ -31,7 +31,8 @@ description: Use when the user asks to run SmartJobHunter, find or evaluate jobs
 | HR 式简历深挖                        | prompts/analyze_resume.md                     | ability profile / highlights / gaps          |
 | 单岗位匹配                           | match.md + prompts/analyze_job.md + prompts/match_candidate_job.md | match decision         |
 | 语义过滤                             | prompts/semantic_filter.md                    | should_keep / concerns / evidence            |
-| 兼容评分拆解                         | prompts/evaluate.md                           | score + scoring_breakdown                    |
+| Agent 主导评分                       | prompts/match_candidate_job.md + agent_review_queue | *_results.json + 判断来源=agent       |
+| 兼容评分拆解                         | prompts/evaluate.md                           | fallback score + scoring_breakdown           |
 | 抓取策略分析                         | prompts/analyze_crawler_strategy.md           | strategy type + patch plan + verification    |
 | 批量策略修复                         | .claude/agents/crawler-strategy-inspector.md  | 单个子 Agent 串行处理全部 strategy tasks     |
 | 报告生成/复核                        | prompts/report.md                             | output/{YYYY-MM-DD}/                         |
@@ -56,12 +57,19 @@ INIT -> LOADED -> CRAWLED -> FILTERED -> EVALUATED -> URL_VALIDATED -> REPORTED 
 关键状态：
 
 - `CRAWLED`：全量抓取，失败公司自动批量收集 → Agent 委派 `crawler-strategy-inspector` 一次性修复 → 重抓。
+- `EVALUATED`：Python 只能写 `output/{YYYY-MM-DD}/agent_review_queues/*.json` 候选队列；Agent 必须读取队列后写同目录 `*_results.json`，正式推荐只接受 `判断来源=agent`。
 - `URL_VALIDATED`：报告前必须过滤空链接、404、不可访问链接。
 - `PACKAGED`：为 Top 3 岗位生成投递包，Cover Letter 必须结合 JD 证据和简历证据。
 
 `config/resume_intents.yaml` 中的 `search_intent` 只表示搜索关键词和岗位类型，不是候选人画像。上传简历时不得创建正式 profile；当前 Agent 必须读取完整简历后生成 `profiles/<profile_id>.md`。简历仅支持 PDF、Markdown、TXT，DOCX 和图片不支持。
 
 岗位 URL 在任何报告或 Agent 回复中都必须完整显示并可点击；禁止使用切片、摘要或省略号截断 URL。
+
+评分权责：
+
+- Python 负责机械事实：发布时间、去重、URL 格式、JD 是否完整、fallback 候选排序。
+- Agent 负责语义分数：`role_fit`、`core_responsibility_fit`、`domain_fit`、`resume_evidence_fit`、`seniority_fit`、`risk_level`、`apply_priority`、`agent_score`、`agent_decision`。
+- 公关传播、品牌社媒、舆情、前端/后端/算法研发、销售、客服、审核、标注、纯运营等非目标角色，即使标题含 AI，也不能凭关键词进入强推荐。
 
 ## 常用命令
 

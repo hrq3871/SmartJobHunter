@@ -134,6 +134,24 @@ NEGATIVE_ROLE_TERMS = [
     "销售",
     "电话销售",
     "供应商管理",
+    "公关",
+    "传播",
+    "品牌传播",
+    "媒体关系",
+    "社媒",
+    "舆情",
+    "内容传播",
+    "前端工程师",
+    "前端",
+    "web前端",
+    "web开发",
+    "后端工程师",
+    "后端",
+    "开发工程师",
+    "算法工程师",
+    "研发工程师",
+    "工程师",
+    "工程开发",
     "运营",
     "用户运营",
     "市场营销",
@@ -568,6 +586,9 @@ def match_job_intent(
         )[:5]
         concerns.append(f"表面关键词可能是噪声，岗位更像: {', '.join(negative_hits[:3])}")
 
+    if title_negative_conflicts:
+        score = min(score, threshold - 0.01, 0.45)
+
     score = max(0.0, min(1.0, score))
     should_keep = score >= threshold
 
@@ -886,7 +907,7 @@ def evaluate_job_fit(
         gaps.append({
             "requirement": "岗位角色",
             "gap_type": "role_family_conflict",
-            "suggestion": "岗位标题更像运营、销售、客服、标注等非目标角色，建议跳过",
+            "suggestion": "岗位标题更像公关传播、工程、运营、销售、客服、标注等非目标角色，建议跳过",
         })
 
     for concern in intent_result["concerns"]:
@@ -909,6 +930,8 @@ def evaluate_job_fit(
         - risk_penalty
     )
     score = max(0, min(100, int(score)))
+    if any("非目标角色" in concern for concern in intent_result["concerns"]):
+        score = min(score, 59)
 
     if score >= 85:
         recommendation = "strong_apply"

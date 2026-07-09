@@ -123,6 +123,50 @@ cases:
       max_score: 79
       recommendation_not_in: ["strong_apply"]
 
+  - id: fit_tencent_ai_product_pr_should_reject_product_profile
+    type: job_fit
+    attribution: recommendation_quality
+    profile:
+      target_roles: ["AI产品经理", "AI应用产品", "AI解决方案产品经理"]
+      target_domains: ["大模型应用", "Agent", "AI解决方案"]
+      must_have: ["产品规划", "需求分析", "AI产品", "落地推进"]
+      avoid: ["运营", "销售", "客服", "标注", "公关", "传播"]
+    resume: |
+      5年 ToB SaaS 产品经理经验，负责 AI 产品规划、需求分析、PRD、跨团队推进和客户场景落地。
+      主导企业知识库 AI 助手从0到1上线，熟悉 LLM、RAG、Agent 工作流和产品指标体系。
+    job:
+      title: "腾讯-AI产品公关传播经理"
+      company: "腾讯"
+      location: "北京"
+      category: "市场公关"
+      duty: "负责 AI 产品品牌传播、公关策略、媒体关系、社媒内容、舆情监测和传播项目执行。"
+      requirement: "需要品牌传播、公关传播、媒体关系和舆情管理经验，能策划社媒传播内容。"
+    expected:
+      max_score: 59
+      recommendation_not_in: ["strong_apply", "apply", "consider"]
+
+  - id: fit_aw_ai_product_frontend_engineer_should_reject_product_profile
+    type: job_fit
+    attribution: recommendation_quality
+    profile:
+      target_roles: ["AI产品经理", "AI应用产品", "AI解决方案产品经理"]
+      target_domains: ["大模型应用", "Agent", "AI解决方案"]
+      must_have: ["产品规划", "需求分析", "AI产品", "落地推进"]
+      avoid: ["运营", "销售", "客服", "标注", "前端", "研发"]
+    resume: |
+      5年 ToB SaaS 产品经理经验，负责 AI 产品规划、需求分析、PRD、跨团队推进和客户场景落地。
+      主导企业知识库 AI 助手从0到1上线，熟悉 LLM、RAG、Agent 工作流和产品指标体系。
+    job:
+      title: "AW项目组-AI产品前端工程师"
+      company: "阿里"
+      location: "杭州"
+      category: "技术"
+      duty: "负责 AI 产品 Web 前端开发、组件建设、Canvas 交互、代码质量和工程化优化。"
+      requirement: "熟悉前端框架、TypeScript、Canvas、组件库和工程质量，有研发经验。"
+    expected:
+      max_score: 59
+      recommendation_not_in: ["strong_apply", "apply", "consider"]
+
   - id: strategy_verified_unchanged_should_crawl
     type: strategy_action
     attribution: crawler_strategy

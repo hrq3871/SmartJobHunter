@@ -60,6 +60,7 @@ Python 工具层负责：
 - 官网抓取、文本抽取、确定性过滤、fallback 粗评分。
 - URL 校验、报告落盘、投递包落盘、memory 更新。
 - 策略巡检、证据采集、评估 harness、真实报告解析、transcript 和 code graders。
+- Agent review queue 落盘和 Agent result 校验。
 
 当前 Claude/Codex Agent 负责：
 
@@ -74,7 +75,7 @@ Python 工具层负责：
 
 - 不直接替用户投递。
 - 不绕过登录、验证码或强反爬。
-- 不把 Python fallback 分数当作最终 AI 结论。
+- 不把 Python fallback 分数当作最终 AI 结论；fallback 只能进入候选队列，不能直接进入正式推荐。
 - 不提交 `config/agent.yaml`、`output/`、`logs/`、`docs/optimization-log.md`。
 
 ## 3. 目录结构
@@ -225,8 +226,10 @@ src.cli.JobHunter.run_profile()
      Python: time -> dedup -> clean_data -> match_job_intent
      Agent: semantic_filter.md 复核高风险岗位
   -> evaluate_job()
-     Python fallback: matching.evaluate_job_fit
-     Agent: analyze_job.md + match_candidate_job.md 做最终判断
+     Python: matching.evaluate_job_fit 仅生成候选排序和机械参考
+     Python: 写入 output/{date}/agent_review_queues/*.json
+     Agent: analyze_job.md + match_candidate_job.md 做最终评分
+     Python: 读取 *_results.json，只接受判断来源=agent 的正式推荐
   -> _rank_and_filter_results()
   -> _filter_live_urls()
   -> generate_report()
@@ -389,10 +392,11 @@ Agent 使用 `prompts/semantic_filter.md` 复核：
 - 标题关键词是否只是噪音。
 - 岗位核心职责是否匹配 profile。
 - 销售、客服、审核、标注、纯运营等风险是否进入强推荐。
+- 公关传播、品牌社媒、舆情、前端/后端/算法研发等非目标角色是否被关键词误保留。
 
 ### EVALUATED
 
-目标：生成岗位画像和最终匹配判断。
+目标：生成岗位画像和最终匹配判断。这里是 Agent 主导评分边界，Python 只做候选准备和结果校验。
 
 默认链路：
 
@@ -407,7 +411,31 @@ match.md
 兼容/辅助链路：
 
 - `prompts/evaluate.md`：旧版深度岗位评分 prompt，适合对齐 Python fallback 评分维度。
-- `src.matching.evaluate_job_fit()`：无 Agent 执行 prompt 时的 deterministic fallback。
+- `src.matching.evaluate_job_fit()`：deterministic fallback，只能用于候选排序、风险提示和回归测试兜底。
+
+Agent review 机制：
+
+```text
+ranked fallback candidates
+  -> output/{YYYY-MM-DD}/agent_review_queues/<profile_id>_<run_id>.json
+  -> Agent reads queue + match_candidate_job.md
+  -> output/{YYYY-MM-DD}/agent_review_queues/<profile_id>_<run_id>_results.json
+  -> report accepts only source=agent recommendations
+```
+
+当 `agent_review.required_for_recommendation: true` 时，缺少 Agent result 的运行不会生成正式推荐，只会生成包含 `needs_agent_review` 状态的全量审计报告。这样可以防止 Python fallback 粗分把“AI 产品公关传播经理”“AI 产品前端工程师”等非目标角色送入推荐区。
+
+Agent 评分维度：
+
+| 字段 | 分值 | 说明 |
+|:--|:--:|:--|
+| `role_fit` | 1-5 | 岗位本体是否是目标角色 |
+| `core_responsibility_fit` | 1-5 | 核心职责是否匹配目标工作 |
+| `domain_fit` | 1-5 | 目标领域是否真实进入职责/要求 |
+| `resume_evidence_fit` | 1-5 | 简历证据是否能支撑 JD |
+| `seniority_fit` | 1-5 | 年限、职责复杂度是否匹配 |
+| `risk_level` | 1-5 | 非目标角色、标题党、证据不足等风险 |
+| `apply_priority` | 1-5 | 综合投递优先级 |
 
 输出必须包含：
 
@@ -519,12 +547,13 @@ output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
 - `bad_case_attribution`
 - real-run `recommendation_precision`
 - real-run `strict_recommendation_precision`
+- real-run `agent_reviewed_recommendation_rate`
 - real-run `reviewed_recall`
 - real-run `reviewed_false_negative_rate`
 - real-run `invalid_url_rate`
 - real-run `label_completion_rate`
 - real-run human dimension averages: `role_fit_avg`, `skill_match_avg`, `seniority_fit_avg`, `jd_quality_avg`, `risk_level_avg`, `apply_priority_avg`
-- real-run badcase counts by type: 推荐误报、过滤误杀、推荐区坏链接、人工确认坏链接、证据不足
+- real-run badcase counts by type: 推荐误报、缺少Agent语义复核、过滤误杀、推荐区坏链接、人工确认坏链接、证据不足
 
 归因：
 

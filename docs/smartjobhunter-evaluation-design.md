@@ -172,6 +172,7 @@ labels:
 | 指标 | 公式 | 含义 |
 |:--|:--|:--|
 | `label_completion_rate` | 已填人工标签 / 需人工标签 | 标注完成度 |
+| `agent_reviewed_recommendation_rate` | `判断来源=agent` 的推荐岗位 / 推荐岗位 | 推荐区是否由 Agent 完成语义复核 |
 | `recommendation_precision` | 推荐且正例或弱正例 / 已标推荐岗位 | 推荐区质量 |
 | `strict_recommendation_precision` | 推荐且 `should_apply` / 已标推荐岗位 | 严格推荐质量 |
 | `reviewed_recall` | 已推荐正例 / 已标正例 | 在人工复核范围内的召回 |
@@ -194,6 +195,7 @@ labels:
 | 未推荐岗位标 `should_apply` / `maybe` | 形成“过滤误杀” badcase，降低召回率、提高误杀率 |
 | 标 `invalid_link` | 形成链接坏例，影响链接质量指标 |
 | 标 `unclear` | 不进入精确率/召回率，进入证据不足统计 |
+| 推荐岗位 `判断来源` 不是 `agent` | 自动形成“缺少Agent语义复核” badcase，降低推荐区Agent复核率 |
 | `role_fit` 低但系统推荐 | 倾向归因到语义过滤或岗位匹配 |
 | `skill_match` 低但系统高分 | 倾向归因到推荐质量 |
 | `jd_quality` 低但系统强推荐 | 倾向归因到证据不足或风险降权 |
@@ -211,6 +213,7 @@ badcase 类型：
 | 类型 | 触发条件 | 归因 | 影响指标 |
 |:--|:--|:--|:--|
 | 推荐误报 | 系统推荐，但人工标 `should_reject` | `recommendation_quality` | `recommendation_precision`、`strict_recommendation_precision` |
+| 缺少Agent语义复核 | 推荐岗位 URL 有效，但 `判断来源` 不是 `agent` | `recommendation_quality` | `agent_reviewed_recommendation_rate` |
 | 过滤误杀 | 系统未推荐，但人工标 `should_apply` 或 `maybe` | `matching_filtering` | `reviewed_recall`、`reviewed_false_negative_rate` |
 | 推荐区坏链接 | 推荐岗位 URL 自动判为无效 | `output_quality` | `recommended_invalid_url_rate`、`invalid_url_rate` |
 | 人工确认坏链接 | 人工标 `invalid_link` | `output_quality` | 链接质量指标 |
@@ -301,6 +304,7 @@ python -m src.eval_real_runs --report "output/YYYY-MM-DD/<profile_id>_<YYYYMMDD_
 
 - 推荐精确率。
 - 严格推荐精确率。
+- 推荐区 Agent 复核率。
 - 人工复核召回率。
 - 误杀率。
 - 无效链接率。

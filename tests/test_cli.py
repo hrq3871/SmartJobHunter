@@ -2,11 +2,29 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import json
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.cli import JobHunter, _parse_profile_md
+
+
+class _FixedDatetime:
+    @classmethod
+    def now(cls):
+        return cls()
+
+    def strftime(self, fmt):
+        if fmt == "%Y%m%d_%H%M%S_%f":
+            return "20260709_120000_000001"
+        if fmt == "%Y-%m-%d":
+            return "2026-07-09"
+        if fmt == "%Y%m%d_%H%M":
+            return "20260709_1200"
+        if fmt == "%Y-%m-%d %H:%M":
+            return "2026-07-09 12:00"
+        return "20260709"
 
 
 def test_rank_and_filter_results_applies_threshold_sorting_and_report_limit():
@@ -261,6 +279,150 @@ def test_run_profile_generates_audit_report_when_no_jobs_survive_filtering(monke
     assert captured["records"][0]["evaluation"]["source"] == "python_fallback"
 
 
+def test_run_profile_writes_agent_review_queue_and_blocks_fallback_recommendations(
+    monkeypatch, tmp_path
+):
+    hunter = JobHunter()
+    hunter.memory_dir = tmp_path
+    hunter.output_dir = tmp_path
+    hunter.config = {
+        "global": {"time_filter_days": 30, "threshold_score": 70},
+        "output": {},
+        "agent_review": {"required_for_recommendation": True},
+    }
+    hunter.seen_hashes = set()
+    job = {
+        "id": "job-1",
+        "hash": "job-1",
+        "title": "AI产品前端工程师",
+        "company": "腾讯",
+        "duty": "负责 Web 前端开发、组件体系、Canvas 和代码质量。",
+        "requirement": "熟悉前端工程化。",
+        "url": "https://example.com/jobs/job-1",
+    }
+    captured = {}
+
+    monkeypatch.setattr("src.cli.datetime", _FixedDatetime)
+    monkeypatch.setattr(hunter, "crawl_jobs", lambda *args, **kwargs: [job])
+    monkeypatch.setattr(hunter, "filter_jobs", lambda jobs, profile, job_type=None: jobs)
+    monkeypatch.setattr(
+        hunter,
+        "evaluate_job",
+        lambda job, profile: {
+            "score": 78,
+            "recommendation": "apply",
+            "match_reasons": ["目标岗位方向匹配: ai产品"],
+            "scoring_breakdown": {"目标岗位匹配": 18, "风险扣分": 0},
+        },
+    )
+
+    def fake_report(jobs, profile, evaluations, run_records=None):
+        captured["jobs"] = jobs
+        captured["profile"] = profile
+        captured["evaluations"] = evaluations
+        captured["records"] = run_records
+        return "output/review-required.md"
+
+    monkeypatch.setattr(hunter, "generate_report", fake_report)
+
+    result = hunter.run_profile(
+        {"name": "AI产品经理", "_profile_id": "ai_pm_task", "target_roles": ["AI产品经理"]}
+    )
+
+    assert result == []
+    queue_path = Path(captured["profile"]["_agent_review_queue_path"])
+    assert queue_path.exists()
+    queue = json.loads(queue_path.read_text(encoding="utf-8"))
+    assert queue["items"][0]["job"]["title"] == "AI产品前端工程师"
+    assert captured["jobs"] == []
+    assert captured["records"][0]["processing"]["stage"] == "needs_agent_review"
+    assert captured["records"][0]["evaluation"]["source"] == "python_fallback"
+
+
+def test_run_profile_uses_agent_review_results_for_formal_recommendations(
+    monkeypatch, tmp_path
+):
+    hunter = JobHunter()
+    hunter.memory_dir = tmp_path
+    hunter.output_dir = tmp_path
+    results_path = tmp_path / "agent_review_results.json"
+    results_path.write_text(
+        json.dumps(
+            {
+                "queue_id": "agent_review",
+                "results": [
+                    {
+                        "record_id": "20260709_120000_000001:1",
+                        "role_family": "product_manager",
+                        "agent_decision": "apply",
+                        "agent_score": 84,
+                        "role_fit": 5,
+                        "core_responsibility_fit": 5,
+                        "domain_fit": 5,
+                        "resume_evidence_fit": 4,
+                        "seniority_fit": 3,
+                        "risk_level": 1,
+                        "apply_priority": 4,
+                        "jd_evidence": ["负责 AI 产品规划和需求分析"],
+                        "resume_evidence": ["ADP 智能体平台产品经历"],
+                        "reason": "岗位本体是 AI 产品经理。",
+                        "confidence": "high",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    hunter.config = {
+        "global": {"time_filter_days": 30, "threshold_score": 70},
+        "output": {},
+        "agent_review": {
+            "required_for_recommendation": True,
+            "results_path": str(results_path),
+        },
+    }
+    hunter.seen_hashes = set()
+    job = {
+        "id": "job-1",
+        "hash": "job-1",
+        "title": "AI产品经理",
+        "company": "腾讯",
+        "duty": "负责 AI 产品规划和需求分析。",
+        "requirement": "需要 AI 产品经验。",
+        "url": "https://example.com/jobs/job-1",
+    }
+    captured = {}
+
+    monkeypatch.setattr("src.cli.datetime", _FixedDatetime)
+    monkeypatch.setattr(hunter, "crawl_jobs", lambda *args, **kwargs: [job])
+    monkeypatch.setattr(hunter, "filter_jobs", lambda jobs, profile, job_type=None: jobs)
+    monkeypatch.setattr(
+        hunter,
+        "evaluate_job",
+        lambda job, profile: {
+            "score": 88,
+            "recommendation": "apply",
+            "match_reasons": ["fallback says yes"],
+        },
+    )
+    monkeypatch.setattr(hunter, "_url_is_available", lambda url: True)
+    monkeypatch.setattr(hunter, "generate_report", lambda jobs, profile, evaluations, run_records=None: (
+        captured.update({"jobs": jobs, "profile": profile, "evaluations": evaluations, "records": run_records})
+        or "output/agent-reviewed.md"
+    ))
+
+    result = hunter.run_profile(
+        {"name": "AI产品经理", "_profile_id": "ai_pm_task", "target_roles": ["AI产品经理"]}
+    )
+
+    assert [job["title"] for job in result] == ["AI产品经理"]
+    assert captured["evaluations"][0]["score"] == 84
+    assert captured["evaluations"][0]["recommendation"] == "apply"
+    assert captured["records"][0]["evaluation"]["source"] == "agent"
+    assert captured["records"][0]["evaluation"]["score"] == 84
+
+
 def test_run_profile_uses_search_keywords_for_crawl_and_repair_task(monkeypatch, tmp_path):
     hunter = JobHunter()
     hunter.memory_dir = tmp_path
@@ -384,6 +546,12 @@ def test_run_profile_uses_profile_id_for_feishu_and_bitable(monkeypatch, tmp_pat
     hunter.config = {
         "global": {"time_filter_days": 30, "threshold_score": 0},
         "output": {},
+        "agent_review": {"required_for_recommendation": False},
+        "feishu": {
+            "enabled": True,
+            "bitable_token": "test_base",
+            "bitable_table_id": "test_table",
+        },
     }
     hunter.seen_hashes = set()
 
