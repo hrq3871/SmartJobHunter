@@ -34,6 +34,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = ROOT / "config" / "agent.yaml"
 ANNOTATION_TABLE_NAME = "SmartHunter真实评估标注"
 BADCASE_DOC_TITLE = "SmartHunter真实评估BadCases"
+EVAL_REPORT_DOC_TITLE = "SmartHunter真实评估报告"
 LABEL_FIELD = "人工标签"
 NOTE_FIELD = "人工备注"
 RUN_ID_FIELD = "评估运行ID"
@@ -199,18 +200,34 @@ def setup_feishu_eval_resources(config_path: str | Path = DEFAULT_CONFIG_PATH) -
         badcase_doc_url = created.get("doc_url") or created.get("url")
         created_doc = True
 
+    report_doc_id = feishu.get("eval_report_doc_id")
+    report_doc_url = feishu.get("eval_report_doc_url")
+    created_report_doc = False
+    if not report_doc_id:
+        created = _create_report_doc(feishu)
+        report_doc_id = created.get("doc_id")
+        report_doc_url = created.get("doc_url") or created.get("url")
+        created_report_doc = True
+
     feishu["eval_annotation_table_id"] = annotation_table_id
     if badcase_doc_id:
         feishu["eval_badcase_doc_id"] = badcase_doc_id
     if badcase_doc_url:
         feishu["eval_badcase_doc_url"] = badcase_doc_url
+    if report_doc_id:
+        feishu["eval_report_doc_id"] = report_doc_id
+    if report_doc_url:
+        feishu["eval_report_doc_url"] = report_doc_url
     _save_config(config_path, config)
     return {
         "annotation_table_id": annotation_table_id,
         "badcase_doc_id": badcase_doc_id,
         "badcase_doc_url": badcase_doc_url,
+        "report_doc_id": report_doc_id,
+        "report_doc_url": report_doc_url,
         "created_table": created_table,
         "created_doc": created_doc,
+        "created_report_doc": created_report_doc,
         "config_path": str(config_path),
     }
 
@@ -272,19 +289,51 @@ def sync_badcases_to_lark_doc(
     markdown: str,
     config_path: str | Path = DEFAULT_CONFIG_PATH,
 ) -> Dict[str, Any]:
-    """Overwrite the managed Feishu badcase document with latest markdown."""
+    """Append one run's badcase markdown to the managed Feishu badcase document."""
+    return _append_markdown_to_lark_doc(
+        markdown,
+        config_path=config_path,
+        doc_id_key="eval_badcase_doc_id",
+        doc_url_key="eval_badcase_doc_url",
+        missing_message="Missing feishu.eval_badcase_doc_id; run setup first",
+    )
+
+
+def sync_report_to_lark_doc(
+    markdown: str,
+    config_path: str | Path = DEFAULT_CONFIG_PATH,
+) -> Dict[str, Any]:
+    """Append one run's human-readable evaluation report to Feishu."""
+    return _append_markdown_to_lark_doc(
+        markdown,
+        config_path=config_path,
+        doc_id_key="eval_report_doc_id",
+        doc_url_key="eval_report_doc_url",
+        missing_message="Missing feishu.eval_report_doc_id; run setup first",
+    )
+
+
+def _append_markdown_to_lark_doc(
+    markdown: str,
+    *,
+    config_path: str | Path,
+    doc_id_key: str,
+    doc_url_key: str,
+    missing_message: str,
+) -> Dict[str, Any]:
+    """Append markdown to a configured Feishu doc without replacing historical runs."""
     config = _load_config(Path(config_path))
     feishu = config.get("feishu", {})
-    doc_id = feishu.get("eval_badcase_doc_id") or feishu.get("eval_badcase_doc_url")
+    doc_id = feishu.get(doc_id_key) or feishu.get(doc_url_key)
     if not doc_id:
-        raise RuntimeError("Missing feishu.eval_badcase_doc_id; run setup first")
+        raise RuntimeError(missing_message)
     return _run_lark_json([
         _lark_cli(), "docs", "+update",
         "--doc", doc_id,
-        "--mode", "overwrite",
+        "--mode", "append",
         "--markdown", "-",
         "--as", "user",
-    ], input_text=markdown)
+    ], input_text=_append_section(markdown))
 
 
 def format_lark_error(error: Exception) -> str:
@@ -344,9 +393,31 @@ def _create_annotation_table(base_token: str) -> str:
 
 
 def _create_badcase_doc(feishu_config: Dict[str, Any]) -> Dict[str, Any]:
+    return _create_eval_doc(
+        feishu_config,
+        title=BADCASE_DOC_TITLE,
+        initial_markdown=(
+            "# SmartHunter真实评估BadCases\n\n"
+            "这里按运行时间追加真实巡检 badcase。历史原因分析不会被后续同步覆盖。\n"
+        ),
+    )
+
+
+def _create_report_doc(feishu_config: Dict[str, Any]) -> Dict[str, Any]:
+    return _create_eval_doc(
+        feishu_config,
+        title=EVAL_REPORT_DOC_TITLE,
+        initial_markdown=(
+            "# SmartHunter真实评估报告\n\n"
+            "这里按运行时间追加人看的真实巡检评估报告，包含中文指标、人工维度分和 badcase 摘要。\n"
+        ),
+    )
+
+
+def _create_eval_doc(feishu_config: Dict[str, Any], *, title: str, initial_markdown: str) -> Dict[str, Any]:
     cmd = [
         _lark_cli(), "docs", "+create",
-        "--title", BADCASE_DOC_TITLE,
+        "--title", title,
         "--markdown", "-",
         "--as", "user",
     ]
@@ -354,8 +425,13 @@ def _create_badcase_doc(feishu_config: Dict[str, Any]) -> Dict[str, Any]:
         cmd.extend(["--wiki-space", str(feishu_config["wiki_space_id"])])
     elif feishu_config.get("wiki_node_token"):
         cmd.extend(["--wiki-node", str(feishu_config["wiki_node_token"])])
-    data = _run_lark_json(cmd, input_text="# SmartHunter真实评估BadCases\n\n暂无 badcase，同步后自动更新。\n")
+    data = _run_lark_json(cmd, input_text=initial_markdown)
     return data.get("data") or data
+
+
+def _append_section(markdown: str) -> str:
+    body = markdown.strip()
+    return f"\n\n---\n\n{body}\n"
 
 
 def _extract_items(data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -485,16 +561,21 @@ def main(argv: List[str] | None = None) -> int:
     pull.add_argument("--output", default=None)
     pull.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
 
-    score = sub.add_parser("score-from-lark", help="Import Feishu labels, score report, and sync badcase doc")
+    score = sub.add_parser("score-from-lark", help="Import Feishu labels, score report, and append Feishu docs")
     score.add_argument("--report", required=True)
     score.add_argument("--run-id", default=None)
     score.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT))
     score.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
     score.add_argument("--sync-badcases", action="store_true")
+    score.add_argument("--sync-report", action="store_true")
 
-    badcase = sub.add_parser("sync-badcases", help="Sync a local bad_cases.md to Feishu doc")
+    badcase = sub.add_parser("sync-badcases", help="Append a local bad_cases.md to Feishu doc")
     badcase.add_argument("--badcases", required=True)
     badcase.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
+
+    report = sub.add_parser("sync-report", help="Append a local real_run_eval_report.md to Feishu doc")
+    report.add_argument("--report", required=True)
+    report.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
 
     args = parser.parse_args(argv)
 
@@ -519,11 +600,20 @@ def main(argv: List[str] | None = None) -> int:
                 yaml.safe_dump(labels_doc, handle, allow_unicode=True, sort_keys=False)
                 labels_path = handle.name
             result = run_real_run_evaluation(args.report, labels_path=labels_path, output_root=args.output_root)
+            lark_sync: Dict[str, Any] = {}
             if args.sync_badcases:
-                sync_badcases_to_lark_doc(render_badcase_markdown(result), args.config)
-        else:
+                lark_sync["badcases"] = sync_badcases_to_lark_doc(render_badcase_markdown(result), args.config)
+            if args.sync_report:
+                report_markdown = Path(result["markdown_report"]).read_text(encoding="utf-8")
+                lark_sync["report"] = sync_report_to_lark_doc(report_markdown, args.config)
+            if lark_sync:
+                result = {**result, "lark_sync": lark_sync}
+        elif args.command == "sync-badcases":
             markdown = Path(args.badcases).read_text(encoding="utf-8")
             result = sync_badcases_to_lark_doc(markdown, args.config)
+        else:
+            markdown = Path(args.report).read_text(encoding="utf-8")
+            result = sync_report_to_lark_doc(markdown, args.config)
     except RuntimeError as exc:
         print(format_lark_error(exc), file=sys.stderr)
         return 1

@@ -234,7 +234,7 @@ SmartJobHunter/
 │   ├── matching.py          # 语义匹配 fallback 与评分规则
 │   ├── evaluation.py        # Agent 评估 harness
 │   ├── eval_real_runs.py    # 真实报告解析、人工标注模板和实测指标
-│   ├── eval_lark_sync.py    # 飞书标注表与 badcase 文档同步
+│   ├── eval_lark_sync.py    # 飞书标注表、badcase 文档和评估报告同步
 │   ├── eval_graders.py      # 显式 code/model/human grader helper
 │   ├── eval_transcript.py   # eval case 的 JSONL 轨迹记录器
 │   ├── resume_parser.py     # 简历解析（PDF/Markdown/TXT）
@@ -327,6 +327,8 @@ feishu:
   eval_annotation_table_id: ""
   eval_badcase_doc_id: ""
   eval_badcase_doc_url: ""
+  eval_report_doc_id: ""
+  eval_report_doc_url: ""
   enabled: false
 ```
 
@@ -461,13 +463,13 @@ python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "
 lark-cli auth login --domain base
 python -m src.eval_lark_sync setup
 python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
-python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases --sync-report
 ```
 
 集成爬虫测试需要浏览器和网络访问，并使用 `integration` 标记。
 
 Agent 回归评估报告会写入 `output/evals/YYYY-MM-DD/`，真实巡检评估报告会写入 `output/evals/real_runs/YYYY-MM-DD/`，都属于本地运行产物。
-真实巡检评估报告包含中文指标名、可选 1-5 人工维度分和 `bad_cases.md`。飞书同步可在已有岗位追踪多维表格中新建标注表，并同步一份托管 badcase 文档，方便复盘。
+真实巡检评估报告包含中文指标名、可选 1-5 人工维度分和 `bad_cases.md`。飞书同步可在已有岗位追踪多维表格中新建标注表，并把每次结果追加到托管 badcase 文档和评估报告文档，方便连续复盘。
 完整内部 Agent 架构见 `docs/smartjobhunter-agent-design.md`；评估详细设计见 `docs/smartjobhunter-evaluation-design.md`。
 
 ### 爬虫命令
@@ -769,10 +771,10 @@ python -m src.eval_lark_sync setup
 python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
 ```
 
-4. 飞书标完后拉回标签、重算指标，并同步 badcase 文档：
+4. 飞书标完后拉回标签、重算指标，并追加同步 badcase 文档和人看的评估报告文档：
 
 ```powershell
-python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases --sync-report
 ```
 
 人工标签：
@@ -798,7 +800,7 @@ python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report
 | `invalid_url_rate` / `recommended_invalid_url_rate` | 全量记录 / 推荐区里的无效链接比例 |
 | `maybe_rate` / `unclear_rate` | 人工标 `maybe` / `unclear` 的比例 |
 
-Badcase 会写入 `bad_cases.md`，也可以同步到飞书文档。处理时按类型修：
+Badcase 会写入 `bad_cases.md`，也可以追加同步到飞书 badcase 文档；`real_run_eval_report.md` 也可以追加同步到飞书评估报告文档。处理时按类型修：
 
 - `recommendation_false_positive` 推荐误报：系统推荐但人工标 `should_reject`，修评分、风险扣分或 Agent prompt。
 - `filtered_false_negative` 过滤误杀：系统没推荐但人工标 `should_apply` / `maybe`，修语义过滤、阈值或岗位匹配。

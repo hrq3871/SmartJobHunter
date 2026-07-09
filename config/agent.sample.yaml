@@ -42,4 +42,6 @@ feishu:
   eval_annotation_table_id: ""
   eval_badcase_doc_id: ""
   eval_badcase_doc_url: ""
+  eval_report_doc_id: ""
+  eval_report_doc_url: ""
   enabled: false
