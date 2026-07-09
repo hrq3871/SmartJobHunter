@@ -212,8 +212,9 @@ def test_score_real_run_combines_human_labels_with_auto_metrics(tmp_path):
     assert metrics["label_completion_rate"] == 1.0
     assert metrics["recommendation_precision"] == 1.0
     assert metrics["strict_recommendation_precision"] == 1.0
-    assert metrics["reviewed_recall"] == 0.5
-    assert metrics["reviewed_false_negative_rate"] == 0.5
+    assert metrics["reviewed_recall"] == 1.0
+    assert metrics["reviewed_false_negative_rate"] == 0.0
+    assert metrics["candidate_limit_omission_rate"] == 0.5
     assert metrics["invalid_url_rate"] == 0.25
     assert metrics["recommended_invalid_url_rate"] == 0.5
     assert metrics["agent_reviewed_recommendation_rate"] == 0.0
@@ -223,7 +224,13 @@ def test_score_real_run_combines_human_labels_with_auto_metrics(tmp_path):
 
 def test_score_real_run_surfaces_badcases_and_human_score_metrics(tmp_path):
     report_path = tmp_path / "eval_profile_20260708_2000.md"
-    report_path.write_text(_sample_real_report(), encoding="utf-8")
+    report_path.write_text(
+        _sample_real_report().replace(
+            "filtered_out: score_below_threshold_or_report_limit",
+            "filtered_out: semantic_rejected",
+        ),
+        encoding="utf-8",
+    )
     parsed = parse_report(report_path)
     labels = build_human_label_template(parsed)
     labels["labels"][0]["human_label"] = "should_reject"
@@ -254,6 +261,26 @@ def test_score_real_run_surfaces_badcases_and_human_score_metrics(tmp_path):
     assert scored["bad_cases"][2]["attribution"] == "matching_filtering"
 
 
+def test_score_real_run_separates_candidate_limit_omissions_from_false_negatives(tmp_path):
+    report_path = tmp_path / "eval_profile_20260708_2000.md"
+    report_path.write_text(_sample_real_report(), encoding="utf-8")
+    parsed = parse_report(report_path)
+    labels = build_human_label_template(parsed)
+    labels["labels"][0]["human_label"] = "should_apply"
+    labels["labels"][1]["human_label"] = "should_apply"
+
+    scored = score_real_run(parsed, labels)
+
+    assert scored["metrics"]["reviewed_false_negative_rate"] == 0.0
+    assert scored["metrics"]["candidate_limit_omission_rate"] == 0.5
+    assert [case["badcase_type"] for case in scored["bad_cases"]] == [
+        "agent_review_missing",
+        "candidate_limit_omitted",
+        "recommended_invalid_url",
+    ]
+    assert scored["bad_cases"][1]["affected_metrics"] == ["candidate_limit_omission_rate"]
+
+
 def test_render_real_run_markdown_uses_chinese_metric_names_and_badcase_table(tmp_path):
     report_path = tmp_path / "eval_profile_20260708_2000.md"
     report_path.write_text(_sample_real_report(), encoding="utf-8")
@@ -269,7 +296,7 @@ def test_render_real_run_markdown_uses_chinese_metric_names_and_badcase_table(tm
     assert "## Bad Cases / 坏案例" in markdown
     assert "推荐误报" in markdown
     assert "缺少Agent语义复核" in markdown
-    assert "过滤误杀" in markdown
+    assert "候选池截断" in markdown
     assert "## Bad Case 处理方法" in markdown
 
 

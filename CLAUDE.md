@@ -231,11 +231,11 @@ match.md
 
 Agent review 运行约束：
 
-- CLI 会先把 Python 候选写入 `output/{YYYY-MM-DD}/agent_review_queues/<profile_id>_<run_id>.json`。
+- CLI 会先把达到 `threshold_score` 的 Python 候选写入 `output/{YYYY-MM-DD}/agent_review_queues/<profile_id>_<run_id>.json`；默认复核池上限是 `agent_review.max_candidates: 40`，它独立于最终报告数量上限。
 - 当前 Agent 必须读取 queue 中的完整 JD、profile、Python 机械事实和 fallback 参考，再用 `prompts/match_candidate_job.md` 独立评分。
 - Agent 结果默认写到同目录 `<queue_stem>_results.json`；也可由 `config/agent.yaml` 的 `agent_review.results_path` 指定。
 - 如果 `agent_review.required_for_recommendation: true` 且结果文件不存在，CLI 只能生成含 `needs_agent_review` 的审计报告，不得生成正式推荐。
-- 只有 `判断来源=agent` 且 Agent 分数达到 `threshold_score` 的岗位可以进入正式推荐、URL 校验和投递包。
+- 只有 `判断来源=agent` 且 Agent 分数达到 `threshold_score` 的岗位可以进入正式推荐、URL 校验和投递包；最终报告再按 `output.max_jobs_per_report` 截断，截断项标记为 `report_limit_omitted`，不归为语义误杀。
 
 Agent 打分维度：
 

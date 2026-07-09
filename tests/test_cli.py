@@ -423,6 +423,129 @@ def test_run_profile_uses_agent_review_results_for_formal_recommendations(
     assert captured["records"][0]["evaluation"]["score"] == 84
 
 
+def test_run_profile_reviews_more_candidates_than_final_report_limit(monkeypatch, tmp_path):
+    hunter = JobHunter()
+    hunter.memory_dir = tmp_path
+    hunter.output_dir = tmp_path
+    results_path = tmp_path / "agent_review_results.json"
+    results_path.write_text(
+        json.dumps(
+            {
+                "queue_id": "agent_review",
+                "results": [
+                    {
+                        "record_id": "20260709_120000_000001:1",
+                        "role_family": "product_manager",
+                        "agent_decision": "apply",
+                        "agent_score": 91,
+                        "role_fit": 5,
+                        "core_responsibility_fit": 5,
+                        "domain_fit": 5,
+                        "resume_evidence_fit": 4,
+                        "seniority_fit": 4,
+                        "risk_level": 1,
+                        "apply_priority": 5,
+                        "reason": "Top job.",
+                    },
+                    {
+                        "record_id": "20260709_120000_000001:2",
+                        "role_family": "product_manager",
+                        "agent_decision": "apply",
+                        "agent_score": 82,
+                        "role_fit": 4,
+                        "core_responsibility_fit": 4,
+                        "domain_fit": 4,
+                        "resume_evidence_fit": 4,
+                        "seniority_fit": 3,
+                        "risk_level": 2,
+                        "apply_priority": 4,
+                        "reason": "Good but lower priority.",
+                    },
+                    {
+                        "record_id": "20260709_120000_000001:3",
+                        "role_family": "product_manager",
+                        "agent_decision": "apply",
+                        "agent_score": 77,
+                        "role_fit": 4,
+                        "core_responsibility_fit": 4,
+                        "domain_fit": 4,
+                        "resume_evidence_fit": 3,
+                        "seniority_fit": 3,
+                        "risk_level": 2,
+                        "apply_priority": 3,
+                        "reason": "Report limit should omit this one.",
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    hunter.config = {
+        "global": {"time_filter_days": 30, "threshold_score": 70},
+        "output": {"max_jobs_per_report": 1},
+        "agent_review": {
+            "required_for_recommendation": True,
+            "max_candidates": 3,
+            "results_path": str(results_path),
+        },
+    }
+    hunter.seen_hashes = set()
+    jobs = [
+        {
+            "id": f"job-{index}",
+            "hash": f"job-{index}",
+            "title": title,
+            "company": "示例公司",
+            "duty": "负责 AI 产品规划和需求分析。",
+            "requirement": "需要 AI 产品经验。",
+            "url": f"https://example.com/jobs/job-{index}",
+        }
+        for index, title in enumerate(["高分AI产品经理", "中分AI产品经理", "低分AI产品经理"], 1)
+    ]
+    fallback_scores = {
+        "高分AI产品经理": 95,
+        "中分AI产品经理": 88,
+        "低分AI产品经理": 80,
+    }
+    captured = {}
+
+    monkeypatch.setattr("src.cli.datetime", _FixedDatetime)
+    monkeypatch.setattr(hunter, "crawl_jobs", lambda *args, **kwargs: jobs)
+    monkeypatch.setattr(hunter, "filter_jobs", lambda jobs, profile, job_type=None: jobs)
+    monkeypatch.setattr(
+        hunter,
+        "evaluate_job",
+        lambda job, profile: {
+            "score": fallback_scores[job["title"]],
+            "recommendation": "apply",
+            "match_reasons": ["fallback says yes"],
+        },
+    )
+    monkeypatch.setattr(hunter, "_url_is_available", lambda url: True)
+    monkeypatch.setattr(hunter, "generate_report", lambda jobs, profile, evaluations, run_records=None: (
+        captured.update({"jobs": jobs, "profile": profile, "evaluations": evaluations, "records": run_records})
+        or "output/agent-reviewed.md"
+    ))
+
+    result = hunter.run_profile(
+        {"name": "AI产品经理", "_profile_id": "ai_pm_task", "target_roles": ["AI产品经理"]}
+    )
+
+    queue_path = Path(captured["profile"]["_agent_review_queue_path"])
+    queue = json.loads(queue_path.read_text(encoding="utf-8"))
+    assert [item["job"]["title"] for item in queue["items"]] == [
+        "高分AI产品经理",
+        "中分AI产品经理",
+        "低分AI产品经理",
+    ]
+    assert [job["title"] for job in result] == ["高分AI产品经理"]
+    assert captured["records"][0]["processing"]["stage"] == "recommended"
+    assert captured["records"][1]["processing"]["stage"] == "report_limit_omitted"
+    assert captured["records"][1]["processing"]["reason"] == "final_report_limit"
+    assert captured["records"][2]["processing"]["stage"] == "report_limit_omitted"
+
+
 def test_run_profile_uses_search_keywords_for_crawl_and_repair_task(monkeypatch, tmp_path):
     hunter = JobHunter()
     hunter.memory_dir = tmp_path

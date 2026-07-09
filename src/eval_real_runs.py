@@ -29,6 +29,7 @@ FILTERED_STAGE_PREFIXES = (
     "deduplicated",
     "semantic_rejected",
 )
+DEFAULT_RECOMMENDATION_THRESHOLD = 70
 HUMAN_SCORE_FIELDS = {
     "role_fit": "岗位方向分",
     "skill_match": "技能匹配分",
@@ -51,7 +52,14 @@ METRIC_DEFINITIONS = {
     "recommendation_precision": ("推荐精确率", "已标推荐岗位中，人工认为 should_apply 或 maybe 的比例。"),
     "strict_recommendation_precision": ("严格推荐精确率", "已标推荐岗位中，人工认为 should_apply 的比例。"),
     "reviewed_recall": ("人工复核召回率", "人工标为 should_apply 或 maybe 的样本中，系统成功推荐的比例。"),
-    "reviewed_false_negative_rate": ("误杀率", "人工标为 should_apply 或 maybe 的样本中，系统没有推荐的比例。"),
+    "reviewed_false_negative_rate": (
+        "误杀率",
+        "人工标为 should_apply 或 maybe、且不是候选池/报告上限截断的样本中，系统没有推荐的比例。",
+    ),
+    "candidate_limit_omission_rate": (
+        "候选池截断率",
+        "人工标为 should_apply 或 maybe 的样本中，仅因 Agent 复核池或最终报告数量上限未展示的比例。",
+    ),
     "invalid_url_rate": ("全量无效链接率", "全量岗位里 URL 为空、格式非法或明显截断的比例。"),
     "recommended_invalid_url_rate": ("推荐区无效链接率", "推荐岗位里 URL 为空、格式非法或明显截断的比例。"),
     "report_exists": ("报告落盘", "真实巡检报告是否存在。"),
@@ -78,7 +86,13 @@ BADCASE_TYPE_DEFINITIONS = {
         "zh": "过滤误杀",
         "attribution": "matching_filtering",
         "affected_metrics": ["reviewed_recall", "reviewed_false_negative_rate"],
-        "suggested_action": "复核语义过滤、阈值和报告数量上限；修复后沉淀为语义过滤或召回 case。",
+        "suggested_action": "复核语义过滤和阈值；修复后沉淀为语义过滤或召回 case。",
+    },
+    "candidate_limit_omitted": {
+        "zh": "候选池截断",
+        "attribution": "candidate_routing",
+        "affected_metrics": ["candidate_limit_omission_rate"],
+        "suggested_action": "复核 agent_review.max_candidates 与 output.max_jobs_per_report；必要时扩大 Agent 复核池，不按误杀处理。",
     },
     "recommended_invalid_url": {
         "zh": "推荐区坏链接",
@@ -210,13 +224,22 @@ def score_real_run(parsed_report: Dict[str, Any], labels_doc: Dict[str, Any] | N
         item for item in completed_required
         if item["human_label"] in POSITIVE_LABELS
     ]
-    reviewed_positive_recommended = [
+    reviewed_positive_for_recall = [
         item for item in reviewed_positive
+        if not _is_candidate_limit_omission(record_by_id[item["record_id"]])
+    ]
+    reviewed_positive_recommended = [
+        item for item in reviewed_positive_for_recall
         if record_by_id[item["record_id"]].get("is_recommended")
     ]
     reviewed_false_negative = [
-        item for item in reviewed_positive
+        item for item in reviewed_positive_for_recall
         if not record_by_id[item["record_id"]].get("is_recommended")
+    ]
+    candidate_limit_omitted = [
+        item for item in reviewed_positive
+        if _is_candidate_limit_omission(record_by_id[item["record_id"]])
+        and not record_by_id[item["record_id"]].get("is_recommended")
     ]
 
     completed_labels = [item for item in completed_required if item.get("human_label")]
@@ -229,7 +252,10 @@ def score_real_run(parsed_report: Dict[str, Any], labels_doc: Dict[str, Any] | N
             len(agent_reviewed_recommended),
             len(recommended_records),
         ),
-        "filtered_records": sum(1 for record in records if record.get("is_filtered")),
+        "filtered_records": sum(
+            1 for record in records
+            if record.get("is_filtered") and not _is_candidate_limit_omission(record)
+        ),
         "label_required_count": len(required_ids),
         "label_completed_count": len(completed_required),
         "label_completion_rate": _safe_rate(len(completed_required), len(required_ids)),
@@ -240,10 +266,14 @@ def score_real_run(parsed_report: Dict[str, Any], labels_doc: Dict[str, Any] | N
         ),
         "reviewed_recall": _safe_rate(
             len(reviewed_positive_recommended),
-            len(reviewed_positive),
+            len(reviewed_positive_for_recall),
         ),
         "reviewed_false_negative_rate": _safe_rate(
             len(reviewed_false_negative),
+            len(reviewed_positive_for_recall),
+        ),
+        "candidate_limit_omission_rate": _safe_rate(
+            len(candidate_limit_omitted),
             len(reviewed_positive),
         ),
         "invalid_url_rate": _safe_rate(len(invalid_url_records), total_records),
@@ -357,6 +387,7 @@ def render_real_run_markdown(result: Dict[str, Any]) -> str:
         "strict_recommendation_precision",
         "reviewed_recall",
         "reviewed_false_negative_rate",
+        "candidate_limit_omission_rate",
         "invalid_url_rate",
         "recommended_invalid_url_rate",
         "report_exists",
@@ -761,6 +792,18 @@ def _needs_agent_review_badcase(record: Dict[str, Any]) -> bool:
     )
 
 
+def _is_candidate_limit_omission(record: Dict[str, Any]) -> bool:
+    stage = str(record.get("processing_stage") or record.get("system_decision") or "").strip()
+    score = record.get("score")
+    if stage.startswith(("candidate_limit_omitted", "report_limit_omitted")):
+        return True
+    if "agent_review_queue_limit" in stage or "final_report_limit" in stage:
+        return True
+    if "score_below_threshold_or_report_limit" in stage:
+        return isinstance(score, (int, float)) and score >= DEFAULT_RECOMMENDATION_THRESHOLD
+    return False
+
+
 def _detect_bad_cases(
     records: List[Dict[str, Any]],
     completed_labels: List[Dict[str, Any]],
@@ -786,8 +829,13 @@ def _detect_bad_cases(
                 cases.append(_badcase_entry("agent_review_missing", record, item))
                 seen.add(key)
         if not record.get("is_recommended") and label in POSITIVE_LABELS:
-            cases.append(_badcase_entry("filtered_false_negative", record, item))
-            seen.add((record["record_id"], "filtered_false_negative"))
+            badcase_type = (
+                "candidate_limit_omitted"
+                if _is_candidate_limit_omission(record)
+                else "filtered_false_negative"
+            )
+            cases.append(_badcase_entry(badcase_type, record, item))
+            seen.add((record["record_id"], badcase_type))
         if record.get("is_recommended") and label == "invalid_link":
             cases.append(_badcase_entry("manual_invalid_link", record, item))
             seen.add((record["record_id"], "manual_invalid_link"))

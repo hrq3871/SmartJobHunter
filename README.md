@@ -299,6 +299,7 @@ jd_truncate_length: 6000    # Max job description length
 
 agent_review:
   required_for_recommendation: true  # Formal recommendations require Agent review
+  max_candidates: 40                 # Wider Agent review pool, separate from final report size
   results_path: ""                   # Optional Agent result JSON path
 
 model_strategy:
@@ -311,7 +312,7 @@ semantic_filter:
   aggressive: 0.4
 
 output:
-  max_jobs_per_report: 20  # Keep only the top N scored jobs in the report
+  max_jobs_per_report: 20  # Keep only the top N Agent-scored jobs in the final report
 
 feishu:
   app_id: ""
@@ -360,9 +361,9 @@ The matching flow is:
 
 1. **Deterministic filters**: time window and deduplication stay in Python.
 2. **Semantic intent filter**: the Agent judges whether the job's real responsibilities match the profile intent. Keywords are only supporting evidence.
-3. **Agent review queue**: Python writes candidates to `output/<date>/agent_review_queues/`; the Agent reads the full JD, profile, and fallback reference before scoring.
+3. **Agent review queue**: Python writes threshold-passing candidates to `output/<date>/agent_review_queues/`, up to `agent_review.max_candidates=40` by default; the Agent reads the full JD, profile, and fallback reference before scoring.
 4. **Resume-job fit scoring**: the Agent scores role fit, core responsibilities, domain fit, resume evidence, seniority, risk, and application priority.
-5. **Report ranking**: jobs are sorted by the Agent final score, filtered by `threshold_score`, and capped by `output.max_jobs_per_report`.
+5. **Report ranking**: jobs are sorted by the Agent final score, filtered by `threshold_score`, and only the final display is capped by `output.max_jobs_per_report`.
 6. **URL validation**: report generation checks job detail links and drops empty or unreachable URLs.
 7. **Application package**: the Top 3 scored jobs get a dedicated Cover Letter package.
 8. **Python fallback**: `src.matching` supports candidate ranking, regression tests, and risk hints; by default it cannot create formal recommendations on its own.

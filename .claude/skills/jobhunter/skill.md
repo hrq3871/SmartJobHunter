@@ -57,7 +57,7 @@ INIT -> LOADED -> CRAWLED -> FILTERED -> EVALUATED -> URL_VALIDATED -> REPORTED 
 关键状态：
 
 - `CRAWLED`：全量抓取，失败公司自动批量收集 → Agent 委派 `crawler-strategy-inspector` 一次性修复 → 重抓。
-- `EVALUATED`：Python 只能写 `output/{YYYY-MM-DD}/agent_review_queues/*.json` 候选队列；Agent 必须读取队列后写同目录 `*_results.json`，正式推荐只接受 `判断来源=agent`。
+- `EVALUATED`：Python 只能写 `output/{YYYY-MM-DD}/agent_review_queues/*.json` 候选队列；队列默认最多 `agent_review.max_candidates=40` 个，独立于最终报告上限；Agent 必须读取队列后写同目录 `*_results.json`，正式推荐只接受 `判断来源=agent`。
 - `URL_VALIDATED`：报告前必须过滤空链接、404、不可访问链接。
 - `PACKAGED`：为 Top 3 岗位生成投递包，Cover Letter 必须结合 JD 证据和简历证据。
 

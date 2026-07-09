@@ -9,6 +9,7 @@ jd_truncate_length: 6000
 # Formal recommendations require the current Agent to write matching *_results.json.
 agent_review:
   required_for_recommendation: true
+  max_candidates: 40  # Wider Agent review pool; final report still uses output.max_jobs_per_report.
   results_path: ""
 
 # Model selection strategy

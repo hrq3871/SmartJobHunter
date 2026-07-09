@@ -297,6 +297,7 @@ jd_truncate_length: 6000    # JD 最大长度
 
 agent_review:
   required_for_recommendation: true  # 正式推荐默认要求 Agent 复核
+  max_candidates: 40                 # Agent 复核池上限，独立于最终报告数量
   results_path: ""                   # 可选：指定 Agent 结果 JSON 路径
 
 model_strategy:
@@ -309,7 +310,7 @@ semantic_filter:
   aggressive: 0.4
 
 output:
-  max_jobs_per_report: 20  # 报告只保留评分最高的 N 个岗位
+  max_jobs_per_report: 20  # 最终报告只保留 Agent 评分最高的 N 个岗位
 
 feishu:
   app_id: ""
@@ -358,9 +359,9 @@ SmartJobHunter 不再把关键词命中本身视为匹配。
 
 1. **确定性过滤**：时间窗口和去重仍由 Python 处理。
 2. **语义意向过滤**：Agent 判断岗位真实职责是否符合求职意向，关键词只作为辅助证据。
-3. **Agent 复核队列**：Python 将候选岗位写入 `output/<date>/agent_review_queues/`，等待 Agent 读取完整 JD、profile 和 fallback 参考后打分。
+3. **Agent 复核队列**：Python 将达到阈值的候选岗位写入 `output/<date>/agent_review_queues/`，默认最多 `agent_review.max_candidates=40` 个；Agent 读取完整 JD、profile 和 fallback 参考后打分。
 4. **简历-岗位匹配评分**：Agent 按角色匹配、核心职责、领域匹配、简历证据、职级、风险和投递优先级评分。
-5. **报告排序**：岗位按 Agent 最终评分降序排列，低于 `threshold_score` 的岗位不进入报告，并受 `output.max_jobs_per_report` 数量上限控制。
+5. **报告排序**：岗位按 Agent 最终评分降序排列，低于 `threshold_score` 的岗位不进入报告，最终展示数量才受 `output.max_jobs_per_report` 控制。
 6. **链接校验**：生成报告前检查岗位详情链接，过滤空链接或不可访问链接。
 7. **投递包生成**：为 Top 3 高分岗位生成独立 Cover Letter 包。
 8. **Python fallback**：`src.matching` 用于候选排序、回归测试和风险提示；默认不能单独生成正式推荐。
