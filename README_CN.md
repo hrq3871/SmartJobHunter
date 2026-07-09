@@ -196,6 +196,25 @@ ls output/2026-05-07/
 # application_packages/pm_tob_20260507_2030/
 ```
 
+## 🖥️ 本地 Web 控制台
+
+本地控制台是管理简历、公司链接、巡检和报告的最简单入口。它只绑定 `127.0.0.1`：
+
+```powershell
+python -m uvicorn src.web_ui:app --host 127.0.0.1 --port 8080
+```
+
+打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。主要模块：
+
+- **简历与巡检**：上传 PDF/MD/TXT 简历，编辑 `search_intent`，启动可见 Claude Code 巡检，查看生成报告。
+- **公司配置**：新增或禁用公司，编辑社招/校招/实习官网链接，单公司测试抓取。
+- **策略健康**：检查变化、未知、失败或阻断的公司链接，生成给 Agent 分析的网站策略任务。
+- **飞书推送 / 定时任务**：配置本地飞书推送和定时巡检参数。
+
+![SmartJobHunter 控制台：简历与报告](docs/assets/web-console-resumes-reports.png)
+
+![SmartJobHunter 控制台：公司管理](docs/assets/web-console-company-management.png)
+
 ## 📁 目录结构
 
 ```
@@ -229,7 +248,7 @@ SmartJobHunter/
 ├── 📂 config/               # 配置文件
 │   ├── agent.sample.yaml    # 可提交的 Agent 示例配置
 │   ├── agent.yaml           # 本地私有 Agent 配置（Git 忽略）
-│   ├── companies.yaml       # 公司列表（56 家）
+│   ├── companies.yaml       # 可自由扩展的公司官网链接配置
 │   └── system_templates.yaml # 招聘系统模板
 │
 ├── 📂 profiles/             # Agent 读取简历后生成的正式求职画像
@@ -312,6 +331,36 @@ feishu:
 ```
 
 ### 🏢 公司配置 (config/companies.yaml)
+
+`config/companies.yaml` 可以自由扩展。新增公司时先写官网招聘链接；抓取策略可以通过健康检测和 Agent 分析后再补齐。
+
+最小配置：
+
+```yaml
+companies:
+  - id: demo_company
+    name: 示例公司
+    enabled: true
+    urls:
+      social: "https://jobs.example.com/search?keyword={keyword}"
+      campus: "https://jobs.example.com/campus?keyword={keyword}"
+      internship: "https://jobs.example.com/intern?keyword={keyword}"
+    note: "新公司，策略待识别"
+```
+
+新增或修改链接后，先启动健康检测，让系统采集页面、DOM、网络请求、截图和错误证据：
+
+```powershell
+# 巡检单家公司
+python -m src.health_monitor --inspect-company demo_company --keyword "AI产品经理"
+
+# 或巡检所有已启用公司策略
+python -m src.health_monitor --inspect-strategies --keyword "AI产品经理" --job-type social
+```
+
+如果网站是新链接、页面变化、被阻断或返回 0 岗位，健康检测会把任务写到 `logs/strategy_tasks/`，证据写到 `logs/crawler_evidence/`。把这个任务交给当前 Agent 后，Agent 会分析网站行为，并把可复用策略固化成 `api` / `field_mappings` / `url_template` 配置，或固化成 `src/site_strategies/` 下的专用 Python 策略。
+
+完整 API 策略示例：
 
 ```yaml
 companies:
@@ -451,113 +500,27 @@ Agent 回归评估报告会写入 `output/evals/YYYY-MM-DD/`，真实巡检评�
 | `python -m src.health_monitor --check-all` | 检测所有爬虫 |
 | `python -m src.health_monitor --report` | 生成健康报告 |
 
-### Web 管理控制台（辅助）
+Web 控制台的用法和截图见上方“本地 Web 控制台”章节。
 
-> ⚠️ **仅限本地使用**：控制台仅绑定 `127.0.0.1`，不对外暴露。它是 CLI 的辅助文件管理界面，不替代 Agent 判断流程。
+## 🏢 公司覆盖与扩展
 
-```bash
-# 启动（仅本地可访问）
-python -m uvicorn src.web_ui:app --host 127.0.0.1 --port 8080
-```
+公司覆盖是配置驱动的，不是固定梯队列表。仓库里包含一些示例和已验证的官网配置，但你可以通过 `config/companies.yaml` 或 Web 控制台自由新增、禁用、更新公司。
 
-控制台提供五个管理模块：
-- **简历与巡检** — 上传简历、管理 `search_intent`、打开可见 Claude Code 巡检窗口、查看报告。手动放入 `resumes/` 的 PDF/MD/TXT 会自动发现并默认启用
-- **策略健康** — 查看所有公司抓取策略状态、单点/批量修复
-- **公司配置** — 管理公司链接、策略类型、启用/禁用
-- **飞书推送** — 配置飞书应用凭证和推送开关
-- **定时任务** — 配置每日自动巡检参数（类型、关键词、推送目标）
+想走可视化流程时：
 
-上传阶段不会创建 `profiles/*.md`。点击巡检后实际执行：
+1. 打开 **公司配置**。
+2. 点击 **新增公司**。
+3. 填公司 ID、展示名称、社招/校招/实习官网链接。
+4. 保存后点击 **测试**，或进入 **策略健康** 做批量巡检。
+
+想走可复现命令时：
 
 ```powershell
-claude --permission-mode auto --name "SmartHunter-巡检-<run_id>" "<任务 Prompt>"
+python -m src.health_monitor --inspect-company <company_id> --keyword "AI产品经理"
+python -m src.health_monitor --inspect-strategies --keyword "AI产品经理" --job-type social
 ```
 
-Claude Code 先读取完整简历并生成正式 profile，再进行 JD 画像和 Agent 语义匹配。Python CLI 的评分只作为 fallback。DOCX 和图片格式不支持上传、预览、解析或巡检。
-
-## 🏢 支持的公司
-
-### ✅ 已启用（42 家）
-
-**第一梯队 - BAT + TMD：**
-| 公司 | 社招 | 校招 | 系统 |
-|:-----|:----:|:----:|:-----|
-| 腾讯 | ✅ | ✅ | 自建 |
-| 字节跳动 | ✅ | ✅ | 飞书 |
-| 字节跳动(社招) | ✅ | - | 飞书 |
-| 阿里巴巴 | ✅ | ✅ | 自建 |
-| 美团 | ✅ | ✅ | 自建 |
-| 百度 | ✅ | ✅ | 自建 |
-| 滴滴出行 | ✅ | ✅ | 自建 |
-| 京东 | ✅ | ✅ | 自建 |
-| 拼多多 | ✅ | ✅ | 自建 |
-| 华为 | ✅ | ✅ | 自建 |
-| 小米 | ✅ | ✅ | 自建 |
-
-**第二梯队 - 互联网公司：**
-| 公司 | 社招 | 校招 | 系统 |
-|:-----|:----:|:----:|:-----|
-| 网易 | ✅ | ✅ | 自建 |
-| 快手 | ✅ | ✅ | 自建 |
-| B站 | ✅ | ✅ | 自建 |
-| 小红书 | ✅ | ✅ | 自建 |
-| 携程 | ✅ | ✅ | 自建 |
-| 微博 | ✅ | ✅ | 自建 |
-| 知乎 | ✅ | ✅ | Mokahr |
-| OPPO | ✅ | ✅ | 自建 |
-| vivo | ✅ | ✅ | 自建 |
-| 中兴 | ✅ | ✅ | Mokahr |
-| 联想 | ✅ | ✅ | Workday |
-
-**游戏公司：**
-| 公司 | 社招 | 校招 | 系统 |
-|:-----|:----:|:----:|:-----|
-| 米哈游 | ✅ | ✅ | 自建 |
-| 莉莉丝 | ✅ | ✅ | 飞书 |
-| 三七互娱 | ✅ | ✅ | 自建 |
-
-**飞书系统：**
-| 公司 | 社招 | 校招 |
-|:-----|:----:|:----:|
-| 商汤 | ✅ | - |
-| Keep | ✅ | - |
-| SHEIN | ✅ | - |
-| 蔚来 | ✅ | - |
-| 理想 | ✅ | - |
-| 小鹏 | ✅ | - |
-
-**其他：**
-| 公司 | 社招 | 校招 | 系统 |
-|:-----|:----:|:----:|:-----|
-| 苹果中国 | ✅ | - | 自建 |
-| 吉利 | ✅ | ✅ | Mokahr |
-| 长城汽车 | ✅ | ✅ | 自建 |
-| 大疆 | ✅ | ✅ | 自建 |
-| 海康威视 | ✅ | ✅ | 自建 |
-| 科大讯飞 | ✅ | ✅ | 自建 |
-| 深信服 | ✅ | ✅ | 自建 |
-| 工商银行 | ✅ | ✅ | 银行系统 |
-
-### 🔧 待开发（14 家）
-
-| 公司 | 招聘系统 | 说明 |
-|:-----|:---------|:-----|
-| 微软中国 | Phenom | 需分析 API |
-| 英伟达中国 | Workday + Eightfold | 需 DOM 解析 |
-| 特斯拉中国 | Mokahr | URL 已验证 |
-| 英特尔中国 | Workday | 需 DOM 解析 |
-| AMD 中国 | Workday | 需 DOM 解析 |
-| 思科中国 | Workday | 需 DOM 解析 |
-| SAP 中国 | Workday | 需 DOM 解析 |
-| 浪潮集团 | 北森 | 需 DOM 解析 |
-| 建设银行 | 银行系统 | 需分析 API |
-| 中国移动 | 国企系统 | 需分析 API |
-| 中国电信 | 国企系统 | 需分析 API |
-| 比亚迪 | 自建 | 需分析 API |
-| 蚂蚁集团 | 阿里系 | 需验证 |
-| 菜鸟网络 | 阿里系 | 需验证 |
-
-> **📊 总计：56 家公司（42 家已启用，14 家待开发）**
+当巡检发现未知 API、页面结构变化、登录阻断、反爬或 0 岗位结果时，SmartJobHunter 会生成 Agent 可读的任务和证据包。Agent 再判断修复应该写入 `config/companies.yaml`、`config/system_templates.yaml`，还是 `src/site_strategies/` 下的专用策略。
 
 ### 🔧 添加新公司
 
@@ -779,6 +742,72 @@ output/2026-05-07/application_packages/pm_tob_20260507_2000/
 ├── cover_letter_2_bytedance_ai_product_manager.md
 └── cover_letter_3_meituan_marketing_ai_product_manager.md
 ```
+
+## 🧪 写给开发者：评估与 Bad Case 链路
+
+SmartJobHunter 有两层评估：
+
+| 层级 | 数据 | 用途 | 命令 |
+|:--|:--|:--|:--|
+| 回归评估 | 固定 YAML case | 合并前防止抓取、过滤、评分、报告和 Agent 指令退化 | `python -m src.evaluation --fail-under 1.0` |
+| 真实巡检评估 | 已生成报告 + 人工标签 | 衡量真实抓取后的推荐质量、误杀、链接质量和产出完整性 | `python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"` |
+
+推荐流程：
+
+1. 先跑一次真实巡检，保留 `output/YYYY-MM-DD/` 下的报告。
+2. 生成真实评估包：
+
+```powershell
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
+```
+
+3. 可选：把待标注样本推到飞书多维表格，方便在线标注：
+
+```powershell
+lark-cli auth login --domain base
+python -m src.eval_lark_sync setup
+python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
+```
+
+4. 飞书标完后拉回标签、重算指标，并同步 badcase 文档：
+
+```powershell
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases
+```
+
+人工标签：
+
+| 标签 | 含义 | 计入方式 |
+|:--|:--|:--|
+| `should_apply` | 明确值得投 | 正例 |
+| `maybe` | 可以观察，但不要求进入主推荐区 | 弱正例 / 备选观察 |
+| `should_reject` | 不该推荐 | 系统推荐时形成误报 |
+| `invalid_link` | 实际打不开或不可用 | 链接质量问题 |
+| `unclear` | JD 或证据不足 | 不进精确率/召回率，单独统计 |
+
+核心指标：
+
+| 指标 | 含义 |
+|:--|:--|
+| `recommendation_precision` 推荐精确率 | 推荐岗位中，人工标 `should_apply` 或 `maybe` 的比例 |
+| `strict_recommendation_precision` 严格推荐精确率 | 系统 `strong_apply` 岗位中，人工标 `should_apply` 的比例 |
+| `reviewed_recall` 人工复核召回率 | 已标正例/弱正例中，被推荐或进入 `agent_maybe` 的比例；不把容量截断计入分母 |
+| `reviewed_false_negative_rate` 误杀率 | 已标正例/弱正例中，既没推荐也没进入 `agent_maybe` 的比例；不含候选池/报告上限截断 |
+| `candidate_limit_omission_rate` 候选池截断率 | 好岗位仅因 Agent 复核池或最终报告上限未展示的比例 |
+| `agent_reviewed_recommendation_rate` 推荐区 Agent 复核率 | 推荐岗位里 `judgment_source=agent` 的比例 |
+| `invalid_url_rate` / `recommended_invalid_url_rate` | 全量记录 / 推荐区里的无效链接比例 |
+| `maybe_rate` / `unclear_rate` | 人工标 `maybe` / `unclear` 的比例 |
+
+Badcase 会写入 `bad_cases.md`，也可以同步到飞书文档。处理时按类型修：
+
+- `recommendation_false_positive` 推荐误报：系统推荐但人工标 `should_reject`，修评分、风险扣分或 Agent prompt。
+- `filtered_false_negative` 过滤误杀：系统没推荐但人工标 `should_apply` / `maybe`，修语义过滤、阈值或岗位匹配。
+- `candidate_limit_omitted` 候选池截断：好岗位只是被复核池或报告数量上限挡住，调 `agent_review.max_candidates` 或报告上限，不当语义误杀修。
+- `recommended_invalid_url` / `manual_invalid_link` 链接坏例：修 URL 校验、原始链接保真或报告过滤。
+- `agent_review_missing` 缺少 Agent 语义复核：正式推荐不是 Agent 打分产生，修复核流程。
+- `evidence_unclear` 证据不足：补 JD/简历证据，或降低推荐等级。
+
+完整设计见 [docs/smartjobhunter-evaluation-design.md](docs/smartjobhunter-evaluation-design.md)。
 
 ## 📜 许可证
 
