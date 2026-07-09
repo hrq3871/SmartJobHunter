@@ -29,6 +29,7 @@ FILTERED_STAGE_PREFIXES = (
     "deduplicated",
     "semantic_rejected",
 )
+DEFAULT_RECOMMENDATION_THRESHOLD = 70
 HUMAN_SCORE_FIELDS = {
     "role_fit": "岗位方向分",
     "skill_match": "技能匹配分",
@@ -40,14 +41,25 @@ HUMAN_SCORE_FIELDS = {
 METRIC_DEFINITIONS = {
     "total_records": ("全量岗位数", "本次报告全量审计记录中的岗位数量。"),
     "recommended_records": ("推荐岗位数", "系统进入推荐区的岗位数量。"),
+    "agent_reviewed_recommendation_rate": (
+        "推荐区Agent复核率",
+        "推荐岗位中判断来源为 agent 的比例；正式推荐应由 Agent 语义评分产生。",
+    ),
     "filtered_records": ("过滤岗位数", "系统在推荐前过滤掉的岗位数量。"),
     "label_required_count": ("需标注数", "推荐岗位和高置信被过滤岗位中需要人工语义复核的数量。"),
     "label_completed_count": ("已标注数", "已经填写人工标签的需标注样本数。"),
     "label_completion_rate": ("标注完成率", "已标注数 / 需标注数。"),
     "recommendation_precision": ("推荐精确率", "已标推荐岗位中，人工认为 should_apply 或 maybe 的比例。"),
-    "strict_recommendation_precision": ("严格推荐精确率", "已标推荐岗位中，人工认为 should_apply 的比例。"),
-    "reviewed_recall": ("人工复核召回率", "人工标为 should_apply 或 maybe 的样本中，系统成功推荐的比例。"),
-    "reviewed_false_negative_rate": ("误杀率", "人工标为 should_apply 或 maybe 的样本中，系统没有推荐的比例。"),
+    "strict_recommendation_precision": ("严格推荐精确率", "系统 strong_apply 强推荐中，人工认为 should_apply 的比例。"),
+    "reviewed_recall": ("人工复核召回率", "人工标为 should_apply 或 maybe 的样本中，系统成功推荐或进入 maybe 观察的比例。"),
+    "reviewed_false_negative_rate": (
+        "误杀率",
+        "人工标为 should_apply 或 maybe、且不是候选池/报告上限截断的样本中，系统没有推荐或 maybe 观察的比例。",
+    ),
+    "candidate_limit_omission_rate": (
+        "候选池截断率",
+        "人工标为 should_apply 或 maybe 的样本中，仅因 Agent 复核池或最终报告数量上限未展示的比例。",
+    ),
     "invalid_url_rate": ("全量无效链接率", "全量岗位里 URL 为空、格式非法或明显截断的比例。"),
     "recommended_invalid_url_rate": ("推荐区无效链接率", "推荐岗位里 URL 为空、格式非法或明显截断的比例。"),
     "report_exists": ("报告落盘", "真实巡检报告是否存在。"),
@@ -64,11 +76,23 @@ BADCASE_TYPE_DEFINITIONS = {
         "affected_metrics": ["recommendation_precision", "strict_recommendation_precision"],
         "suggested_action": "复核评分拆解、负向风险和标题党降权；修复后沉淀为推荐质量回归 case。",
     },
+    "agent_review_missing": {
+        "zh": "缺少Agent语义复核",
+        "attribution": "recommendation_quality",
+        "affected_metrics": ["agent_reviewed_recommendation_rate"],
+        "suggested_action": "正式推荐必须由 Agent 输出语义评分；Python fallback 只能进入待复核候选队列。",
+    },
     "filtered_false_negative": {
         "zh": "过滤误杀",
         "attribution": "matching_filtering",
         "affected_metrics": ["reviewed_recall", "reviewed_false_negative_rate"],
-        "suggested_action": "复核语义过滤、阈值和报告数量上限；修复后沉淀为语义过滤或召回 case。",
+        "suggested_action": "复核语义过滤和阈值；修复后沉淀为语义过滤或召回 case。",
+    },
+    "candidate_limit_omitted": {
+        "zh": "候选池截断",
+        "attribution": "candidate_routing",
+        "affected_metrics": ["candidate_limit_omission_rate"],
+        "suggested_action": "复核 agent_review.max_candidates 与 output.max_jobs_per_report；必要时扩大 Agent 复核池，不按误杀处理。",
     },
     "recommended_invalid_url": {
         "zh": "推荐区坏链接",
@@ -173,6 +197,10 @@ def score_real_run(parsed_report: Dict[str, Any], labels_doc: Dict[str, Any] | N
 
     total_records = len(records)
     recommended_records = [record for record in records if record.get("is_recommended")]
+    agent_reviewed_recommended = [
+        record for record in recommended_records
+        if _is_agent_reviewed(record)
+    ]
     invalid_url_records = [record for record in records if not record.get("url_valid")]
     recommended_invalid = [
         record for record in recommended_records
@@ -188,21 +216,34 @@ def score_real_run(parsed_report: Dict[str, Any], labels_doc: Dict[str, Any] | N
         item for item in reviewed_recommended
         if item["human_label"] in POSITIVE_LABELS
     ]
-    strict_positive_recommended = [
+    reviewed_strong_apply_recommended = [
         item for item in reviewed_recommended
+        if _is_strong_apply_recommendation(record_by_id[item["record_id"]])
+    ]
+    strict_positive_recommended = [
+        item for item in reviewed_strong_apply_recommended
         if item["human_label"] in STRICT_POSITIVE_LABELS
     ]
     reviewed_positive = [
         item for item in completed_required
         if item["human_label"] in POSITIVE_LABELS
     ]
-    reviewed_positive_recommended = [
+    reviewed_positive_for_recall = [
         item for item in reviewed_positive
-        if record_by_id[item["record_id"]].get("is_recommended")
+        if not _is_candidate_limit_omission(record_by_id[item["record_id"]])
+    ]
+    reviewed_covered_positive = [
+        item for item in reviewed_positive_for_recall
+        if _is_recommendation_or_maybe_observation(record_by_id[item["record_id"]])
     ]
     reviewed_false_negative = [
+        item for item in reviewed_positive_for_recall
+        if not _is_recommendation_or_maybe_observation(record_by_id[item["record_id"]])
+    ]
+    candidate_limit_omitted = [
         item for item in reviewed_positive
-        if not record_by_id[item["record_id"]].get("is_recommended")
+        if _is_candidate_limit_omission(record_by_id[item["record_id"]])
+        and not record_by_id[item["record_id"]].get("is_recommended")
     ]
 
     completed_labels = [item for item in completed_required if item.get("human_label")]
@@ -211,21 +252,32 @@ def score_real_run(parsed_report: Dict[str, Any], labels_doc: Dict[str, Any] | N
     metrics = {
         "total_records": total_records,
         "recommended_records": len(recommended_records),
-        "filtered_records": sum(1 for record in records if record.get("is_filtered")),
+        "agent_reviewed_recommendation_rate": _safe_rate(
+            len(agent_reviewed_recommended),
+            len(recommended_records),
+        ),
+        "filtered_records": sum(
+            1 for record in records
+            if record.get("is_filtered") and not _is_candidate_limit_omission(record)
+        ),
         "label_required_count": len(required_ids),
         "label_completed_count": len(completed_required),
         "label_completion_rate": _safe_rate(len(completed_required), len(required_ids)),
         "recommendation_precision": _safe_rate(len(positive_recommended), len(reviewed_recommended)),
         "strict_recommendation_precision": _safe_rate(
             len(strict_positive_recommended),
-            len(reviewed_recommended),
+            len(reviewed_strong_apply_recommended),
         ),
         "reviewed_recall": _safe_rate(
-            len(reviewed_positive_recommended),
-            len(reviewed_positive),
+            len(reviewed_covered_positive),
+            len(reviewed_positive_for_recall),
         ),
         "reviewed_false_negative_rate": _safe_rate(
             len(reviewed_false_negative),
+            len(reviewed_positive_for_recall),
+        ),
+        "candidate_limit_omission_rate": _safe_rate(
+            len(candidate_limit_omitted),
             len(reviewed_positive),
         ),
         "invalid_url_rate": _safe_rate(len(invalid_url_records), total_records),
@@ -331,6 +383,7 @@ def render_real_run_markdown(result: Dict[str, Any]) -> str:
     metric_order = [
         "total_records",
         "recommended_records",
+        "agent_reviewed_recommendation_rate",
         "filtered_records",
         "label_required_count",
         "label_completed_count",
@@ -338,6 +391,7 @@ def render_real_run_markdown(result: Dict[str, Any]) -> str:
         "strict_recommendation_precision",
         "reviewed_recall",
         "reviewed_false_negative_rate",
+        "candidate_limit_omission_rate",
         "invalid_url_rate",
         "recommended_invalid_url_rate",
         "report_exists",
@@ -630,6 +684,8 @@ def _review_reason(record: Dict[str, Any]) -> str | None:
     score = record.get("score")
     if record.get("is_recommended"):
         return "recommended"
+    if _is_system_maybe_observation(record):
+        return "maybe_observation"
     if final_decision in {"strong_apply", "apply"}:
         return "high_confidence_filtered"
     if isinstance(score, int) and score >= 70:
@@ -642,6 +698,8 @@ def _default_severity(reason: str) -> str:
         return "medium"
     if reason == "high_confidence_filtered":
         return "high"
+    if reason == "maybe_observation":
+        return "medium"
     return "low"
 
 
@@ -730,6 +788,45 @@ def _score_human_dimensions(labels: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
     return metrics
 
 
+def _is_agent_reviewed(record: Dict[str, Any]) -> bool:
+    return str(record.get("judgment_source") or "").strip().lower() == "agent"
+
+
+def _needs_agent_review_badcase(record: Dict[str, Any]) -> bool:
+    return (
+        bool(record.get("is_recommended"))
+        and bool(record.get("url_valid"))
+        and not _is_agent_reviewed(record)
+    )
+
+
+def _is_strong_apply_recommendation(record: Dict[str, Any]) -> bool:
+    final_decision = str(record.get("final_decision") or "").strip()
+    return bool(record.get("is_recommended")) and final_decision == "strong_apply"
+
+
+def _is_system_maybe_observation(record: Dict[str, Any]) -> bool:
+    final_decision = str(record.get("final_decision") or "").strip()
+    stage = str(record.get("processing_stage") or record.get("system_decision") or "").strip()
+    return final_decision == "maybe" or stage.startswith("agent_maybe")
+
+
+def _is_recommendation_or_maybe_observation(record: Dict[str, Any]) -> bool:
+    return bool(record.get("is_recommended")) or _is_system_maybe_observation(record)
+
+
+def _is_candidate_limit_omission(record: Dict[str, Any]) -> bool:
+    stage = str(record.get("processing_stage") or record.get("system_decision") or "").strip()
+    score = record.get("score")
+    if stage.startswith(("candidate_limit_omitted", "report_limit_omitted")):
+        return True
+    if "agent_review_queue_limit" in stage or "final_report_limit" in stage:
+        return True
+    if "score_below_threshold_or_report_limit" in stage:
+        return isinstance(score, (int, float)) and score >= DEFAULT_RECOMMENDATION_THRESHOLD
+    return False
+
+
 def _detect_bad_cases(
     records: List[Dict[str, Any]],
     completed_labels: List[Dict[str, Any]],
@@ -749,13 +846,29 @@ def _detect_bad_cases(
         if record.get("is_recommended") and label == "should_reject":
             cases.append(_badcase_entry("recommendation_false_positive", record, item))
             seen.add((record["record_id"], "recommendation_false_positive"))
-        elif not record.get("is_recommended") and label in POSITIVE_LABELS:
-            cases.append(_badcase_entry("filtered_false_negative", record, item))
-            seen.add((record["record_id"], "filtered_false_negative"))
-        elif record.get("is_recommended") and label == "invalid_link":
+        if _needs_agent_review_badcase(record):
+            key = (record["record_id"], "agent_review_missing")
+            if key not in seen:
+                cases.append(_badcase_entry("agent_review_missing", record, item))
+                seen.add(key)
+        if (
+            not record.get("is_recommended")
+            and label == "maybe"
+            and _is_system_maybe_observation(record)
+        ):
+            continue
+        if not record.get("is_recommended") and label in POSITIVE_LABELS:
+            badcase_type = (
+                "candidate_limit_omitted"
+                if _is_candidate_limit_omission(record)
+                else "filtered_false_negative"
+            )
+            cases.append(_badcase_entry(badcase_type, record, item))
+            seen.add((record["record_id"], badcase_type))
+        if record.get("is_recommended") and label == "invalid_link":
             cases.append(_badcase_entry("manual_invalid_link", record, item))
             seen.add((record["record_id"], "manual_invalid_link"))
-        elif label == "unclear":
+        if label == "unclear":
             cases.append(_badcase_entry("evidence_unclear", record, item))
             seen.add((record["record_id"], "evidence_unclear"))
 
@@ -764,6 +877,14 @@ def _detect_bad_cases(
         if key in seen:
             continue
         cases.append(_badcase_entry("recommended_invalid_url", record, None))
+    for record in records:
+        if not _needs_agent_review_badcase(record):
+            continue
+        key = (record["record_id"], "agent_review_missing")
+        if key in seen:
+            continue
+        cases.append(_badcase_entry("agent_review_missing", record, None))
+        seen.add(key)
     return cases
 
 
@@ -773,6 +894,12 @@ def _badcase_entry(
     label_item: Dict[str, Any] | None,
 ) -> Dict[str, Any]:
     definition = BADCASE_TYPE_DEFINITIONS[badcase_type]
+    affected_metrics = list(definition["affected_metrics"])
+    if badcase_type == "recommendation_false_positive" and not _is_strong_apply_recommendation(record):
+        affected_metrics = [
+            metric for metric in affected_metrics
+            if metric != "strict_recommendation_precision"
+        ]
     return {
         "badcase_type": badcase_type,
         "badcase_type_zh": definition["zh"],
@@ -787,7 +914,7 @@ def _badcase_entry(
         "human_scores": (label_item or {}).get("human_scores") or {},
         "human_reason": (label_item or {}).get("review_notes") or "",
         "attribution": definition["attribution"],
-        "affected_metrics": list(definition["affected_metrics"]),
+        "affected_metrics": affected_metrics,
         "suggested_action": definition["suggested_action"],
     }
 

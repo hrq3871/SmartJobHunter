@@ -98,7 +98,7 @@ output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
 | 报告是否存在 | 文件存在且可读 |
 | 全量审计是否存在 | 包含 `## 全量抓取与判断记录` |
 | 投递包是否存在 | 同日期 `application_packages/<report_stem>/` 或相近目录存在 |
-| 是否需要人工复核 | 推荐岗位、高分但未推荐岗位、最终结论为 `apply` / `strong_apply` 但未进入推荐区 |
+| 是否需要人工复核 | 推荐岗位、`agent_maybe` 备选观察岗位、高分但未推荐岗位、最终结论为 `apply` / `strong_apply` 但未进入推荐区 |
 
 ## 人工只标什么
 
@@ -143,7 +143,7 @@ labels:
 | 标签 | 含义 | 计入方式 |
 |:--|:--|:--|
 | `should_apply` | 明确值得投，推荐成立 | 正例 |
-| `maybe` | 可以考虑，但需要用户偏好或简历策略确认 | 弱正例 |
+| `maybe` | 可以考虑，但需要用户偏好或简历策略确认；不要求进入主推荐区 | 弱正例 / 备选观察 |
 | `should_reject` | 不应进入推荐区 | 负例 |
 | `invalid_link` | 链接不可用；一般由代码自动判断，人工只在页面实际打不开时补 | 链接失败 |
 | `unclear` | JD 信息不足或证据不够 | 不计入精确率/召回率，单独统计 |
@@ -162,8 +162,9 @@ labels:
 建议标注顺序：
 
 1. 先标所有 `review_reason: recommended` 的岗位，用来算推荐精确率。
-2. 再标 `review_reason: high_confidence_filtered` 的岗位，用来发现被报告数量上限或阈值误杀的好岗位。
-3. 最后抽查 `review_reason: spot_check_filtered`，用于发现低分过滤里的系统性漏判。
+2. 再标 `review_reason: maybe_observation` 的岗位，用来判断 Agent 放进备选观察区是否合理。
+3. 再标 `review_reason: high_confidence_filtered` 的岗位，用来发现被阈值、语义过滤或候选池上限挡住的好岗位。
+4. 最后抽查 `review_reason: spot_check_filtered`，用于发现低分过滤里的系统性漏判。
 
 默认工具不会让人工标所有岗位；低分、最终结论为 `skip`、URL 客观无效的记录由自动指标处理或留作抽查。
 
@@ -172,10 +173,12 @@ labels:
 | 指标 | 公式 | 含义 |
 |:--|:--|:--|
 | `label_completion_rate` | 已填人工标签 / 需人工标签 | 标注完成度 |
+| `agent_reviewed_recommendation_rate` | `判断来源=agent` 的推荐岗位 / 推荐岗位 | 推荐区是否由 Agent 完成语义复核 |
 | `recommendation_precision` | 推荐且正例或弱正例 / 已标推荐岗位 | 推荐区质量 |
-| `strict_recommendation_precision` | 推荐且 `should_apply` / 已标推荐岗位 | 严格推荐质量 |
-| `reviewed_recall` | 已推荐正例 / 已标正例 | 在人工复核范围内的召回 |
-| `reviewed_false_negative_rate` | 未推荐正例 / 已标正例 | 人工复核范围内的误杀率 |
+| `strict_recommendation_precision` | 系统 `strong_apply` 且人工 `should_apply` / 已标 `strong_apply` 推荐岗位 | 强推荐质量 |
+| `reviewed_recall` | 已推荐或进入 `agent_maybe` 的正/弱正例 / 非上限截断的已标正/弱正例 | 在人工复核范围内的语义覆盖，不把候选池/报告上限截断计入分母 |
+| `reviewed_false_negative_rate` | 未推荐且未进入 `agent_maybe` 的正/弱正例 / 非上限截断的已标正/弱正例 | 人工复核范围内的误杀率；仅统计过滤、阈值或语义判断导致的漏推 |
+| `candidate_limit_omission_rate` | 上限截断正例 / 已标正例 | 因 Agent 复核池或最终报告数量上限未展示的比例 |
 | `invalid_url_rate` | 自动无效链接 / 全量记录 | 链接质量 |
 | `recommended_invalid_url_rate` | 推荐区无效链接 / 推荐记录 | 推荐区链接质量 |
 | `maybe_rate` | `maybe` / 已标记录 | 需要用户判断的模糊比例 |
@@ -188,17 +191,21 @@ labels:
 
 | 人工标注/分数 | 直接影响 |
 |:--|:--|
-| 推荐岗位标 `should_apply` | 提高推荐精确率和严格推荐精确率 |
+| 推荐岗位标 `should_apply` | 提高推荐精确率；如果系统最终结论是 `strong_apply`，同时提高严格推荐精确率 |
 | 推荐岗位标 `maybe` | 提高推荐精确率，不提高严格推荐精确率 |
-| 推荐岗位标 `should_reject` | 形成“推荐误报” badcase，降低推荐精确率 |
-| 未推荐岗位标 `should_apply` / `maybe` | 形成“过滤误杀” badcase，降低召回率、提高误杀率 |
+| 推荐岗位标 `should_reject` | 形成“推荐误报” badcase，降低推荐精确率；如果系统最终结论是 `strong_apply`，同时影响严格推荐精确率 |
+| `agent_maybe` 岗位标 `maybe` | 视为备选观察命中，不进入主推荐精确率，也不形成误杀 |
+| `agent_maybe` 岗位标 `should_apply` | 说明系统保守了，形成“过滤误杀” badcase，降低召回率、提高误杀率 |
+| 未推荐岗位标 `should_apply` / `maybe`，且不是 `agent_maybe` 或上限截断 | 形成“过滤误杀” badcase，降低召回率、提高误杀率 |
+| 未推荐岗位标 `should_apply` / `maybe`，但处理状态为 `candidate_limit_omitted` / `report_limit_omitted` 或旧报告里的高分 `score_below_threshold_or_report_limit` | 形成“候选池截断” badcase，只影响候选池截断率，不计入误杀率 |
 | 标 `invalid_link` | 形成链接坏例，影响链接质量指标 |
 | 标 `unclear` | 不进入精确率/召回率，进入证据不足统计 |
+| 推荐岗位 `判断来源` 不是 `agent` | 自动形成“缺少Agent语义复核” badcase，降低推荐区Agent复核率 |
 | `role_fit` 低但系统推荐 | 倾向归因到语义过滤或岗位匹配 |
 | `skill_match` 低但系统高分 | 倾向归因到推荐质量 |
 | `jd_quality` 低但系统强推荐 | 倾向归因到证据不足或风险降权 |
 | `risk_level` 高但系统未降权 | 倾向归因到风险惩罚逻辑 |
-| `apply_priority` 高但系统没推荐 | 倾向归因到召回或报告上限 |
+| `apply_priority` 高但系统没推荐 | 先区分是过滤/阈值问题还是候选池/报告上限问题，再分别归因 |
 
 当人工标注未完成时，报告会显示 partial metrics，并把缺失标签列出来。只有 `label_completion_rate = 100%` 时，才把人工相关指标视为完整实测指标。
 
@@ -210,8 +217,10 @@ badcase 类型：
 
 | 类型 | 触发条件 | 归因 | 影响指标 |
 |:--|:--|:--|:--|
-| 推荐误报 | 系统推荐，但人工标 `should_reject` | `recommendation_quality` | `recommendation_precision`、`strict_recommendation_precision` |
-| 过滤误杀 | 系统未推荐，但人工标 `should_apply` 或 `maybe` | `matching_filtering` | `reviewed_recall`、`reviewed_false_negative_rate` |
+| 推荐误报 | 系统推荐，但人工标 `should_reject` | `recommendation_quality` | `recommendation_precision`；若系统为 `strong_apply`，还影响 `strict_recommendation_precision` |
+| 缺少Agent语义复核 | 推荐岗位 URL 有效，但 `判断来源` 不是 `agent` | `recommendation_quality` | `agent_reviewed_recommendation_rate` |
+| 过滤误杀 | 系统未推荐、不是 `agent_maybe`、也不是上限截断，但人工标 `should_apply` 或 `maybe`；或系统 `agent_maybe` 但人工标 `should_apply` | `matching_filtering` | `reviewed_recall`、`reviewed_false_negative_rate` |
+| 候选池截断 | 系统未推荐，但原因是 Agent 复核池或最终报告数量上限 | `candidate_routing` | `candidate_limit_omission_rate` |
 | 推荐区坏链接 | 推荐岗位 URL 自动判为无效 | `output_quality` | `recommended_invalid_url_rate`、`invalid_url_rate` |
 | 人工确认坏链接 | 人工标 `invalid_link` | `output_quality` | 链接质量指标 |
 | 证据不足 | 人工标 `unclear` | `recommendation_quality` | `unclear_rate` |
@@ -301,6 +310,7 @@ python -m src.eval_real_runs --report "output/YYYY-MM-DD/<profile_id>_<YYYYMMDD_
 
 - 推荐精确率。
 - 严格推荐精确率。
+- 推荐区 Agent 复核率。
 - 人工复核召回率。
 - 误杀率。
 - 无效链接率。

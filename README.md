@@ -109,7 +109,7 @@ The system can analyze:
 | 🎯 **Multi-Profile** | Support multiple job directions with independent resume inspection |
 | 📄 **Resume Formats** | Supports PDF, Markdown, and TXT only; DOCX and images are currently unsupported |
 | 🔍 **Smart Filtering** | Three-layer funnel: Time → Dedup → semantic intent match |
-| 📊 **AI Evaluation** | Agent judgment + Python fallback coarse scoring (0-100) + evidence-based match reasons |
+| 📊 **AI Evaluation** | Agent-owned final semantic scoring; Python fallback only provides candidate ranking and mechanical facts |
 | 📊 **Job Classification** | Distinguish internship/campus/social recruitment |
 | ⏰ **Scheduled Execution** | Configurable scheduled inspection through `src.scheduler` or external automation |
 | 🔧 **Daily Strategy Inspection** | Inspect company links before crawling, collect evidence, and let the current Agent solidify crawler strategies |
@@ -297,6 +297,11 @@ time_filter_days: 3         # Only show jobs from last N days
 threshold_score: 70         # Minimum score to include in report
 jd_truncate_length: 6000    # Max job description length
 
+agent_review:
+  required_for_recommendation: true  # Formal recommendations require Agent review
+  max_candidates: 40                 # Wider Agent review pool, separate from final report size
+  results_path: ""                   # Optional Agent result JSON path
+
 model_strategy:
   simple_tasks: "haiku"
   complex_tasks: "sonnet"
@@ -307,7 +312,7 @@ semantic_filter:
   aggressive: 0.4
 
 output:
-  max_jobs_per_report: 20  # Keep only the top N scored jobs in the report
+  max_jobs_per_report: 20  # Keep only the top N Agent-scored jobs in the final report
 
 feishu:
   app_id: ""
@@ -356,11 +361,12 @@ The matching flow is:
 
 1. **Deterministic filters**: time window and deduplication stay in Python.
 2. **Semantic intent filter**: the Agent judges whether the job's real responsibilities match the profile intent. Keywords are only supporting evidence.
-3. **Resume-job fit scoring**: the Agent scores role fit, domain fit, resume evidence, preferences, evidence quality, and risk penalties.
-4. **Report ranking**: jobs are sorted by final score, filtered by `threshold_score`, and capped by `output.max_jobs_per_report`.
-5. **URL validation**: report generation checks job detail links and drops empty or unreachable URLs.
-6. **Application package**: the Top 3 scored jobs get a dedicated Cover Letter package.
-7. **Python fallback**: `src.matching` mirrors the same rubric for CLI runs and tests when no Agent is executing the prompts.
+3. **Agent review queue**: Python writes threshold-passing candidates to `output/<date>/agent_review_queues/`, up to `agent_review.max_candidates=40` by default; the Agent reads the full JD, profile, and fallback reference before scoring.
+4. **Resume-job fit scoring**: the Agent scores role fit, core responsibilities, domain fit, resume evidence, seniority, risk, and application priority.
+5. **Report ranking**: only Agent `strong_apply` and `apply` results above `threshold_score` enter the main recommendation section; `maybe` stays in the full audit as an observation candidate. Final display size is capped by `output.max_jobs_per_report`.
+6. **URL validation**: report generation checks job detail links and drops empty or unreachable URLs.
+7. **Application package**: the Top 3 scored jobs get a dedicated Cover Letter package.
+8. **Python fallback**: `src.matching` supports candidate ranking, regression tests, and risk hints; by default it cannot create formal recommendations on its own.
 
 Scoring dimensions:
 
@@ -373,7 +379,7 @@ Scoring dimensions:
 | `evidence_quality` | 10 | How clear and verifiable the JD/resume evidence is |
 | `risk_penalty` | -20 | Keyword noise, role mismatch, or missing core evidence |
 
-The Agent prompts live in `.claude/skills/jobhunter/prompts/` and require evidence-backed JSON output. For example, an "AI labeling operations" role should not be scored as a strong AI product match just because it contains "AI".
+The Agent prompts live in `.claude/skills/jobhunter/prompts/` and require evidence-backed JSON output. For example, an "AI labeling operations" role should not be scored as a strong AI product match just because it contains "AI"; an uncertain `maybe` decision is not a formal recommendation.
 
 ## 💻 Command Reference
 
@@ -660,7 +666,7 @@ Daily Task → Load Profiles + Company Links
 2. Inspect Strategies → Check new/changed/failed company links and collect evidence
 3. Crawl Jobs         → Use config crawlers or dedicated Python strategies
 4. Filter             → Time → Dedup → Semantic intent
-5. Evaluate           → Score (0-100) + evidence-backed match reasons and risks
+5. Evaluate           → Agent reads the review queue and writes scores (0-100), evidence-backed reasons, and risks
 6. Validate URLs      → Drop empty or unreachable job detail links before reporting
 7. Generate Outputs   → Date-archived Markdown report + Top 3 application package
 8. Push/Notify        → Optional Feishu Wiki/Bitable push and optional Git auto-push
@@ -680,7 +686,7 @@ Raw Jobs (from crawlers)
     ↓
 [Semantic Intent Filter] Judge real role fit; keywords are supporting evidence only
     ↓
-[Resume Fit Scoring] Score, sort, threshold, cap report size
+[Agent Review Scoring] Read queue, score, sort, threshold, cap report size
     ↓
 [URL Validation] Remove unavailable or empty job links
     ↓
@@ -716,6 +722,8 @@ Located in `.claude/skills/jobhunter/`:
 ## 📄 Output Example
 
 Reports are written under the current run date. The same run can also create an application package for the Top 3 scored jobs.
+
+The recommendation section only shows final selected jobs. The same report keeps a full audit appendix with every crawled job, complete JD fields, original URL, processing stage, judgment source, evidence, scoring breakdown, and final decision. By default, formal recommendations must have `judgment_source=agent` and final decision `strong_apply` or `apply`; `maybe` remains an observation candidate, and `python_fallback` can only feed the review queue.
 
 ```markdown
 # Job Hunting Report
