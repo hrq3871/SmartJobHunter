@@ -465,14 +465,14 @@ python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "
 lark-cli auth login --domain base
 python -m src.eval_lark_sync setup
 python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
-python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases --sync-report
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-report
 ```
 
 Integration crawler tests require browser/network access and are marked with `integration`.
 
 Agent evaluation reports are written under `output/evals/YYYY-MM-DD/` and are local artifacts.
 Real-run evaluation reports are written under `output/evals/real_runs/YYYY-MM-DD/`.
-Real-run reports now include Chinese metric names, optional 1-5 human dimension scores, and a `bad_cases.md` file. Feishu/Lark sync can create a dedicated annotation table in the existing job-tracking Bitable, then append each run to managed badcase and evaluation-report documents for review.
+Real-run reports now include Chinese metric names, optional 1-5 human dimension scores, and a `bad_cases.md` file. Feishu/Lark sync can create a dedicated annotation table in the existing job-tracking Bitable, then append each run to the managed evaluation-report document. The managed BadCases document is reserved for manual analysis and handling notes.
 For the full internal Agent architecture, see `docs/smartjobhunter-agent-design.md`; for evaluation details, see `docs/smartjobhunter-evaluation-design.md`.
 
 ### Crawler Commands
@@ -757,10 +757,10 @@ python -m src.eval_lark_sync setup
 python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
 ```
 
-4. After labeling in Feishu/Lark, pull labels back, recompute metrics, and append the badcase and human-readable evaluation report documents:
+4. After labeling in Feishu/Lark, pull labels back, recompute metrics, and append the human-readable evaluation report document:
 
 ```powershell
-python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases --sync-report
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-report
 ```
 
 Human labels:
@@ -786,7 +786,7 @@ Core metrics:
 | `invalid_url_rate` / `recommended_invalid_url_rate` | invalid URLs in all records / recommended records |
 | `maybe_rate` / `unclear_rate` | human `maybe` or `unclear` labels / completed labels |
 
-Bad cases are written to `bad_cases.md` and can be appended to the managed Feishu/Lark badcase document. `real_run_eval_report.md` can also be appended to the managed evaluation-report document. Use bad cases as the repair queue:
+Bad cases are listed in `real_run_eval_report.md` and written locally to `bad_cases.md`. Do not auto-append that list to the managed Feishu/Lark BadCases document; that document is for manual analysis, handling decisions, and repair notes when the user explicitly asks to update it. Use bad cases as the repair queue:
 
 - `recommendation_false_positive`: recommended but human says `should_reject`; fix scoring, risk penalties, or Agent prompt rules.
 - `filtered_false_negative`: not recommended but human says `should_apply` or `maybe`; fix semantic filtering, thresholds, or role matching.

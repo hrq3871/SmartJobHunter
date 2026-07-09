@@ -515,13 +515,13 @@ python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "
 lark-cli auth login --domain base
 python -m src.eval_lark_sync setup
 python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
-python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases --sync-report
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-report
 python -m pytest tests/test_evaluation.py tests/test_eval_real_runs.py tests/test_eval_lark_sync.py -v
 ```
 
 默认 regression 数据集：`evals/regression/jobhunter_core.yaml`。
 
-真实巡检评估只读取已生成的报告，不重新抓取网页。第一次运行 `src.eval_real_runs` 会生成 `human_labels.yaml`；人工填写 `human_label`、必要备注和可选 1-5 维度分。URL 格式、推荐状态、报告存在、投递包存在等客观项由代码自动判定。标注入口可以是本地 YAML，也可以通过 `src.eval_lark_sync` 同步到飞书多维表格标注表；badcase 会写入本地 `bad_cases.md`，并追加同步到飞书 badcase 文档；`real_run_eval_report.md` 可追加同步到飞书评估报告文档。详细标注规则和指标定义见 `docs/smartjobhunter-evaluation-design.md`。
+真实巡检评估只读取已生成的报告，不重新抓取网页。第一次运行 `src.eval_real_runs` 会生成 `human_labels.yaml`；人工填写 `human_label`、必要备注和可选 1-5 维度分。URL 格式、推荐状态、报告存在、投递包存在等客观项由代码自动判定。标注入口可以是本地 YAML，也可以通过 `src.eval_lark_sync` 同步到飞书多维表格标注表；badcase 会列在 `real_run_eval_report.md`，并写入本地 `bad_cases.md`；`real_run_eval_report.md` 可追加同步到飞书评估报告文档。飞书 BadCases 文档只在用户明确要求时追加人工复盘、原因分析、处理方案和修复记录。详细标注规则和指标定义见 `docs/smartjobhunter-evaluation-design.md`。
 
 输出：
 

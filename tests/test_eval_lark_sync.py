@@ -10,6 +10,7 @@ from src.eval_lark_sync import (
     build_labels_doc_from_lark_records,
     format_lark_error,
     lark_field_definitions,
+    main,
     make_lark_json_arg,
     setup_feishu_eval_resources,
     sync_badcases_to_lark_doc,
@@ -177,6 +178,41 @@ def test_sync_badcases_appends_to_managed_lark_doc(tmp_path, monkeypatch):
     assert "旧原因不能被覆盖" in calls[0][1]
 
 
+def test_score_from_lark_does_not_auto_sync_generated_badcase_list(tmp_path, monkeypatch, capsys):
+    report_markdown = tmp_path / "real_run_eval_report.md"
+    report_markdown.write_text("# 真实评估报告\n\n## Bad Cases / 坏案例\n\n- 已列举", encoding="utf-8")
+    badcase_calls = []
+
+    monkeypatch.setattr("src.eval_lark_sync.parse_report", lambda path: {"records": []})
+    monkeypatch.setattr("src.eval_lark_sync.build_human_label_template", lambda parsed: {"labels": []})
+    monkeypatch.setattr(
+        "src.eval_lark_sync.import_labels_from_lark",
+        lambda template, run_id=None, config_path=None: {"labels": []},
+    )
+    monkeypatch.setattr(
+        "src.eval_lark_sync.run_real_run_evaluation",
+        lambda report, labels_path=None, output_root=None: {
+            "status": "complete",
+            "markdown_report": str(report_markdown),
+            "bad_cases": [{"record_id": "001"}],
+        },
+    )
+
+    def fail_if_generated_badcases_are_synced(markdown, config_path=None):
+        badcase_calls.append(markdown)
+        raise AssertionError("generated bad_cases.md should not be auto-synced")
+
+    monkeypatch.setattr("src.eval_lark_sync.sync_badcases_to_lark_doc", fail_if_generated_badcases_are_synced)
+
+    exit_code = main(["score-from-lark", "--report", "report.md", "--run-id", "run_001", "--sync-badcases"])
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert badcase_calls == []
+    assert "manual_badcase_analysis_required" in output
+    assert "BadCases" in output
+
+
 def test_sync_report_appends_to_managed_lark_doc(tmp_path, monkeypatch):
     config_path = tmp_path / "agent.yaml"
     config_path.write_text(
@@ -198,6 +234,32 @@ def test_sync_report_appends_to_managed_lark_doc(tmp_path, monkeypatch):
     assert calls[0][0][1:5] == ["docs", "+update", "--doc", "report_doc_001"]
     assert calls[0][0][calls[0][0].index("--mode") + 1] == "append"
     assert "推荐精确率" in calls[0][1]
+
+
+def test_sync_badcases_command_rejects_generated_badcase_report(tmp_path, monkeypatch, capsys):
+    config_path = tmp_path / "agent.yaml"
+    config_path.write_text("feishu:\n  eval_badcase_doc_id: badcase_doc_001\n", encoding="utf-8")
+    generated = tmp_path / "bad_cases.md"
+    generated.write_text(
+        "# SmartJobHunter Bad Cases\n\n"
+        "## 汇总\n\n"
+        "| 类型 | Record ID |\n"
+        "|:--|:--|\n"
+        "| 推荐误报 | `001` |\n\n"
+        "## 分析步骤\n\n"
+        "1. 打开源报告。\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "src.eval_lark_sync._run_lark_json",
+        lambda cmd, input_text=None: {"success": True},
+    )
+
+    exit_code = main(["sync-badcases", "--badcases", str(generated), "--config", str(config_path)])
+    stderr = capsys.readouterr().err
+
+    assert exit_code == 1
+    assert "manual analysis" in stderr
 
 
 def test_setup_creates_annotation_badcase_and_report_resources(tmp_path, monkeypatch):

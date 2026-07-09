@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Sync real-run evaluation labels and badcases with Feishu/Lark."""
+"""Sync real-run evaluation labels and review docs with Feishu/Lark."""
 
 from __future__ import annotations
 
@@ -24,9 +24,7 @@ from .eval_real_runs import (
     HUMAN_SCORE_FIELDS,
     build_human_label_template,
     parse_report,
-    render_badcase_markdown,
     run_real_run_evaluation,
-    score_real_run,
 )
 
 
@@ -289,7 +287,7 @@ def sync_badcases_to_lark_doc(
     markdown: str,
     config_path: str | Path = DEFAULT_CONFIG_PATH,
 ) -> Dict[str, Any]:
-    """Append one run's badcase markdown to the managed Feishu badcase document."""
+    """Append manual badcase analysis to the managed Feishu badcase document."""
     return _append_markdown_to_lark_doc(
         markdown,
         config_path=config_path,
@@ -398,7 +396,8 @@ def _create_badcase_doc(feishu_config: Dict[str, Any]) -> Dict[str, Any]:
         title=BADCASE_DOC_TITLE,
         initial_markdown=(
             "# SmartHunter真实评估BadCases\n\n"
-            "这里按运行时间追加真实巡检 badcase。历史原因分析不会被后续同步覆盖。\n"
+            "这里不自动同步真实评估报告中的 badcase 列表；报告已经列出 badcase。\n\n"
+            "本页只追加人工复盘、原因分析、处理方案和修复记录。需要更新时，由用户明确要求后再写入。\n"
         ),
     )
 
@@ -432,6 +431,26 @@ def _create_eval_doc(feishu_config: Dict[str, Any], *, title: str, initial_markd
 def _append_section(markdown: str) -> str:
     body = markdown.strip()
     return f"\n\n---\n\n{body}\n"
+
+
+def _is_generated_badcase_report(markdown: str) -> bool:
+    text = markdown.strip()
+    return (
+        text.startswith("# SmartJobHunter Bad Cases")
+        and "## 汇总" in text
+        and "## 分析步骤" in text
+    )
+
+
+def _manual_badcase_sync_skipped() -> Dict[str, Any]:
+    return {
+        "skipped": True,
+        "reason": "manual_badcase_analysis_required",
+        "message": (
+            "Generated badcase lists are already included in real_run_eval_report.md. "
+            "Only append user-requested analysis and handling notes to SmartHunter真实评估BadCases."
+        ),
+    }
 
 
 def _extract_items(data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -569,8 +588,8 @@ def main(argv: List[str] | None = None) -> int:
     score.add_argument("--sync-badcases", action="store_true")
     score.add_argument("--sync-report", action="store_true")
 
-    badcase = sub.add_parser("sync-badcases", help="Append a local bad_cases.md to Feishu doc")
-    badcase.add_argument("--badcases", required=True)
+    badcase = sub.add_parser("sync-badcases", help="Append manual badcase analysis markdown to Feishu doc")
+    badcase.add_argument("--badcases", required=True, help="Path to a manual badcase analysis markdown file")
     badcase.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
 
     report = sub.add_parser("sync-report", help="Append a local real_run_eval_report.md to Feishu doc")
@@ -602,7 +621,7 @@ def main(argv: List[str] | None = None) -> int:
             result = run_real_run_evaluation(args.report, labels_path=labels_path, output_root=args.output_root)
             lark_sync: Dict[str, Any] = {}
             if args.sync_badcases:
-                lark_sync["badcases"] = sync_badcases_to_lark_doc(render_badcase_markdown(result), args.config)
+                lark_sync["badcases"] = _manual_badcase_sync_skipped()
             if args.sync_report:
                 report_markdown = Path(result["markdown_report"]).read_text(encoding="utf-8")
                 lark_sync["report"] = sync_report_to_lark_doc(report_markdown, args.config)
@@ -610,6 +629,11 @@ def main(argv: List[str] | None = None) -> int:
                 result = {**result, "lark_sync": lark_sync}
         elif args.command == "sync-badcases":
             markdown = Path(args.badcases).read_text(encoding="utf-8")
+            if _is_generated_badcase_report(markdown):
+                raise RuntimeError(
+                    "Generated bad_cases.md is already listed in real_run_eval_report.md; "
+                    "write a manual analysis/handling note and sync that instead."
+                )
             result = sync_badcases_to_lark_doc(markdown, args.config)
         else:
             markdown = Path(args.report).read_text(encoding="utf-8")

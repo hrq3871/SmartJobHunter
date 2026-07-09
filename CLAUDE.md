@@ -360,7 +360,7 @@ python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "
 lark-cli auth login --domain base
 python -m src.eval_lark_sync setup
 python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
-python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases --sync-report
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-report
 ```
 
 评估输出：
@@ -381,7 +381,7 @@ output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
 └── bad_cases.md
 ```
 
-飞书标注表由 `src.eval_lark_sync setup` 在既有岗位追踪多维表格中创建或复用，表名为 `SmartHunter真实评估标注`；badcase 文档名为 `SmartHunter真实评估BadCases`；人看的评估报告文档名为 `SmartHunter真实评估报告`。生成的 `eval_annotation_table_id`、`eval_badcase_doc_id`、`eval_badcase_doc_url`、`eval_report_doc_id` 和 `eval_report_doc_url` 只写入本地 `config/agent.yaml`，不得提交。飞书 badcase 和评估报告同步必须使用追加模式，不得覆盖历史分析。
+飞书标注表由 `src.eval_lark_sync setup` 在既有岗位追踪多维表格中创建或复用，表名为 `SmartHunter真实评估标注`；badcase 文档名为 `SmartHunter真实评估BadCases`；人看的评估报告文档名为 `SmartHunter真实评估报告`。生成的 `eval_annotation_table_id`、`eval_badcase_doc_id`、`eval_badcase_doc_url`、`eval_report_doc_id` 和 `eval_report_doc_url` 只写入本地 `config/agent.yaml`，不得提交。真实评估报告会列出 badcase；飞书 BadCases 文档只用于用户明确要求时追加人工复盘、原因分析、处理方案和修复记录，不自动同步 generated `bad_cases.md` 列表。飞书评估报告同步必须使用追加模式，不得覆盖历史指标报告。
 
 评估归因：
 
@@ -441,7 +441,7 @@ python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "
 lark-cli auth login --domain base
 python -m src.eval_lark_sync setup
 python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
-python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases --sync-report
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-report
 ```
 
 ## 确认机制

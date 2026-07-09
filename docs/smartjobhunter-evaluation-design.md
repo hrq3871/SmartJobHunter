@@ -68,8 +68,8 @@ python -m src.eval_lark_sync setup
 # 可选：把待标注样本同步到飞书标注表
 python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
 
-# 可选：标完后从飞书拉回标签、重算指标，并追加同步 badcase 和评估报告文档
-python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases --sync-report
+# 可选：标完后从飞书拉回标签、重算指标，并追加同步评估报告文档
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-report
 ```
 
 输出：
@@ -83,7 +83,7 @@ output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
 └── bad_cases.md
 ```
 
-`real_run_eval_report.md` 是本次指标报告；`bad_cases.md` 是本地 badcase 分析文档，可同步到飞书文档作为复盘入口。
+`real_run_eval_report.md` 是本次指标报告，并包含 badcase 表；`bad_cases.md` 是本地生成的 badcase 列表。飞书 BadCases 文档不自动同步这份列表，只在用户明确要求时追加人工复盘、原因分析、处理方案和修复记录。
 
 ## 自动判定项
 
@@ -211,7 +211,7 @@ labels:
 
 ## Bad Case 处理
 
-`src.eval_real_runs` 会在指标报告中生成 `Bad Cases / 坏案例` 表，并单独写出 `bad_cases.md`。飞书同步开启后，`bad_cases.md` 会覆盖同步到托管的飞书文档，方便集中复盘。
+`src.eval_real_runs` 会在指标报告中生成 `Bad Cases / 坏案例` 表，并单独写出 `bad_cases.md`。由于真实评估报告已经列举 badcase，飞书 BadCases 文档不再自动同步 generated `bad_cases.md`；它只保存人工复盘、原因分析、处理方案和修复记录。
 
 badcase 类型：
 
@@ -227,7 +227,7 @@ badcase 类型：
 
 分析处理按五步：
 
-1. 在 `real_run_eval_report.md` 或飞书 badcase 文档中看 badcase 表，定位 `record_id`。
+1. 在 `real_run_eval_report.md` 中看 badcase 表，定位 `record_id`。
 2. 回到源报告的 `全量抓取与判断记录`，核对完整职责、完整任职要求、系统推荐理由、评分拆解、风险和人工备注。
 3. 按 attribution 定位修复入口：`matching_filtering` 修语义过滤，`recommendation_quality` 修评分/风险/Prompt，`output_quality` 修链接、报告、投递包或 memory。
 4. 修复代码、配置、Prompt 或 Agent 文档后，重跑 `python -m src.evaluation --fail-under 1.0` 和真实巡检评估。
@@ -252,7 +252,7 @@ lark-cli auth login --domain base
 python -m src.eval_lark_sync setup
 ```
 
-该命令会在 `config/agent.yaml` 指向的岗位追踪多维表格中创建或复用 `SmartHunter真实评估标注` 表，并创建或复用 `SmartHunter真实评估BadCases` 与 `SmartHunter真实评估报告` 两个文档。生成的 `eval_annotation_table_id`、`eval_badcase_doc_id`、`eval_badcase_doc_url`、`eval_report_doc_id` 和 `eval_report_doc_url` 只写入本地 `config/agent.yaml`，不提交 Git。飞书文档同步采用追加模式，历史 badcase 原因分析和历史指标报告不得被后续 run 覆盖。
+该命令会在 `config/agent.yaml` 指向的岗位追踪多维表格中创建或复用 `SmartHunter真实评估标注` 表，并创建或复用 `SmartHunter真实评估BadCases` 与 `SmartHunter真实评估报告` 两个文档。生成的 `eval_annotation_table_id`、`eval_badcase_doc_id`、`eval_badcase_doc_url`、`eval_report_doc_id` 和 `eval_report_doc_url` 只写入本地 `config/agent.yaml`，不提交 Git。飞书评估报告文档同步采用追加模式；飞书 BadCases 文档只在用户明确要求时追加人工复盘、原因分析、处理方案和修复记录，不自动同步 generated `bad_cases.md` 列表。
 
 每次真实巡检后：
 
@@ -265,8 +265,8 @@ python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY
 
 # 3. 在飞书标注表里只填人工标签、1-5 分和备注
 
-# 4. 标完后拉回飞书标签、重算指标、追加同步 badcase 和评估报告文档
-python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases --sync-report
+# 4. 标完后拉回飞书标签、重算指标、追加同步评估报告文档
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-report
 ```
 
 飞书标注表字段分三类：

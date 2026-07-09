@@ -463,13 +463,13 @@ python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "
 lark-cli auth login --domain base
 python -m src.eval_lark_sync setup
 python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
-python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases --sync-report
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-report
 ```
 
 集成爬虫测试需要浏览器和网络访问，并使用 `integration` 标记。
 
 Agent 回归评估报告会写入 `output/evals/YYYY-MM-DD/`，真实巡检评估报告会写入 `output/evals/real_runs/YYYY-MM-DD/`，都属于本地运行产物。
-真实巡检评估报告包含中文指标名、可选 1-5 人工维度分和 `bad_cases.md`。飞书同步可在已有岗位追踪多维表格中新建标注表，并把每次结果追加到托管 badcase 文档和评估报告文档，方便连续复盘。
+真实巡检评估报告包含中文指标名、可选 1-5 人工维度分和 `bad_cases.md`。飞书同步可在已有岗位追踪多维表格中新建标注表，并把每次结果追加到托管评估报告文档；托管 BadCases 文档只用于手动追加原因分析、处理方案和修复记录。
 完整内部 Agent 架构见 `docs/smartjobhunter-agent-design.md`；评估详细设计见 `docs/smartjobhunter-evaluation-design.md`。
 
 ### 爬虫命令
@@ -771,10 +771,10 @@ python -m src.eval_lark_sync setup
 python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
 ```
 
-4. 飞书标完后拉回标签、重算指标，并追加同步 badcase 文档和人看的评估报告文档：
+4. 飞书标完后拉回标签、重算指标，并追加同步人看的评估报告文档：
 
 ```powershell
-python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases --sync-report
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-report
 ```
 
 人工标签：
@@ -800,7 +800,7 @@ python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report
 | `invalid_url_rate` / `recommended_invalid_url_rate` | 全量记录 / 推荐区里的无效链接比例 |
 | `maybe_rate` / `unclear_rate` | 人工标 `maybe` / `unclear` 的比例 |
 
-Badcase 会写入 `bad_cases.md`，也可以追加同步到飞书 badcase 文档；`real_run_eval_report.md` 也可以追加同步到飞书评估报告文档。处理时按类型修：
+Badcase 会在 `real_run_eval_report.md` 里列出，并本地写入 `bad_cases.md`。不要把这份列表自动追加到飞书 BadCases 文档；飞书 BadCases 文档只在你明确要求时，用来追加我对某个 badcase 的原因分析、处理方案和修复记录。处理时按类型修：
 
 - `recommendation_false_positive` 推荐误报：系统推荐但人工标 `should_reject`，修评分、风险扣分或 Agent prompt。
 - `filtered_false_negative` 过滤误杀：系统没推荐但人工标 `should_apply` / `maybe`，修语义过滤、阈值或岗位匹配。
