@@ -35,6 +35,15 @@ from .run_records import (
 from .exceptions import ConfigError, ProfileNotFoundError
 
 
+def _job_filter_key(job: dict) -> Tuple[str, str, str, str]:
+    return (
+        str(job.get("hash") or ""),
+        str(job.get("url") or ""),
+        str(job.get("company") or ""),
+        str(job.get("title") or ""),
+    )
+
+
 def validate_profile(profile: dict) -> bool:
     """验证意向配置
 
@@ -253,6 +262,7 @@ class JobHunter:
         self.output_dir = Path("output")
         self.memory_dir = Path("memory")
         self._pending_repairs: List[dict] = []
+        self._last_filter_reasons: Dict[Tuple[str, str, str, str], Tuple[str, str]] = {}
 
         # 确保目录存在
         self.output_dir.mkdir(exist_ok=True)
@@ -368,7 +378,19 @@ class JobHunter:
 
         return str(task_path)
 
-    def filter_jobs(self, jobs: List[dict], profile: dict) -> List[dict]:
+    def _record_filter_drops(
+        self,
+        before_jobs: List[dict],
+        after_jobs: List[dict],
+        stage: str,
+        reason: str,
+    ) -> None:
+        kept_keys = {_job_filter_key(job) for job in after_jobs}
+        for job in before_jobs:
+            if _job_filter_key(job) not in kept_keys:
+                self._last_filter_reasons[_job_filter_key(job)] = (stage, reason)
+
+    def filter_jobs(self, jobs: List[dict], profile: dict, job_type: str = None) -> List[dict]:
         """过滤岗位
 
         Args:
@@ -381,15 +403,35 @@ class JobHunter:
         global_config = self.config.get('global', {}) if self.config else {}
         time_filter_days = global_config.get('time_filter_days', 3)
         truncate_length = global_config.get('jd_truncate_length', 6000)
+        self._last_filter_reasons = {}
 
         # 时间过滤
         print(f"\n[Filter] Time filter (last {time_filter_days} days)...")
-        jobs = filters.filter_by_time(jobs, time_filter_days)
+        before_time_filter = list(jobs)
+        profile_job_type = self._map_job_type_to_key(profile.get('job_type')) or profile.get('job_type')
+        jobs = filters.filter_by_time(
+            jobs,
+            time_filter_days,
+            job_type=job_type or profile_job_type,
+        )
+        self._record_filter_drops(
+            before_time_filter,
+            jobs,
+            "time_filtered",
+            "publish_time_outside_window",
+        )
         print(f"   Remaining: {len(jobs)} jobs")
 
         # 去重
         print("\n[Filter] Dedup...")
+        before_dedup = list(jobs)
         jobs = filters.dedup(jobs, self.seen_hashes)
+        self._record_filter_drops(
+            before_dedup,
+            jobs,
+            "deduplicated",
+            "seen_job_hash",
+        )
         print(f"   Remaining: {len(jobs)} jobs")
 
         # 数据清洗
@@ -423,6 +465,11 @@ class JobHunter:
                 job['semantic_match'] = semantic
                 if semantic.get('should_keep'):
                     matched_jobs.append(job)
+                else:
+                    self._last_filter_reasons[_job_filter_key(job)] = (
+                        "semantic_rejected",
+                        "semantic_intent_mismatch",
+                    )
             jobs = matched_jobs
             print(f"   Remaining: {len(jobs)} jobs")
 
@@ -764,12 +811,24 @@ class JobHunter:
             attach_evaluation(record, fallback_evaluation, source="python_fallback")
 
         # Step 2-3: 过滤
-        jobs = self.filter_jobs(jobs, profile)
+        jobs = self.filter_jobs(jobs, profile, job_type_key)
         filtered_record_ids = select_record_ids_for_jobs(run_records, jobs)
         all_record_ids = {record["run_record_id"] for record in run_records}
+        filtered_out_record_ids = all_record_ids - filtered_record_ids
+        attributed_record_ids = set()
+        for record in run_records:
+            record_id = record["run_record_id"]
+            if record_id not in filtered_out_record_ids:
+                continue
+            filter_reason = self._last_filter_reasons.get(_job_filter_key(record.get("raw_job") or {}))
+            if not filter_reason:
+                continue
+            stage, reason = filter_reason
+            update_record_stage(run_records, {record_id}, stage, reason)
+            attributed_record_ids.add(record_id)
         update_record_stage(
             run_records,
-            all_record_ids - filtered_record_ids,
+            filtered_out_record_ids - attributed_record_ids,
             "filtered_out",
             "filtered_before_recommendation",
         )

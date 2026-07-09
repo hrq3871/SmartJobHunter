@@ -147,6 +147,21 @@ def test_parse_report_extracts_audit_records_and_auto_url_state(tmp_path):
     assert parsed["records"][2]["url_failure_reason"] == "empty_url"
 
 
+def test_parse_report_treats_specific_filter_stages_as_filtered(tmp_path):
+    report_path = tmp_path / "eval_profile_20260708_2000.md"
+    report = _sample_real_report().replace(
+        "filtered_out: filtered_before_recommendation",
+        "time_filtered: publish_time_outside_window",
+    )
+    report_path.write_text(report, encoding="utf-8")
+
+    parsed = parse_report(report_path)
+
+    assert parsed["records"][3]["processing_stage"] == "time_filtered: publish_time_outside_window"
+    assert parsed["records"][3]["is_filtered"] is True
+    assert parsed["records"][3]["system_decision"] == "filtered_out"
+
+
 def test_human_template_excludes_objective_invalid_and_low_confidence_rejects(tmp_path):
     report_path = tmp_path / "eval_profile_20260708_2000.md"
     report_path.write_text(_sample_real_report(), encoding="utf-8")

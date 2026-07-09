@@ -94,7 +94,7 @@ output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
 | URL 是否格式有效 | 空 URL、非 HTTP(S)、包含 `...` / `…` 判为无效 |
 | URL 是否被报告过滤 | `处理状态` 包含 `url_rejected` |
 | 是否进入推荐区 | `处理状态` 为 `recommended` |
-| 是否被过滤 | `处理状态` 以 `filtered_out` 开头 |
+| 是否被过滤 | `处理状态` 以 `filtered_out`、`time_filtered`、`deduplicated`、`semantic_rejected` 开头 |
 | 报告是否存在 | 文件存在且可读 |
 | 全量审计是否存在 | 包含 `## 全量抓取与判断记录` |
 | 投递包是否存在 | 同日期 `application_packages/<report_stem>/` 或相近目录存在 |

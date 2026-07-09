@@ -23,6 +23,12 @@ ALLOWED_HUMAN_LABELS = ["should_apply", "maybe", "should_reject", "invalid_link"
 POSITIVE_LABELS = {"should_apply", "maybe"}
 STRICT_POSITIVE_LABELS = {"should_apply"}
 UNCLEAR_LABELS = {"unclear"}
+FILTERED_STAGE_PREFIXES = (
+    "filtered_out",
+    "time_filtered",
+    "deduplicated",
+    "semantic_rejected",
+)
 HUMAN_SCORE_FIELDS = {
     "role_fit": "岗位方向分",
     "skill_match": "技能匹配分",
@@ -505,7 +511,7 @@ def _parse_audit_records(text: str) -> List[Dict[str, Any]]:
         final_decision = fields.get("最终结论") or score_decision
         processing_stage = fields.get("处理状态", "")
         is_recommended = processing_stage.strip().startswith("recommended")
-        is_filtered = processing_stage.strip().startswith("filtered_out")
+        is_filtered = _is_filtered_stage(processing_stage)
         records.append(
             {
                 "record_id": f"{number:03d}" if number is not None else f"{len(records) + 1:03d}",
@@ -528,6 +534,11 @@ def _parse_audit_records(text: str) -> List[Dict[str, Any]]:
             }
         )
     return records
+
+
+def _is_filtered_stage(processing_stage: str) -> bool:
+    normalized = processing_stage.strip()
+    return any(normalized.startswith(prefix) for prefix in FILTERED_STAGE_PREFIXES)
 
 
 def _find_application_package(report_path: Path) -> Path | None:
