@@ -109,7 +109,7 @@
 | 🔍 **智能过滤** | 三层漏斗：时间 → 去重 → 语义意向匹配 |
 | 📊 **AI 评估** | Agent 主判 + Python fallback 粗评分（0-100分）+ 基于证据的匹配理由 |
 | 📊 **岗位分类** | 区分实习/校招/社招 |
-| ⏰ **定时执行** | 每天 20:00 自动巡检 |
+| ⏰ **定时执行** | 通过 `src.scheduler` 或外部自动化配置定时巡检 |
 | 🔧 **每日策略巡检** | 抓取前巡检公司链接，采集证据，并由当前 Agent 固化可复用抓取策略 |
 | 🏢 **公司官网** | 配置中启用的公司以当前测试结果为准 |
 | ⚙️ **配置驱动** | 优先通过配置添加公司，特殊站点可能需要代码适配 |
@@ -170,6 +170,9 @@ name: 产品经理
 enabled: true
 job_type: 社招
 resume: resumes/my_resume.md
+search_keywords:
+  - 产品经理
+  - AI产品
 keywords:
   - 产品经理
   - TOB
@@ -231,9 +234,12 @@ SmartJobHunter/
 │   ├── eval_graders.py      # 显式 code/model/human grader helper
 │   ├── eval_transcript.py   # eval case 的 JSONL 轨迹记录器
 │   ├── resume_parser.py     # 简历解析（PDF/Markdown/TXT）
-│   ├── scheduler.py         # 定时调度（每天 20:00）
+│   ├── scheduler.py         # 可配置定时巡检入口
 │   ├── git_auto_push.py     # 可选 Git 自动推送
 │   └── site_strategies/     # 专用公司抓取策略
+│
+├── 📂 templates/            # 本地 Web 控制台前端
+│   └── index.html
 │
 ├── 📂 config/               # 配置文件
 │   ├── agent.sample.yaml    # 可提交的 Agent 示例配置
@@ -252,6 +258,8 @@ SmartJobHunter/
 ├── 📂 .claude/skills/       # Claude Code Agent Skills
 │   └── jobhunter/           # JobHunter Agent
 │
+├── 📄 setup_schedule.bat    # Windows 任务计划创建脚本
+├── 📄 run_scheduled.bat     # Windows 定时巡检启动脚本
 └── 📄 公司列表.md           # 公司列表文档
 ```
 

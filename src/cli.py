@@ -333,6 +333,13 @@ class JobHunter:
 
         return all_jobs
 
+    def _resolve_search_keywords(self, profile: dict) -> List[str]:
+        """Return the ordered crawl keywords for a profile."""
+        raw_keywords = profile.get('search_keywords') or profile.get('keywords') or ["产品经理"]
+        if isinstance(raw_keywords, str):
+            raw_keywords = [item for item in re.split(r"[,，、\s]+", raw_keywords) if item]
+        return [str(item).strip() for item in raw_keywords if str(item).strip()]
+
     def write_batch_repair_task(self, keyword: str, job_type: str) -> str:
         """将本轮全部失败公司写入一份批量修复 task，供 Agent 一次性委派子 Agent。"""
         if not self._pending_repairs:
@@ -669,6 +676,9 @@ class JobHunter:
 
     # 岗位类型映射表
     JOB_TYPE_MAPPING = {
+        'social': 'social',
+        'campus': 'campus',
+        'internship': 'internship',
         '社招': 'social',
         '校招': 'campus',
         '实习': 'internship',
@@ -727,14 +737,15 @@ class JobHunter:
 
         # Step 1: 抓取岗位
         print("\n[Step 1] Crawling jobs...")
-        search_keywords = profile.get('search_keywords') or ([keywords[0]] if keywords else ["产品经理"])
+        search_keywords = self._resolve_search_keywords(profile)
+        search_keyword_label = "、".join(search_keywords)
         job_type_key = self._map_job_type_to_key(job_type)
         jobs = self.crawl_jobs(search_keywords, max_jobs=50, job_type=job_type_key)
 
         # Step 1.5: 若存在抓取失败的公司，写入批量修复 task 并打印提示，
         # 但不中断流程——报告照常生成，Agent 可在跑完后修复。
         if self._pending_repairs:
-            batch_path = self.write_batch_repair_task(keyword, job_type_key)
+            batch_path = self.write_batch_repair_task(search_keyword_label, job_type_key)
             print(f"\n[Repair Notice] {len(self._pending_repairs)} company(s) failed to crawl.")
             print(f"[Repair Notice] Batch task: {batch_path}")
             print(f"[Repair Notice] Run crawler-strategy-inspector to fix, then re-run crawl.")

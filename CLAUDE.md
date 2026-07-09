@@ -46,6 +46,9 @@ SmartJobHunter/
 │   ├── eval-case-feedback-loop.md              # 真实失败回流 eval case 的流程
 │   └── candidates/                             # 待提升的真实失败候选 case
 ├── src/                                        # Python 工具层
+├── templates/index.html                        # 本地 Web 控制台前端
+├── setup_schedule.bat                          # Windows 任务计划创建脚本
+├── run_scheduled.bat                           # Windows 定时巡检启动脚本
 └── .claude/
     ├── agents/
     │   └── crawler-strategy-inspector.md       # 独立策略巡检/修复子 Agent

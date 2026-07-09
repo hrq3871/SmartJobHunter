@@ -111,7 +111,7 @@ The system can analyze:
 | 🔍 **Smart Filtering** | Three-layer funnel: Time → Dedup → semantic intent match |
 | 📊 **AI Evaluation** | Agent judgment + Python fallback coarse scoring (0-100) + evidence-based match reasons |
 | 📊 **Job Classification** | Distinguish internship/campus/social recruitment |
-| ⏰ **Scheduled Execution** | Daily automatic inspection at 20:00 |
+| ⏰ **Scheduled Execution** | Configurable scheduled inspection through `src.scheduler` or external automation |
 | 🔧 **Daily Strategy Inspection** | Inspect company links before crawling, collect evidence, and let the current Agent solidify crawler strategies |
 | 🏢 **Company Sites** | Enabled company configs are validated by current test results |
 | ⚙️ **Config-Driven** | Prefer config-driven company support; special sites may still need code adapters |
@@ -172,6 +172,9 @@ name: Product Manager
 enabled: true
 job_type: 社招
 resume: resumes/my_resume.md
+search_keywords:
+  - Product Manager
+  - AI Product
 keywords:
   - Product Manager
   - TOB
@@ -233,9 +236,12 @@ SmartJobHunter/
 │   ├── eval_graders.py      # Explicit code/model/human grader helpers
 │   ├── eval_transcript.py   # JSONL transcript recorder for eval cases
 │   ├── resume_parser.py     # Resume parser (PDF/Markdown/TXT)
-│   ├── scheduler.py         # Job scheduler (daily at 20:00)
+│   ├── scheduler.py         # Configurable scheduled inspection entry point
 │   ├── site_strategies/     # Custom Python site strategies
 │   └── git_auto_push.py     # Optional Git auto push
+│
+├── 📂 templates/            # Local Web console frontend
+│   └── index.html
 │
 ├── 📂 config/               # Configuration
 │   ├── agent.sample.yaml    # Safe sample agent settings
@@ -254,6 +260,8 @@ SmartJobHunter/
 ├── 📂 .claude/skills/       # Claude Code Agent Skills
 │   └── jobhunter/           # JobHunter Agent
 │
+├── 📄 setup_schedule.bat    # Windows Task Scheduler helper
+├── 📄 run_scheduled.bat     # Windows scheduled-run wrapper
 └── 📄 公司列表.md           # Company list documentation (Chinese)
 ```
 

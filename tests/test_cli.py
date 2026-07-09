@@ -196,6 +196,47 @@ def test_run_profile_generates_audit_report_when_no_jobs_survive_filtering(monke
     assert captured["records"][0]["evaluation"]["source"] == "python_fallback"
 
 
+def test_run_profile_uses_search_keywords_for_crawl_and_repair_task(monkeypatch, tmp_path):
+    hunter = JobHunter()
+    hunter.memory_dir = tmp_path
+    hunter.output_dir = tmp_path
+    hunter.config = {"global": {"time_filter_days": 30, "threshold_score": 70}, "output": {}}
+    hunter.seen_hashes = set()
+    captured = {}
+
+    def fake_crawl(search_keywords, max_jobs=50, job_type=None):
+        captured["search_keywords"] = search_keywords
+        captured["job_type"] = job_type
+        hunter._pending_repairs = [
+            {"company_id": "example", "company_name": "Example", "reason": "no_jobs_found"}
+        ]
+        return []
+
+    def fake_repair_task(keyword, job_type):
+        captured["repair_keyword"] = keyword
+        captured["repair_job_type"] = job_type
+        return "logs/strategy_tasks/_batch/task.json"
+
+    monkeypatch.setattr(hunter, "crawl_jobs", fake_crawl)
+    monkeypatch.setattr(hunter, "write_batch_repair_task", fake_repair_task)
+
+    result = hunter.run_profile(
+        {
+            "name": "AI产品经理",
+            "_profile_id": "ai_pm_task",
+            "keywords": ["AI产品经理"],
+            "search_keywords": ["产品经理", "AI产品"],
+        },
+        job_type_override="social",
+    )
+
+    assert result == []
+    assert captured["search_keywords"] == ["产品经理", "AI产品"]
+    assert captured["job_type"] == "social"
+    assert captured["repair_keyword"] == "产品经理、AI产品"
+    assert captured["repair_job_type"] == "social"
+
+
 def test_validate_report_urls_drops_unavailable_links(monkeypatch):
     hunter = JobHunter()
     jobs = [

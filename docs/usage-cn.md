@@ -45,6 +45,9 @@ name: AI 产品经理
 enabled: true
 job_type: 社招
 resume: resumes/ai_pm.md
+search_keywords:
+  - 产品经理
+  - AI产品
 keywords:
   - AI产品经理
   - Agent产品
@@ -82,7 +85,8 @@ avoid:
 | `enabled` | 是 | 是否启用这个巡检任务 |
 | `job_type` | 是 | Profile 文件里写 `社招`、`校招`、`实习`；命令行 `-t` 才使用 `social`、`campus`、`internship` |
 | `resume` | 是 | 关联的简历文件 |
-| `keywords` | 建议 | 抓取官网岗位时使用的关键词 |
+| `search_keywords` | 建议 | 实际写入招聘网站搜索框的 2-3 个抓取词，建议一宽一窄 |
+| `keywords` | 建议 | 语义匹配和证据判断使用的辅助关键词，不建议只靠它决定抓取范围 |
 | `target_roles` | 是 | 目标岗位名，不要只写一个过窄关键词 |
 | `target_domains` | 建议 | 目标行业/业务方向 |
 | `must_have` | 是 | 必须匹配的能力或职责 |
