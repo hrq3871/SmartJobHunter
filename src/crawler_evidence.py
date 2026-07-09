@@ -244,12 +244,16 @@ def collect_evidence(
         page = browser.new_page()
 
         def handle_request(request):
+            try:
+                pd = getattr(request, "post_data", None)
+            except Exception:
+                pd = None
             network_requests.append({
                 "event": "request",
                 "url": sanitize_url(request.url),
                 "method": request.method,
                 "resource_type": request.resource_type,
-                "post_data": sanitize_post_data(getattr(request, "post_data", None)),
+                "post_data": sanitize_post_data(pd),
                 "trigger_action_id": current_phase,
             })
 

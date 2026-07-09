@@ -23,6 +23,7 @@ SmartJobHunter/
 ├── CLAUDE.md / AGENTS.md                       # 本 Agent 定义文件，自动加载
 ├── docs/
 │   ├── smartjobhunter-agent-design.md          # AI 自动维护的全局设计文档
+│   ├── smartjobhunter-evaluation-design.md     # 回归/真实巡检评估与人工标注设计
 │   └── plans/                                  # 历史计划，不作为当前运行规则
 ├── config/
 │   ├── companies.yaml                          # 公司官网链接和抓取策略
@@ -45,6 +46,9 @@ SmartJobHunter/
 │   ├── eval-case-feedback-loop.md              # 真实失败回流 eval case 的流程
 │   └── candidates/                             # 待提升的真实失败候选 case
 ├── src/                                        # Python 工具层
+├── templates/index.html                        # 本地 Web 控制台前端
+├── setup_schedule.bat                          # Windows 任务计划创建脚本
+├── run_scheduled.bat                           # Windows 定时巡检启动脚本
 └── .claude/
     ├── agents/
     │   └── crawler-strategy-inspector.md       # 独立策略巡检/修复子 Agent
@@ -79,7 +83,7 @@ SmartJobHunter/
 
 ## Skill / Prompt 路由
 
-`.claude/skills/jobhunter/skill.md` 只是 Skillmap，用来快速找到对应子流程。具体判断必须读取对应 prompt。
+`.claude/skills/jobhunter/skill.md` 只是 Skillmap，请在加载时读取全部Skills的短描述，用来在对应时机快速找到对应子流程。具体判断必须读取对应 prompt。
 
 ```text
 +--------------------------------------+----------------------------------------------+----------------------------------------------+
@@ -95,6 +99,7 @@ SmartJobHunter/
 | 批量策略巡检与修复                     | crawler-strategy-inspector 子 Agent           | 全部 pending strategy tasks                  |
 | 生成或复核报告                        | report.md                                     | output/{YYYY-MM-DD}/                         |
 | 评估失败或 instruction_drift          | evals/evaluation-grader-rubrics.md            | transcripts/<case_id>.jsonl                  |
+| 真实巡检评估                          | docs/smartjobhunter-evaluation-design.md      | python -m src.eval_real_runs                 |
 | 真实失败样本回流                      | evals/eval-case-feedback-loop.md              | evals/candidates/                            |
 +--------------------------------------+----------------------------------------------+----------------------------------------------+
 ```
@@ -104,7 +109,7 @@ SmartJobHunter/
 完整巡检必须遵循以下状态名，状态名不得随意改：
 
 ```text
-INIT -> LOADED -> STRATEGY_INSPECTED -> CRAWLED -> FILTERED -> EVALUATED -> URL_VALIDATED -> REPORTED -> PACKAGED -> DONE
+INIT -> LOADED -> CRAWLED -> FILTERED -> EVALUATED -> URL_VALIDATED -> REPORTED -> PACKAGED -> DONE
 ```
 
 ### INIT
@@ -145,44 +150,10 @@ claude --permission-mode auto --agent crawler-strategy-inspector --name "SmartHu
 
 巡检会话必须先生成正式 profile，再执行抓取、Agent 语义匹配和报告；策略修复一次只启动一个 `crawler-strategy-inspector`，串行处理全部选中公司。启动异常必须返回前端，不得吞掉异常或伪报成功。
 
-### STRATEGY_INSPECTED
+### STRATEGY_INSPECTED（已合并至 CRAWLED）
 
-目标：巡检公司官网链接和抓取策略。
-
-命令：
-
-```powershell
-python -m src.health_monitor --inspect-strategies --keyword "<关键词>" --job-type <social|campus|internship>
-python -m src.health_monitor --inspect-company <company_id> --keyword "<关键词>"
-```
-
-当出现 `unknown/new/changed/failed` 时，读取：
-
-- `logs/strategy_tasks/.../task.json`
-- `logs/crawler_evidence/.../evidence.json`
-- `logs/crawler_evidence/.../network.json`
-- `logs/crawler_evidence/.../page.html`
-- `logs/crawler_evidence/.../page.txt`
-- `logs/crawler_evidence/.../page.png`
-
-使用 `prompts/analyze_crawler_strategy.md` 判断：
-
-- `config_intercept`
-- `config_dom`
-- `legacy_python`
-- `custom_python`
-- `browser_operation`
-- `unsupported`
-
-修改策略后必须验证：
-
-```powershell
-python tests/test_all_crawlers.py --company <company_id> --keyword "<关键词>" --max-jobs 3
-```
-
-策略任务由主 Agent 一次委派给一个 `crawler-strategy-inspector` 子 Agent 串行处理。完整定义见 `.claude/agents/crawler-strategy-inspector.md`。主 Agent 只接收公司状态、耗时、变更文件、artifact 路径和短原因，不读取完整 DOM、XHR 或截图上下文；子 Agent 不得再嵌套其他 Agent。
-
-Python 优先完成可复现的页面访问、通用点击、Network evidence、配置应用和验证；仅 API 结构、字段映射和非固定页面交互交给大模型分析。
+此状态已移除。策略巡检不再作为独立前置步骤执行，而是内嵌在 CRAWLED 阶段：
+抓取时遇到失败（0 岗位或异常）自动收集至批量修复 task，由 Agent 委派 `crawler-strategy-inspector` 一次性修复，修复后重抓。
 
 ### 分平台联网工具规则
 
@@ -198,15 +169,30 @@ npx skills add eze-is/web-access
 
 ### CRAWLED
 
-目标：抓取岗位。
+目标：全量抓取岗位，失败公司自动收集并触发批量修复后再重抓。
 
-命令：
+**抓取命令：**
 
 ```powershell
-python -m src.crawler_factory --crawl <company_id> --keyword "<关键词>" --max-jobs 10
+python -m src.cli -p “<profile_id>” -t <social|campus|internship>
+python -m src.crawler_factory --crawl <company_id> --keyword “<关键词>” --max-jobs 10
 ```
 
-如果 CLI 输出为空，不要直接判断“没有合适岗位”；应抽查原始抓取、关键词和 profile。
+**内嵌策略修复流程：**
+
+1. Python 遍历所有启用公司逐一抓取。
+2. 返回 0 岗位或抛异常的公司自动写入 `logs/strategy_tasks/_batch_<timestamp>/task.json`。
+3. CLI 输出 `[Repair Required]` 并列出失败公司后暂停。
+4. **Agent 委派**：主 Agent 读取 batch task，一次性启动 `crawler-strategy-inspector` 子 Agent 串行处理全部失败公司。
+5. **修复验证**：子 Agent 逐家收集 evidence → 分析策略 → 修改配置/代码 → `tests/test_all_crawlers.py` 验证。
+6. **重抓**：修复完成后，Agent 对修复成功的公司重新执行 `crawler_factory --crawl`。
+7. 合并两轮岗位进入 FILTERED。
+
+策略修复完整定义见 `.claude/agents/crawler-strategy-inspector.md`。主 Agent 只接收公司状态、耗时、变更文件、artifact 路径和短原因，不读取完整 DOM、XHR 或截图上下文；子 Agent 不得再嵌套其他 Agent。
+
+Python 优先完成可复现的页面访问、通用点击、Network evidence、配置应用和验证；仅 API 结构、字段映射和非固定页面交互交给大模型分析。
+
+如果 CLI 输出为空，不要直接判断”没有合适岗位”；应抽查原始抓取、关键词和 profile。
 
 ### FILTERED
 
@@ -339,6 +325,17 @@ python -m src.evaluation --trials 3 --fail-under 1.0
 python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
 ```
 
+真实巡检报告评估不重新抓取网页，只读取已生成报告。第一次运行生成 `human_labels.yaml`，人工填写 `human_label`、必要备注和可选 1-5 维度分；URL、推荐状态、报告/投递包存在等客观项由代码自动判定。标注入口可以是本地 YAML，也可以是飞书多维表格标注表。
+
+```powershell
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
+lark-cli auth login --domain base
+python -m src.eval_lark_sync setup
+python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases
+```
+
 评估输出：
 
 ```text
@@ -348,7 +345,16 @@ output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/
 ├── transcripts/<case_id>.jsonl
 ├── artifacts/
 └── wf/
+
+output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
+├── real_run_samples.json
+├── human_labels.yaml
+├── real_run_eval_results.json
+├── real_run_eval_report.md
+└── bad_cases.md
 ```
+
+飞书标注表由 `src.eval_lark_sync setup` 在既有岗位追踪多维表格中创建或复用，表名为 `SmartHunter真实评估标注`；badcase 文档名为 `SmartHunter真实评估BadCases`。生成的 `eval_annotation_table_id`、`eval_badcase_doc_id` 和 `eval_badcase_doc_url` 只写入本地 `config/agent.yaml`，不得提交。
 
 评估归因：
 
@@ -364,7 +370,7 @@ output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/
 +------------------------+-----------------------------------------------+
 ```
 
-Code graders 是默认启用的机器判分；model/human grader 目前只保留 schema，离线 runner 默认 skipped。具体规则见 `evals/evaluation-grader-rubrics.md`。
+Code graders 是默认启用的机器判分；model/human grader 在离线回归 runner 中只保留 schema，默认 skipped。真实巡检评估通过本地 `human_labels.yaml` 或飞书标注表引入人工 gold labels，并生成中文指标和 badcase 表。具体规则见 `evals/evaluation-grader-rubrics.md` 和 `docs/smartjobhunter-evaluation-design.md`。
 
 评估失败时：
 
@@ -373,7 +379,7 @@ Code graders 是默认启用的机器判分；model/human grader 目前只保留
 3. 根据 `bad_case_attribution` 判断归因。
 4. 修复代码、配置、prompt、Skillmap 或 Agent 定义。
 5. 重新运行评估直到通过。
-6. 真实失败按 `evals/eval-case-feedback-loop.md` 沉淀为候选 eval case。
+6. 真实失败按 `evals/eval-case-feedback-loop.md` 和真实巡检 `human_labels.yaml` 沉淀为候选 eval case。
 
 ## 常用命令
 
@@ -401,6 +407,14 @@ python tests/test_all_crawlers.py --company <company_id> --keyword "<关键词>"
 python -m src.scheduler --feishu-push status
 python -m src.scheduler --feishu-push on
 python -m src.scheduler --feishu-push off
+
+# 真实巡检评估
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
+lark-cli auth login --domain base
+python -m src.eval_lark_sync setup
+python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases
 ```
 
 ## 确认机制
@@ -441,3 +455,28 @@ python -m src.scheduler --feishu-push off
 2. `.claude/skills/jobhunter/skill.md`
 3. `docs/smartjobhunter-agent-design.md`
 4. 必要时更新 README 的对外说明
+
+
+## "\docs\optimization-log.md"维护规则
+
+需要更新本文档的情况：
+
+- 调整岗位筛选、匹配打分、报告排序、投递建议等核心产品行为。
+- 新增或重构会改变用户使用方式的功能，例如飞书提醒、前端管理页、简历生成、面试复盘。
+- 对现有功能做策略优化，并且预期会改变结果质量、覆盖范围、误判率或使用体验。
+
+更新时机：
+
+- 必须先完成讨论并确认开发计划，再更新本文档。
+- 提出想法、列后续规划、还没有确认实现方案时，不更新本文档。
+- 进入实现后可以先补“问题/方案”，完成验证后再补“效果/后续”。
+
+不需要更新本文档的情况：
+
+- 只修复明确 bug，且没有改变产品策略。
+- 只更新 README、注释、格式或文案。
+- 只做配置安全、Git 历史、依赖、测试环境等工程卫生清理。
+- 只补测试，且不改变功能行为。
+- 只是讨论可能要做的功能，或只把想法写进 roadmap。
+
+每次确认要做并实际执行的功能优化，都要补充一条记录。记录要写结论，不写流水账。

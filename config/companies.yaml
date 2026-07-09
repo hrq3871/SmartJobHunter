@@ -4,7 +4,6 @@ companies:
   enabled: true
   urls:
     social: https://careers.tencent.com/search.html?query={keyword}
-    campus: https://careers.tencent.com/search.html?query={keyword}
   api:
     pattern: tencentcareer/api/post/Query
     data_path: Data.Posts
@@ -28,15 +27,33 @@ companies:
       source: BGName
     work_years:
       source: RequireWorkYearsName
-  url_template: https://careers.tencent.com/position_detail.html?id={id}
+    url:
+      source: PostURL
   job_type_detection:
-    internship:
-    - 实习
-    - intern
-    campus:
-    - 校招
-    - 应届
     social: []
+- id: tencent_campus
+  name: 腾讯
+  enabled: true
+  urls:
+    campus: https://join.qq.com/post.html
+    internship: https://join.qq.com/post.html
+  api:
+    pattern: searchPosition
+    data_path: data.positionList
+    type: intercept
+  field_mappings:
+    id:
+      source: id
+    title:
+      source: positionTitle
+    location:
+      source: workCities
+    category:
+      source: bgs
+    product:
+      source: projectName
+  url_template: https://join.qq.com/post.html?pid={id}
+  note: 腾讯校招/实习独立站点，POST JSON API
 - id: bytedance
   name: 字节跳动
   enabled: false
@@ -560,24 +577,12 @@ companies:
   enabled: true
   urls:
     social: https://jobs.lenovo.com/zh_CN/careers/SearchJobs
-    campus: https://jobs.lenovo.com/zh_CN/careers/SearchJobs
-  api:
-    pattern: SearchJobs
-    data_path: article.article--result
-    type: dom
-  field_mappings:
-    id:
-      source: jobId
-    title:
-      source: title
-    location:
-      source: location
-    category:
-      source: department
-    publish_time:
-      source: published
-  url_template: https://jobs.lenovo.com/zh_CN/careers/JobDetail/{id}
-  note: 服务端渲染，需DOM解析
+    campus: https://talent.lenovo.com.cn/position?projectType=1
+    internship: https://talent.lenovo.com.cn/position?projectType=2
+  strategy:
+    type: custom_python
+    module: lenovo
+  note: 社招用SuccessFactors DOM提取；校招/实习用talent.lenovo.com.cn（需验证策略兼容性）
 - id: antgroup
   name: 蚂蚁集团
   enabled: false
@@ -922,7 +927,7 @@ companies:
   note: 使用飞书招聘系统
 - id: nio
   name: 蔚来汽车
-  enabled: true
+  enabled: false
   urls:
     social: https://nio.jobs.feishu.cn/social
   api:

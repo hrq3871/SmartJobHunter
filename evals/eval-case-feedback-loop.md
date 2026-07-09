@@ -26,7 +26,8 @@ Primary sources:
 - `logs/strategy_tasks/`: strategy changes, blocked companies, fingerprint drift.
 - `logs/crawler_evidence/`: page snapshots, API candidates, field samples.
 - `output/{YYYY-MM-DD}/`: reports, application packages, unexpected empty runs.
-- Feishu feedback: invalid link, not a fit, already applied, recommendation wrong.
+- `output/evals/real_runs/{YYYY-MM-DD}/`: real-run evaluation reports, `human_labels.yaml`, and `bad_cases.md`.
+- Feishu feedback: annotation table labels, invalid link, not a fit, already applied, recommendation wrong.
 - Human review: explicit labels for whether a role should be recommended.
 
 ## Candidate Case Format
@@ -49,6 +50,8 @@ Example:
   human_label: null
   reason: "Title contains AI, but the job is actually an engineering role."
 ```
+
+真实巡检评估的 `human_labels.yaml`、飞书标注表和 `bad_cases.md` 可以直接作为 candidate 来源。只把人工标为 `should_apply` / `maybe` 但系统未推荐、或人工标为 `should_reject` 但系统推荐的样本沉淀为语义 bad case；客观 URL / 文件落盘问题归入 `output_quality`。人工维度分用于归因：岗位方向低偏 `matching_filtering`，技能匹配低偏 `recommendation_quality`，JD 质量低偏证据不足，风险等级高偏风险惩罚。
 
 ## Promotion Rules
 

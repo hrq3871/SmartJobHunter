@@ -689,7 +689,7 @@ def _score_domain_fit(
     score = int(round(20 * evidence["strength"]))
     if evidence["title_only"]:
         score = min(score, 8)
-    reasons = [f"target_domains: {', '.join(evidence['hits'][:3])} ({score}/20)"]
+    reasons = [f"领域匹配: {', '.join(evidence['hits'][:3])} ({score}/20)"]
     return min(20, score), reasons, {"target_domains": evidence["strength"]}
 
 

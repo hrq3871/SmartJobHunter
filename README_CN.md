@@ -73,8 +73,9 @@
 - 生成报告前校验岗位详情链接，只保留真实可访问链接
 - 为 Top 3 高匹配岗位生成一键投递包和定制 Cover Letter
 - 每日任务会主动巡检公司官网链接和抓取策略，为 Agent 修复提供证据
+- 提供本地 Web 控制台，用于上传/管理简历、维护搜索意向、启用/禁用公司、启动巡检和触发策略修复
 - 可选把每日跑完结果推送到飞书 Wiki 和多维表格
-- 提供离线 Agent 评估集，回归检查策略路由、岗位匹配、输出质量和指令漂移
+- 提供两层 Agent 评估：跑前离线回归，跑后基于真实报告和人工标签计算实测指标
 
 ## 规划中的能力
 
@@ -86,9 +87,6 @@
 
 - **飞书对话框与每日提醒**
   挂载飞书对话入口，每天抓取岗位后自动发送飞书提醒，包含新增岗位、高分推荐岗位以及需要人工复核的风险岗位。
-
-- **前端管理页面**
-  提供可视化管理界面，把当前可配置、可交互的功能集中起来：维护简历、维护意向公司、跟踪投递岗位状态，以及记录每个岗位实际投放的是哪一份简历或生成文件。
 
 - **面试后复盘与预测策略优化**
   支持上传面试录音或文稿，自动生成复盘和改进建议；将真实面试问题与预测问题做命中率比对，分析遗漏点，并反向优化后续 JD 面试问题预测策略。
@@ -111,13 +109,14 @@
 | 🔍 **智能过滤** | 三层漏斗：时间 → 去重 → 语义意向匹配 |
 | 📊 **AI 评估** | Agent 主判 + Python fallback 粗评分（0-100分）+ 基于证据的匹配理由 |
 | 📊 **岗位分类** | 区分实习/校招/社招 |
-| ⏰ **定时执行** | 每天 20:00 自动巡检 |
+| ⏰ **定时执行** | 通过 `src.scheduler` 或外部自动化配置定时巡检 |
 | 🔧 **每日策略巡检** | 抓取前巡检公司链接，采集证据，并由当前 Agent 固化可复用抓取策略 |
 | 🏢 **公司官网** | 配置中启用的公司以当前测试结果为准 |
 | ⚙️ **配置驱动** | 优先通过配置添加公司，特殊站点可能需要代码适配 |
+| 💻 **本地 Web 控制台** | 上传/管理简历、编辑搜索意向、启用/禁用公司、启动巡检、管理策略修复 |
 | 📦 **一键投递包** | 链接校验后为 Top 3 岗位生成定制 Cover Letter |
 | 🗂️ **日期归档** | 报告和投递包按运行日期保存 |
-| 🧪 **Agent 评估** | 用固定评测集衡量抓取策略、匹配过滤、输出质量和 Agent 指令一致性 |
+| 🧪 **Agent 评估** | 离线回归评测 + 真实巡检报告人工标注评估 |
 
 ## 最简单使用方式
 
@@ -171,6 +170,9 @@ name: 产品经理
 enabled: true
 job_type: 社招
 resume: resumes/my_resume.md
+search_keywords:
+  - 产品经理
+  - AI产品
 keywords:
   - 产品经理
   - TOB
@@ -227,12 +229,17 @@ SmartJobHunter/
 │   ├── filters.py           # 过滤函数（时间、去重、清洗）
 │   ├── matching.py          # 语义匹配 fallback 与评分规则
 │   ├── evaluation.py        # Agent 评估 harness
+│   ├── eval_real_runs.py    # 真实报告解析、人工标注模板和实测指标
+│   ├── eval_lark_sync.py    # 飞书标注表与 badcase 文档同步
 │   ├── eval_graders.py      # 显式 code/model/human grader helper
 │   ├── eval_transcript.py   # eval case 的 JSONL 轨迹记录器
-│   ├── resume_parser.py     # 简历解析（txt/md/docx/pdf/图片）
-│   ├── scheduler.py         # 定时调度（每天 20:00）
+│   ├── resume_parser.py     # 简历解析（PDF/Markdown/TXT）
+│   ├── scheduler.py         # 可配置定时巡检入口
 │   ├── git_auto_push.py     # 可选 Git 自动推送
 │   └── site_strategies/     # 专用公司抓取策略
+│
+├── 📂 templates/            # 本地 Web 控制台前端
+│   └── index.html
 │
 ├── 📂 config/               # 配置文件
 │   ├── agent.sample.yaml    # 可提交的 Agent 示例配置
@@ -251,6 +258,8 @@ SmartJobHunter/
 ├── 📂 .claude/skills/       # Claude Code Agent Skills
 │   └── jobhunter/           # JobHunter Agent
 │
+├── 📄 setup_schedule.bat    # Windows 任务计划创建脚本
+├── 📄 run_scheduled.bat     # Windows 定时巡检启动脚本
 └── 📄 公司列表.md           # 公司列表文档
 ```
 
@@ -304,6 +313,9 @@ feishu:
   wiki_node_token: ""
   bitable_token: ""
   bitable_table_id: ""
+  eval_annotation_table_id: ""
+  eval_badcase_doc_id: ""
+  eval_badcase_doc_url: ""
   enabled: false
 ```
 
@@ -398,12 +410,23 @@ python -m src.evaluation --trials 3 --fail-under 1.0
 
 # 能力边界评估
 python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
+
+# 真实巡检报告评估：第一次生成 human_labels.yaml，标注后带 labels 参数重算
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
+
+# 可选：飞书多维表格标注工作流
+lark-cli auth login --domain base
+python -m src.eval_lark_sync setup
+python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases
 ```
 
 集成爬虫测试需要浏览器和网络访问，并使用 `integration` 标记。
 
-Agent 评估报告会写入 `output/evals/YYYY-MM-DD/`，属于本地运行产物。
-完整内部 Agent 架构和评估设计见 `docs/smartjobhunter-agent-design.md`。
+Agent 回归评估报告会写入 `output/evals/YYYY-MM-DD/`，真实巡检评估报告会写入 `output/evals/real_runs/YYYY-MM-DD/`，都属于本地运行产物。
+真实巡检评估报告包含中文指标名、可选 1-5 人工维度分和 `bad_cases.md`。飞书同步可在已有岗位追踪多维表格中新建标注表，并同步一份托管 badcase 文档，方便复盘。
+完整内部 Agent 架构见 `docs/smartjobhunter-agent-design.md`；评估详细设计见 `docs/smartjobhunter-evaluation-design.md`。
 
 ### 爬虫命令
 
@@ -699,8 +722,8 @@ SmartJobHunter 采用 LLM-Agent 架构：
           │  状态机  │
           └─────────┘
                 ↓
-  INIT → LOADED → STRATEGY_INSPECTED → CRAWLED → FILTERED
-       → EVALUATED → URL_VALIDATED → REPORTED → PACKAGED → DONE
+  INIT → LOADED → CRAWLED → FILTERED → EVALUATED
+       → URL_VALIDATED → REPORTED → PACKAGED → DONE
 ```
 
 ### Agent Skills

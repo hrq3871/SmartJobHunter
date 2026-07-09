@@ -35,6 +35,15 @@ from .run_records import (
 from .exceptions import ConfigError, ProfileNotFoundError
 
 
+def _job_filter_key(job: dict) -> Tuple[str, str, str, str]:
+    return (
+        str(job.get("hash") or ""),
+        str(job.get("url") or ""),
+        str(job.get("company") or ""),
+        str(job.get("title") or ""),
+    )
+
+
 def validate_profile(profile: dict) -> bool:
     """验证意向配置
 
@@ -252,6 +261,8 @@ class JobHunter:
         self.seen_hashes = set()
         self.output_dir = Path("output")
         self.memory_dir = Path("memory")
+        self._pending_repairs: List[dict] = []
+        self._last_filter_reasons: Dict[Tuple[str, str, str, str], Tuple[str, str]] = {}
 
         # 确保目录存在
         self.output_dir.mkdir(exist_ok=True)
@@ -269,38 +280,117 @@ class JobHunter:
         seen_jobs_path = self.memory_dir / "seen_jobs.md"
         self.seen_hashes = filters.load_seen_hashes(str(seen_jobs_path))
 
-    def crawl_jobs(self, keyword: str, max_jobs: int = 50, job_type: str = None) -> List[dict]:
+    def crawl_jobs(self, keywords: list, max_jobs: int = 50, job_type: str = None) -> List[dict]:
         """调度爬虫抓取岗位
 
+        对每个搜索词遍历所有启用公司。0 结果或异常的公司自动收集为
+        待修复批次，写入 logs/strategy_tasks/。
+
         Args:
-            keyword: 搜索关键词
-            max_jobs: 最大岗位数
+            keywords: 搜索关键词列表
+            max_jobs: 最大岗位数（每个词每条公司上限）
             job_type: 岗位类型
 
         Returns:
-            岗位列表
+            岗位列表（多词合并、按 hash 去重）
         """
-        all_jobs = []
+        all_jobs: List[dict] = []
+        seen_hashes: set = set()
+        self._pending_repairs = []
+        failed_companies: set = set()  # 只标记一次
 
-        # 从配置获取启用的公司
         companies = crawler_factory.get_enabled_companies(job_type)
-        print(f"[Crawler] Found {len(companies)} companies for {job_type or 'all'}")
+        print(f"[Crawler] {len(companies)} companies × {len(keywords)} keyword(s) for {job_type or 'all'}")
 
-        for company in companies:
-            company_id = company.get('id')
-            company_name = company.get('name')
+        for kw in keywords:
+            print(f"\n[Crawler] ── keyword: {kw} ──")
+            for company in companies:
+                company_id = company.get('id')
+                company_name = company.get('name')
 
-            print(f"[Crawler] Crawling {company_name}...")
-            try:
-                jobs = crawler_factory.crawl_company(company_id, keyword, max_jobs=max_jobs, job_type=job_type)
-                all_jobs.extend(jobs)
-                print(f"   Got {len(jobs)} jobs")
-            except Exception as e:
-                print(f"   Crawl failed: {e}")
+                print(f"[Crawler] Crawling {company_name}...")
+                try:
+                    jobs = crawler_factory.crawl_company(company_id, kw, max_jobs=max_jobs, job_type=job_type)
+                    new_count = 0
+                    for job in jobs:
+                        h = job.get('hash', '')
+                        if h and h not in seen_hashes:
+                            seen_hashes.add(h)
+                            all_jobs.append(job)
+                            new_count += 1
+                    print(f"   Got {len(jobs)} jobs ({new_count} new)")
+
+                    if not jobs and company_id not in failed_companies:
+                        failed_companies.add(company_id)
+                        self._pending_repairs.append({
+                            "company_id": company_id,
+                            "company_name": company_name,
+                            "reason": "no_jobs_found",
+                            "detail": f"抓取返回 0 个岗位（关键词: {kw}）",
+                        })
+                        print(f"   → marked for repair batch")
+
+                except Exception as e:
+                    if company_id not in failed_companies:
+                        failed_companies.add(company_id)
+                        self._pending_repairs.append({
+                            "company_id": company_id,
+                            "company_name": company_name,
+                            "reason": "crawl_exception",
+                            "detail": str(e),
+                        })
+                    print(f"   Crawl failed: {e} → marked for repair batch")
 
         return all_jobs
 
-    def filter_jobs(self, jobs: List[dict], profile: dict) -> List[dict]:
+    def _resolve_search_keywords(self, profile: dict) -> List[str]:
+        """Return the ordered crawl keywords for a profile."""
+        raw_keywords = profile.get('search_keywords') or profile.get('keywords') or ["产品经理"]
+        if isinstance(raw_keywords, str):
+            raw_keywords = [item for item in re.split(r"[,，、\s]+", raw_keywords) if item]
+        return [str(item).strip() for item in raw_keywords if str(item).strip()]
+
+    def write_batch_repair_task(self, keyword: str, job_type: str) -> str:
+        """将本轮全部失败公司写入一份批量修复 task，供 Agent 一次性委派子 Agent。"""
+        if not self._pending_repairs:
+            return ""
+
+        batch = {
+            "batch_id": datetime.now().strftime("%Y%m%d_%H%M%S"),
+            "keyword": keyword,
+            "job_type": job_type,
+            "failed_companies": self._pending_repairs,
+        }
+
+        # 写入日志目录供 Agent 读取
+        task_dir = Path("logs") / "strategy_tasks" / f"_batch_{batch['batch_id']}"
+        task_dir.mkdir(parents=True, exist_ok=True)
+        task_path = task_dir / "task.json"
+        task_path.write_text(
+            json.dumps(batch, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        print(f"\n[Repair] Batch task written: {task_path}")
+        print(f"[Repair] {len(self._pending_repairs)} companies need strategy repair:")
+        for c in self._pending_repairs:
+            print(f"  - {c['company_name']} ({c['company_id']}) : {c['reason']}")
+
+        return str(task_path)
+
+    def _record_filter_drops(
+        self,
+        before_jobs: List[dict],
+        after_jobs: List[dict],
+        stage: str,
+        reason: str,
+    ) -> None:
+        kept_keys = {_job_filter_key(job) for job in after_jobs}
+        for job in before_jobs:
+            if _job_filter_key(job) not in kept_keys:
+                self._last_filter_reasons[_job_filter_key(job)] = (stage, reason)
+
+    def filter_jobs(self, jobs: List[dict], profile: dict, job_type: str = None) -> List[dict]:
         """过滤岗位
 
         Args:
@@ -313,15 +403,35 @@ class JobHunter:
         global_config = self.config.get('global', {}) if self.config else {}
         time_filter_days = global_config.get('time_filter_days', 3)
         truncate_length = global_config.get('jd_truncate_length', 6000)
+        self._last_filter_reasons = {}
 
         # 时间过滤
         print(f"\n[Filter] Time filter (last {time_filter_days} days)...")
-        jobs = filters.filter_by_time(jobs, time_filter_days)
+        before_time_filter = list(jobs)
+        profile_job_type = self._map_job_type_to_key(profile.get('job_type')) or profile.get('job_type')
+        jobs = filters.filter_by_time(
+            jobs,
+            time_filter_days,
+            job_type=job_type or profile_job_type,
+        )
+        self._record_filter_drops(
+            before_time_filter,
+            jobs,
+            "time_filtered",
+            "publish_time_outside_window",
+        )
         print(f"   Remaining: {len(jobs)} jobs")
 
         # 去重
         print("\n[Filter] Dedup...")
+        before_dedup = list(jobs)
         jobs = filters.dedup(jobs, self.seen_hashes)
+        self._record_filter_drops(
+            before_dedup,
+            jobs,
+            "deduplicated",
+            "seen_job_hash",
+        )
         print(f"   Remaining: {len(jobs)} jobs")
 
         # 数据清洗
@@ -355,6 +465,11 @@ class JobHunter:
                 job['semantic_match'] = semantic
                 if semantic.get('should_keep'):
                     matched_jobs.append(job)
+                else:
+                    self._last_filter_reasons[_job_filter_key(job)] = (
+                        "semantic_rejected",
+                        "semantic_intent_mismatch",
+                    )
             jobs = matched_jobs
             print(f"   Remaining: {len(jobs)} jobs")
 
@@ -574,7 +689,7 @@ class JobHunter:
 
             score_emoji = "🟢" if score >= 80 else "🟡" if score >= 60 else "🔴"
 
-            report += f"""### {i}. {job.get('title', 'Unknown')} [{score_emoji}] Score: {score}
+            report += f"""### {i}. {job.get('company', '')}－{job.get('title', 'Unknown')} [{score_emoji}] Score: {score}
 
 | Field | Value |
 |-------|-------|
@@ -608,6 +723,9 @@ class JobHunter:
 
     # 岗位类型映射表
     JOB_TYPE_MAPPING = {
+        'social': 'social',
+        'campus': 'campus',
+        'internship': 'internship',
         '社招': 'social',
         '校招': 'campus',
         '实习': 'internship',
@@ -666,10 +784,19 @@ class JobHunter:
 
         # Step 1: 抓取岗位
         print("\n[Step 1] Crawling jobs...")
-        keyword = keywords[0] if keywords else "产品经理"
-        # 将中文岗位类型映射到英文键
+        search_keywords = self._resolve_search_keywords(profile)
+        search_keyword_label = "、".join(search_keywords)
         job_type_key = self._map_job_type_to_key(job_type)
-        jobs = self.crawl_jobs(keyword, max_jobs=50, job_type=job_type_key)
+        jobs = self.crawl_jobs(search_keywords, max_jobs=50, job_type=job_type_key)
+
+        # Step 1.5: 若存在抓取失败的公司，写入批量修复 task 并打印提示，
+        # 但不中断流程——报告照常生成，Agent 可在跑完后修复。
+        if self._pending_repairs:
+            batch_path = self.write_batch_repair_task(search_keyword_label, job_type_key)
+            print(f"\n[Repair Notice] {len(self._pending_repairs)} company(s) failed to crawl.")
+            print(f"[Repair Notice] Batch task: {batch_path}")
+            print(f"[Repair Notice] Run crawler-strategy-inspector to fix, then re-run crawl.")
+            self._last_batch_task = batch_path
 
         if not jobs:
             print("[Warn] No jobs found")
@@ -684,12 +811,24 @@ class JobHunter:
             attach_evaluation(record, fallback_evaluation, source="python_fallback")
 
         # Step 2-3: 过滤
-        jobs = self.filter_jobs(jobs, profile)
+        jobs = self.filter_jobs(jobs, profile, job_type_key)
         filtered_record_ids = select_record_ids_for_jobs(run_records, jobs)
         all_record_ids = {record["run_record_id"] for record in run_records}
+        filtered_out_record_ids = all_record_ids - filtered_record_ids
+        attributed_record_ids = set()
+        for record in run_records:
+            record_id = record["run_record_id"]
+            if record_id not in filtered_out_record_ids:
+                continue
+            filter_reason = self._last_filter_reasons.get(_job_filter_key(record.get("raw_job") or {}))
+            if not filter_reason:
+                continue
+            stage, reason = filter_reason
+            update_record_stage(run_records, {record_id}, stage, reason)
+            attributed_record_ids.add(record_id)
         update_record_stage(
             run_records,
-            all_record_ids - filtered_record_ids,
+            filtered_out_record_ids - attributed_record_ids,
             "filtered_out",
             "filtered_before_recommendation",
         )

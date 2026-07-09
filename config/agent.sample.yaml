@@ -29,4 +29,9 @@ feishu:
   wiki_node_token: ""
   bitable_token: ""
   bitable_table_id: ""
+  # Optional real-run evaluation annotation resources.
+  # `setup` can create them in the same Bitable/Wiki space and write IDs locally.
+  eval_annotation_table_id: ""
+  eval_badcase_doc_id: ""
+  eval_badcase_doc_url: ""
   enabled: false

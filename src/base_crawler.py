@@ -157,6 +157,8 @@ class BaseCrawler:
     def detect_job_type(self, title: str) -> str:
         """检测岗位类型
 
+        优先按标题关键词判定；无匹配时使用抓取时指定的 job_type。
+
         Args:
             title: 岗位标题
 
@@ -164,16 +166,22 @@ class BaseCrawler:
             岗位类型: internship/campus/social
         """
         detection = self.config.get('job_type_detection', {})
+        default_detection = {
+            'internship': ['实习', 'intern', 'internship'],
+            'campus': ['校招', '应届', '校园招聘', 'graduate'],
+        }
         title_lower = title.lower()
 
-        # 按优先级检测
+        # 按优先级检测标题关键词
         for job_type in ['internship', 'campus']:
-            keywords = detection.get(job_type, [])
+            keywords = detection.get(job_type) or default_detection.get(job_type, [])
             for kw in keywords:
                 if kw.lower() in title_lower:
                     return job_type
 
-        return 'social'
+        # 无标题关键词时，使用抓取时指定的类型
+        default_type = getattr(self, '_crawl_job_type', 'social') or 'social'
+        return default_type
 
     def parse_job(self, item: dict) -> Optional[dict]:
         """解析单个岗位数据
@@ -253,6 +261,7 @@ class InterceptCrawler(BaseCrawler):
         max_jobs: int = 50,
         headless: bool = True,
         max_pages: int = 5,
+        job_type: str = 'social',
     ) -> list:
         """使用拦截模式爬取
 
@@ -262,10 +271,12 @@ class InterceptCrawler(BaseCrawler):
             max_jobs: 最大岗位数
             headless: 是否无头模式
             max_pages: 最大翻页数
+            job_type: 请求的岗位类型，默认 social
 
         Returns:
             岗位列表
         """
+        self._crawl_job_type = job_type
         jobs = []
         seen_ids = set()
 

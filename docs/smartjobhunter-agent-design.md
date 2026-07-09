@@ -1,7 +1,7 @@
 # SmartJobHunter Agent Design
 
 > **文档用途**
-> 本文档用于说明 SmartJobHunter 的内部 Agent 架构、状态机、评估体系和规范演进规则。
+> 本文档用于说明 SmartJobHunter 的内部 Agent 架构、状态机、评估入口和规范演进规则。
 > 主要读者是维护本项目的 Claude/Codex Agent、开发者和需要理解系统设计的人。
 > 不用于对外宣传、快速上手，也不作为 Agent 自动加载的定义文件；Agent 定义见 `CLAUDE.md` / `AGENTS.md`，Skill 路由见 `.claude/skills/jobhunter/skill.md`。
 
@@ -15,7 +15,8 @@ SmartJobHunter 是一个面向公司官网岗位巡检的 Agent 平台项目。P
 +----------------------------------------------+----------------------------------------------+
 | README.md / README_CN.md                      | 对外介绍、能力定位、快速开始、常用命令       |
 | CLAUDE.md / AGENTS.md                         | 自动加载的 SmartJobHunter Agent 定义文件     |
-| docs/smartjobhunter-agent-design.md           | 内部完整架构、状态机、评估体系和演进规则     |
+| docs/smartjobhunter-agent-design.md           | 内部完整架构、状态机、评估入口和演进规则     |
+| docs/smartjobhunter-evaluation-design.md      | 回归评估、真实巡检评估、人工标注和指标体系   |
 | evals/evaluation-grader-rubrics.md            | Eval grader 判分标准和 schema                 |
 | evals/eval-case-feedback-loop.md              | 真实失败/反馈沉淀为 eval case 的闭环         |
 | docs/plans/                                   | 历史实施计划，不作为当前运行规则             |
@@ -49,7 +50,7 @@ SmartJobHunter 是一个面向公司官网岗位巡检的 Agent 平台项目。P
 - `.claude/agents/crawler-strategy-inspector.md` 保存策略修复子 Agent 的唯一完整定义；主文档不复制其全部提示词。
 - `.claude/skills/jobhunter/skill.md` 只写 Skillmap：触发场景、路由索引、常用命令和 eval 锚点。
 - prompts 写具体判断标准，不承担系统分层说明。
-- docs 根目录只保留全局设计、AI 自动维护或历史计划类文档；eval 运行体系文档放 `evals/`。
+- docs 根目录只保留全局设计、AI 自动维护或历史计划类文档；完整评估设计放 `docs/smartjobhunter-evaluation-design.md`。
 - `evals/` 同时放评测集、grader 规则、失败回流流程和候选 case。
 
 ## 2. 系统定位
@@ -58,7 +59,7 @@ Python 工具层负责：
 
 - 官网抓取、文本抽取、确定性过滤、fallback 粗评分。
 - URL 校验、报告落盘、投递包落盘、memory 更新。
-- 策略巡检、证据采集、评估 harness、transcript 和 code graders。
+- 策略巡检、证据采集、评估 harness、真实报告解析、transcript 和 code graders。
 
 当前 Claude/Codex Agent 负责：
 
@@ -127,17 +128,20 @@ SmartJobHunter/
 │   ├── claude_launcher.py           # 可见 Claude Code CMD 启动器
 │   ├── reporting.py                 # 报告生成
 │   ├── run_records.py               # 运行账本记录
+│   ├── eval_real_runs.py            # 真实巡检报告解析、人工标注模板和实测指标
 │   ├── feishu_push.py               # 飞书 Wiki 推送
 │   ├── feishu_bitable.py            # 飞书多维表格
 │   ├── notifier.py                  # 用户通知（抓取失败路径）
 │   ├── web_ui.py                    # 本地管理控制台（FastAPI，仅 127.0.0.1）
-│   ├── scheduler.py                 # 定时调度（每天 20:00）
+│   ├── scheduler.py                 # 可配置定时巡检入口
 │   ├── evaluation.py                # Agent 评估 harness
 │   ├── eval_graders.py              # Code/model/human grader
 │   ├── eval_transcript.py           # JSONL 轨迹记录
 │   └── exceptions.py                # 异常类型定义
 ├── templates/
 │   └── index.html                    # Web 控制台 SPA 前端
+├── setup_schedule.bat                # Windows 任务计划创建脚本
+├── run_scheduled.bat                 # Windows 定时巡检启动脚本
 ├── .claude/skills/jobhunter/
 │   ├── skill.md                    # Skillmap：触发词和路由索引
 │   ├── profile.md
@@ -158,6 +162,7 @@ SmartJobHunter/
 │       └── update_memory.md
 └── docs/
     ├── smartjobhunter-agent-design.md
+    ├── smartjobhunter-evaluation-design.md
     ├── optimization-log.md          # ignored, local only
     └── plans/
 ```
@@ -249,7 +254,6 @@ src.cli.JobHunter.run_profile()
 ```text
 INIT
   -> LOADED
-  -> STRATEGY_INSPECTED
   -> CRAWLED
   -> FILTERED
   -> EVALUATED
@@ -308,7 +312,9 @@ claude --permission-mode auto --agent crawler-strategy-inspector --name "SmartHu
 
 一次只启动一个修复 Agent，完整传递全部选中公司 ID 和原始链接。Web 只有取得真实 PID 后才能显示“已启动”；启动异常不得吞掉。
 
-### STRATEGY_INSPECTED
+### CRAWLED 内嵌策略巡检
+
+`STRATEGY_INSPECTED` 不再作为独立状态。策略巡检、失败收集、批量修复和重抓都内嵌在 `CRAWLED` 阶段。
 
 目标：巡检公司官网链接和抓取策略。
 
@@ -470,10 +476,18 @@ memory/seen_jobs.md
 python -m src.evaluation --fail-under 1.0
 python -m src.evaluation --trials 3 --fail-under 1.0
 python -m src.evaluation --dataset evals/capability/jobhunter_hard_cases.yaml
-python -m pytest tests/test_evaluation.py -v
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md"
+python -m src.eval_real_runs --report "output/YYYY-MM-DD/<report>.md" --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml"
+lark-cli auth login --domain base
+python -m src.eval_lark_sync setup
+python -m src.eval_lark_sync export-labels --labels "output/evals/real_runs/YYYY-MM-DD/<run_id>/human_labels.yaml" --run-id "<run_id>"
+python -m src.eval_lark_sync score-from-lark --report "output/YYYY-MM-DD/<report>.md" --run-id "<run_id>" --sync-badcases
+python -m pytest tests/test_evaluation.py tests/test_eval_real_runs.py tests/test_eval_lark_sync.py -v
 ```
 
 默认 regression 数据集：`evals/regression/jobhunter_core.yaml`。
+
+真实巡检评估只读取已生成的报告，不重新抓取网页。第一次运行 `src.eval_real_runs` 会生成 `human_labels.yaml`；人工填写 `human_label`、必要备注和可选 1-5 维度分。URL 格式、推荐状态、报告存在、投递包存在等客观项由代码自动判定。标注入口可以是本地 YAML，也可以通过 `src.eval_lark_sync` 同步到飞书多维表格标注表；badcase 会写入本地 `bad_cases.md` 并可同步到飞书文档。详细标注规则和指标定义见 `docs/smartjobhunter-evaluation-design.md`。
 
 输出：
 
@@ -484,6 +498,13 @@ output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/
 ├── transcripts/<case_id>.jsonl
 ├── artifacts/
 └── wf/
+
+output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
+├── real_run_samples.json
+├── human_labels.yaml
+├── real_run_eval_results.json
+├── real_run_eval_report.md
+└── bad_cases.md
 ```
 
 指标：
@@ -496,6 +517,14 @@ output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/
 - `matching.recall`
 - `matching.f1`
 - `bad_case_attribution`
+- real-run `recommendation_precision`
+- real-run `strict_recommendation_precision`
+- real-run `reviewed_recall`
+- real-run `reviewed_false_negative_rate`
+- real-run `invalid_url_rate`
+- real-run `label_completion_rate`
+- real-run human dimension averages: `role_fit_avg`, `skill_match_avg`, `seniority_fit_avg`, `jd_quality_avg`, `risk_level_avg`, `apply_priority_avg`
+- real-run badcase counts by type: 推荐误报、过滤误杀、推荐区坏链接、人工确认坏链接、证据不足
 
 归因：
 
@@ -511,7 +540,7 @@ output/evals/{YYYY-MM-DD}/{YYYYMMDD_HHMMSS_microseconds}/
 +------------------------+-----------------------------------------------+
 ```
 
-Code graders 是默认启用的机器判分；model/human grader 只保留 schema，离线 runner 默认 skipped。具体 rubric 见 `evals/evaluation-grader-rubrics.md`。
+Code graders 是默认启用的机器判分；model/human grader 在回归 runner 中只保留 schema，离线 runner 默认 skipped。真实巡检评估通过本地 `human_labels.yaml` 或飞书标注表引入人工 gold labels，并输出中文指标、人工维度分和 badcase 表。具体 rubric 见 `evals/evaluation-grader-rubrics.md`，完整真实评估设计见 `docs/smartjobhunter-evaluation-design.md`。
 
 ## 8. 失败处理
 
@@ -522,7 +551,7 @@ Code graders 是默认启用的机器判分；model/human grader 只保留 schem
 3. 判断问题属于抓取策略、匹配过滤、推荐质量、输出质量还是 instruction_drift。
 4. 修复代码、配置、prompt、Skill 或项目规则。
 5. 重新运行 regression eval。
-6. 如果是新真实失败，按 `evals/eval-case-feedback-loop.md` 沉淀到 `evals/candidates/`。
+6. 如果是新真实失败，按 `evals/eval-case-feedback-loop.md`、真实巡检 `human_labels.yaml`、飞书标注表或 `bad_cases.md` 沉淀到 `evals/candidates/`。
 
 ## 9. 文档与规范演进
 
@@ -540,4 +569,4 @@ Code graders 是默认启用的机器判分；model/human grader 只保留 schem
 2. `.claude/skills/jobhunter/skill.md`
 3. `docs/smartjobhunter-agent-design.md`
 4. 必要时更新 README 的对外说明
-5. 修改后运行 `python -m src.evaluation --fail-under 1.0`
+5. 修改后运行 `python -m src.evaluation --fail-under 1.0`；涉及真实巡检评估时同时运行 `python -m pytest tests/test_eval_real_runs.py -v`

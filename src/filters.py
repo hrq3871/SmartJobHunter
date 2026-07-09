@@ -12,31 +12,68 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 
-def filter_by_time(jobs: List[dict], days: int = 3) -> List[dict]:
-    """时间过滤：只保留最近N天的岗位
+SOCIAL_JOB_TYPE_VALUES = {"social", "社招", "社会招聘", "experienced"}
+
+
+def filter_by_time(
+    jobs: List[dict],
+    days: int = 3,
+    job_type: str | None = None,
+    as_of: datetime | None = None,
+) -> List[dict]:
+    """时间过滤：校招/实习只保留最近N天，社招旧发布时间只打标不硬过滤。
 
     Args:
         jobs: 岗位列表
         days: 天数阈值
+        job_type: 本次运行的岗位类型；单条岗位上的 job_type 优先
+        as_of: 过滤参考时间，测试可注入
 
     Returns:
         过滤后的岗位列表
     """
-    cutoff_date = datetime.now() - timedelta(days=days)
+    reference_time = as_of or datetime.now()
+    cutoff_date = (reference_time - timedelta(days=days)).date()
     filtered = []
 
     for job in jobs:
         publish_time = job.get('publish_time', '')
         job_date = _parse_publish_time(publish_time)
+        effective_job_type = _normalize_job_type(job.get('job_type') or job_type)
 
-        if job_date and job_date >= cutoff_date:
+        if job_date:
             job['_parsed_date'] = job_date
+
+        if job_date and job_date.date() >= cutoff_date:
+            job['_time_filter_status'] = 'fresh'
+            filtered.append(job)
+        elif job_date and effective_job_type in SOCIAL_JOB_TYPE_VALUES:
+            job['_time_filter_status'] = 'stale_social_kept'
+            job['_time_filter_reason'] = (
+                '社招官网常见长期开放岗位，发布时间仅作为新鲜度信号，不做硬过滤'
+            )
             filtered.append(job)
         elif not job_date:
             # 无法解析时间的岗位保留
+            job['_time_filter_status'] = 'unknown_date_kept'
             filtered.append(job)
+        else:
+            job['_time_filter_status'] = 'stale_filtered'
 
     return filtered
+
+
+def _normalize_job_type(job_type) -> str:
+    value = str(job_type or '').strip().lower()
+    mapping = {
+        '社招': 'social',
+        '社会招聘': 'social',
+        '校招': 'campus',
+        '校园招聘': 'campus',
+        '实习': 'internship',
+        '实习生': 'internship',
+    }
+    return mapping.get(str(job_type or '').strip(), value)
 
 
 def _parse_publish_time(time_str) -> Optional[datetime]:
@@ -140,7 +177,9 @@ def clean_data(jobs: List[dict], truncate_length: int = 6000) -> List[dict]:
             "work_years": job.get('work_years', ''),
             "hash": job.get('hash', ''),
             "source": job.get('source', ''),
-            "job_type": job.get('job_type', '')
+            "job_type": job.get('job_type', ''),
+            "_time_filter_status": job.get('_time_filter_status', ''),
+            "_time_filter_reason": job.get('_time_filter_reason', ''),
         }
         cleaned.append(cleaned_job)
     return cleaned

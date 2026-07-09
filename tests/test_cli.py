@@ -70,6 +70,71 @@ def test_filter_jobs_runs_semantic_match_for_new_profile_fields():
     assert filtered[0]["semantic_match"]["fallback_quality"] == "coarse"
 
 
+def test_filter_jobs_keeps_stale_social_jobs_when_run_type_is_social():
+    hunter = JobHunter()
+    hunter.config = {
+        "global": {
+            "time_filter_days": 7,
+        }
+    }
+    hunter.seen_hashes = set()
+    jobs = [
+        {
+            "title": "AI创作者产品经理",
+            "publish_time": "2024-11-11",
+            "hash": "stale-social",
+        }
+    ]
+
+    filtered = hunter.filter_jobs(jobs, {"name": "AI产品经理"}, job_type="social")
+
+    assert [job["hash"] for job in filtered] == ["stale-social"]
+    assert filtered[0]["_time_filter_status"] == "stale_social_kept"
+
+
+def test_run_profile_marks_stale_non_social_jobs_as_time_filtered(monkeypatch, tmp_path):
+    hunter = JobHunter()
+    hunter.memory_dir = tmp_path
+    hunter.output_dir = tmp_path
+    hunter.config = {"global": {"time_filter_days": 7, "threshold_score": 70}, "output": {}}
+    hunter.seen_hashes = set()
+    raw_job = {
+        "id": "old-campus",
+        "hash": "old-campus",
+        "title": "AI产品经理校招",
+        "company": "示例公司",
+        "publish_time": "2026-03-11",
+        "duty": "负责 AI 产品设计",
+        "requirement": "产品经理",
+        "url": "https://example.com/jobs/old-campus",
+    }
+    captured = {}
+
+    monkeypatch.setattr(hunter, "crawl_jobs", lambda *args, **kwargs: [raw_job])
+    monkeypatch.setattr(
+        hunter,
+        "evaluate_job",
+        lambda job, profile: {"score": 80, "recommendation": "apply", "scoring_breakdown": {}},
+    )
+
+    def fake_report(jobs, profile, evaluations, run_records=None):
+        captured["records"] = run_records
+        return "output/time-filtered-report.md"
+
+    monkeypatch.setattr(hunter, "generate_report", fake_report)
+
+    result = hunter.run_profile(
+        {"name": "AI产品经理", "_profile_id": "ai_pm_task", "job_type": "校招"},
+        job_type_override="campus",
+    )
+
+    assert result == []
+    assert captured["records"][0]["processing"] == {
+        "stage": "time_filtered",
+        "reason": "publish_time_outside_window",
+    }
+
+
 def test_parse_profile_adds_file_level_task_id(tmp_path):
     profile_path = tmp_path / "ai_pm_task.md"
     profile_path.write_text(
@@ -172,7 +237,7 @@ def test_run_profile_generates_audit_report_when_no_jobs_survive_filtering(monke
     captured = {}
 
     monkeypatch.setattr(hunter, "crawl_jobs", lambda *args, **kwargs: [raw_job])
-    monkeypatch.setattr(hunter, "filter_jobs", lambda jobs, profile: [])
+    monkeypatch.setattr(hunter, "filter_jobs", lambda jobs, profile, job_type=None: [])
     monkeypatch.setattr(
         hunter,
         "evaluate_job",
@@ -194,6 +259,47 @@ def test_run_profile_generates_audit_report_when_no_jobs_survive_filtering(monke
     assert captured["jobs"] == []
     assert len(captured["records"]) == 1
     assert captured["records"][0]["evaluation"]["source"] == "python_fallback"
+
+
+def test_run_profile_uses_search_keywords_for_crawl_and_repair_task(monkeypatch, tmp_path):
+    hunter = JobHunter()
+    hunter.memory_dir = tmp_path
+    hunter.output_dir = tmp_path
+    hunter.config = {"global": {"time_filter_days": 30, "threshold_score": 70}, "output": {}}
+    hunter.seen_hashes = set()
+    captured = {}
+
+    def fake_crawl(search_keywords, max_jobs=50, job_type=None):
+        captured["search_keywords"] = search_keywords
+        captured["job_type"] = job_type
+        hunter._pending_repairs = [
+            {"company_id": "example", "company_name": "Example", "reason": "no_jobs_found"}
+        ]
+        return []
+
+    def fake_repair_task(keyword, job_type):
+        captured["repair_keyword"] = keyword
+        captured["repair_job_type"] = job_type
+        return "logs/strategy_tasks/_batch/task.json"
+
+    monkeypatch.setattr(hunter, "crawl_jobs", fake_crawl)
+    monkeypatch.setattr(hunter, "write_batch_repair_task", fake_repair_task)
+
+    result = hunter.run_profile(
+        {
+            "name": "AI产品经理",
+            "_profile_id": "ai_pm_task",
+            "keywords": ["AI产品经理"],
+            "search_keywords": ["产品经理", "AI产品"],
+        },
+        job_type_override="social",
+    )
+
+    assert result == []
+    assert captured["search_keywords"] == ["产品经理", "AI产品"]
+    assert captured["job_type"] == "social"
+    assert captured["repair_keyword"] == "产品经理、AI产品"
+    assert captured["repair_job_type"] == "social"
 
 
 def test_validate_report_urls_drops_unavailable_links(monkeypatch):
@@ -295,7 +401,7 @@ def test_run_profile_uses_profile_id_for_feishu_and_bitable(monkeypatch, tmp_pat
     bitable_calls = []
 
     monkeypatch.setattr(hunter, "crawl_jobs", lambda *args, **kwargs: [job])
-    monkeypatch.setattr(hunter, "filter_jobs", lambda jobs, profile: jobs)
+    monkeypatch.setattr(hunter, "filter_jobs", lambda jobs, profile, job_type=None: jobs)
     monkeypatch.setattr(hunter, "evaluate_job", lambda job, profile: {
         "score": 88,
         "recommendation": "apply",
