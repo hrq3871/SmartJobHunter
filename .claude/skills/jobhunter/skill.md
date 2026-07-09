@@ -57,7 +57,7 @@ INIT -> LOADED -> CRAWLED -> FILTERED -> EVALUATED -> URL_VALIDATED -> REPORTED 
 关键状态：
 
 - `CRAWLED`：全量抓取，失败公司自动批量收集 → Agent 委派 `crawler-strategy-inspector` 一次性修复 → 重抓。
-- `EVALUATED`：Python 只能写 `output/{YYYY-MM-DD}/agent_review_queues/*.json` 候选队列；队列默认最多 `agent_review.max_candidates=40` 个，独立于最终报告上限；Agent 必须读取队列后写同目录 `*_results.json`，正式推荐只接受 `判断来源=agent`。
+- `EVALUATED`：Python 只能写 `output/{YYYY-MM-DD}/agent_review_queues/*.json` 候选队列；队列默认最多 `agent_review.max_candidates=40` 个，独立于最终报告上限；Agent 必须读取队列后写同目录 `*_results.json`，正式推荐只接受 `判断来源=agent` 且最终结论为 `strong_apply` 或 `apply`。
 - `URL_VALIDATED`：报告前必须过滤空链接、404、不可访问链接。
 - `PACKAGED`：为 Top 3 岗位生成投递包，Cover Letter 必须结合 JD 证据和简历证据。
 
@@ -70,6 +70,7 @@ INIT -> LOADED -> CRAWLED -> FILTERED -> EVALUATED -> URL_VALIDATED -> REPORTED 
 - Python 负责机械事实：发布时间、去重、URL 格式、JD 是否完整、fallback 候选排序。
 - Agent 负责语义分数：`role_fit`、`core_responsibility_fit`、`domain_fit`、`resume_evidence_fit`、`seniority_fit`、`risk_level`、`apply_priority`、`agent_score`、`agent_decision`。
 - 公关传播、品牌社媒、舆情、前端/后端/算法研发、销售、客服、审核、标注、纯运营等非目标角色，即使标题含 AI，也不能凭关键词进入强推荐。
+- `agent_decision=maybe` 只作为备选观察进入全量审计和人工标注，不进入主推荐区、投递包或飞书推荐。
 
 ## 常用命令
 

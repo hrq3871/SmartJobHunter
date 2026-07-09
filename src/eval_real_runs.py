@@ -50,11 +50,11 @@ METRIC_DEFINITIONS = {
     "label_completed_count": ("已标注数", "已经填写人工标签的需标注样本数。"),
     "label_completion_rate": ("标注完成率", "已标注数 / 需标注数。"),
     "recommendation_precision": ("推荐精确率", "已标推荐岗位中，人工认为 should_apply 或 maybe 的比例。"),
-    "strict_recommendation_precision": ("严格推荐精确率", "已标推荐岗位中，人工认为 should_apply 的比例。"),
-    "reviewed_recall": ("人工复核召回率", "人工标为 should_apply 或 maybe 的样本中，系统成功推荐的比例。"),
+    "strict_recommendation_precision": ("严格推荐精确率", "系统 strong_apply 强推荐中，人工认为 should_apply 的比例。"),
+    "reviewed_recall": ("人工复核召回率", "人工标为 should_apply 或 maybe 的样本中，系统成功推荐或进入 maybe 观察的比例。"),
     "reviewed_false_negative_rate": (
         "误杀率",
-        "人工标为 should_apply 或 maybe、且不是候选池/报告上限截断的样本中，系统没有推荐的比例。",
+        "人工标为 should_apply 或 maybe、且不是候选池/报告上限截断的样本中，系统没有推荐或 maybe 观察的比例。",
     ),
     "candidate_limit_omission_rate": (
         "候选池截断率",
@@ -216,8 +216,12 @@ def score_real_run(parsed_report: Dict[str, Any], labels_doc: Dict[str, Any] | N
         item for item in reviewed_recommended
         if item["human_label"] in POSITIVE_LABELS
     ]
-    strict_positive_recommended = [
+    reviewed_strong_apply_recommended = [
         item for item in reviewed_recommended
+        if _is_strong_apply_recommendation(record_by_id[item["record_id"]])
+    ]
+    strict_positive_recommended = [
+        item for item in reviewed_strong_apply_recommended
         if item["human_label"] in STRICT_POSITIVE_LABELS
     ]
     reviewed_positive = [
@@ -228,13 +232,13 @@ def score_real_run(parsed_report: Dict[str, Any], labels_doc: Dict[str, Any] | N
         item for item in reviewed_positive
         if not _is_candidate_limit_omission(record_by_id[item["record_id"]])
     ]
-    reviewed_positive_recommended = [
+    reviewed_covered_positive = [
         item for item in reviewed_positive_for_recall
-        if record_by_id[item["record_id"]].get("is_recommended")
+        if _is_recommendation_or_maybe_observation(record_by_id[item["record_id"]])
     ]
     reviewed_false_negative = [
         item for item in reviewed_positive_for_recall
-        if not record_by_id[item["record_id"]].get("is_recommended")
+        if not _is_recommendation_or_maybe_observation(record_by_id[item["record_id"]])
     ]
     candidate_limit_omitted = [
         item for item in reviewed_positive
@@ -262,10 +266,10 @@ def score_real_run(parsed_report: Dict[str, Any], labels_doc: Dict[str, Any] | N
         "recommendation_precision": _safe_rate(len(positive_recommended), len(reviewed_recommended)),
         "strict_recommendation_precision": _safe_rate(
             len(strict_positive_recommended),
-            len(reviewed_recommended),
+            len(reviewed_strong_apply_recommended),
         ),
         "reviewed_recall": _safe_rate(
-            len(reviewed_positive_recommended),
+            len(reviewed_covered_positive),
             len(reviewed_positive_for_recall),
         ),
         "reviewed_false_negative_rate": _safe_rate(
@@ -680,6 +684,8 @@ def _review_reason(record: Dict[str, Any]) -> str | None:
     score = record.get("score")
     if record.get("is_recommended"):
         return "recommended"
+    if _is_system_maybe_observation(record):
+        return "maybe_observation"
     if final_decision in {"strong_apply", "apply"}:
         return "high_confidence_filtered"
     if isinstance(score, int) and score >= 70:
@@ -692,6 +698,8 @@ def _default_severity(reason: str) -> str:
         return "medium"
     if reason == "high_confidence_filtered":
         return "high"
+    if reason == "maybe_observation":
+        return "medium"
     return "low"
 
 
@@ -792,6 +800,21 @@ def _needs_agent_review_badcase(record: Dict[str, Any]) -> bool:
     )
 
 
+def _is_strong_apply_recommendation(record: Dict[str, Any]) -> bool:
+    final_decision = str(record.get("final_decision") or "").strip()
+    return bool(record.get("is_recommended")) and final_decision == "strong_apply"
+
+
+def _is_system_maybe_observation(record: Dict[str, Any]) -> bool:
+    final_decision = str(record.get("final_decision") or "").strip()
+    stage = str(record.get("processing_stage") or record.get("system_decision") or "").strip()
+    return final_decision == "maybe" or stage.startswith("agent_maybe")
+
+
+def _is_recommendation_or_maybe_observation(record: Dict[str, Any]) -> bool:
+    return bool(record.get("is_recommended")) or _is_system_maybe_observation(record)
+
+
 def _is_candidate_limit_omission(record: Dict[str, Any]) -> bool:
     stage = str(record.get("processing_stage") or record.get("system_decision") or "").strip()
     score = record.get("score")
@@ -828,6 +851,12 @@ def _detect_bad_cases(
             if key not in seen:
                 cases.append(_badcase_entry("agent_review_missing", record, item))
                 seen.add(key)
+        if (
+            not record.get("is_recommended")
+            and label == "maybe"
+            and _is_system_maybe_observation(record)
+        ):
+            continue
         if not record.get("is_recommended") and label in POSITIVE_LABELS:
             badcase_type = (
                 "candidate_limit_omitted"
@@ -865,6 +894,12 @@ def _badcase_entry(
     label_item: Dict[str, Any] | None,
 ) -> Dict[str, Any]:
     definition = BADCASE_TYPE_DEFINITIONS[badcase_type]
+    affected_metrics = list(definition["affected_metrics"])
+    if badcase_type == "recommendation_false_positive" and not _is_strong_apply_recommendation(record):
+        affected_metrics = [
+            metric for metric in affected_metrics
+            if metric != "strict_recommendation_precision"
+        ]
     return {
         "badcase_type": badcase_type,
         "badcase_type_zh": definition["zh"],
@@ -879,7 +914,7 @@ def _badcase_entry(
         "human_scores": (label_item or {}).get("human_scores") or {},
         "human_reason": (label_item or {}).get("review_notes") or "",
         "attribution": definition["attribution"],
-        "affected_metrics": list(definition["affected_metrics"]),
+        "affected_metrics": affected_metrics,
         "suggested_action": definition["suggested_action"],
     }
 

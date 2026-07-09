@@ -361,7 +361,7 @@ SmartJobHunter 不再把关键词命中本身视为匹配。
 2. **语义意向过滤**：Agent 判断岗位真实职责是否符合求职意向，关键词只作为辅助证据。
 3. **Agent 复核队列**：Python 将达到阈值的候选岗位写入 `output/<date>/agent_review_queues/`，默认最多 `agent_review.max_candidates=40` 个；Agent 读取完整 JD、profile 和 fallback 参考后打分。
 4. **简历-岗位匹配评分**：Agent 按角色匹配、核心职责、领域匹配、简历证据、职级、风险和投递优先级评分。
-5. **报告排序**：岗位按 Agent 最终评分降序排列，低于 `threshold_score` 的岗位不进入报告，最终展示数量才受 `output.max_jobs_per_report` 控制。
+5. **报告排序**：只有 Agent 最终结论为 `strong_apply` 或 `apply` 且达到 `threshold_score` 的岗位进入主推荐区；`maybe` 只保留在全量审计里作为备选观察，最终展示数量才受 `output.max_jobs_per_report` 控制。
 6. **链接校验**：生成报告前检查岗位详情链接，过滤空链接或不可访问链接。
 7. **投递包生成**：为 Top 3 高分岗位生成独立 Cover Letter 包。
 8. **Python fallback**：`src.matching` 用于候选排序、回归测试和风险提示；默认不能单独生成正式推荐。
@@ -377,7 +377,7 @@ SmartJobHunter 不再把关键词命中本身视为匹配。
 | `evidence_quality` | 10 | JD 和简历证据是否清晰、可验证 |
 | `risk_penalty` | -20 | 关键词噪声、角色偏离或核心证据缺失 |
 
-Agent 提示词位于 `.claude/skills/jobhunter/prompts/`，要求输出有证据支撑的 JSON。例如，“AI 标注运营”不能只因为包含 “AI” 就被评为强匹配 AI 产品岗位。
+Agent 提示词位于 `.claude/skills/jobhunter/prompts/`，要求输出有证据支撑的 JSON。例如，“AI 标注运营”不能只因为包含 “AI” 就被评为强匹配 AI 产品岗位；不确定的 `maybe` 不是正式推荐。
 
 ## 💻 命令参考
 
@@ -693,7 +693,7 @@ npx skills add eze-is/web-access
 9. 更新记忆       → 把接受的岗位 hash 追加到 seen_jobs.md
 ```
 
-推荐区只展示最终入选岗位；同一文档底部追加 `全量抓取与判断记录`，保留本次抓取的所有结构化岗位、完整职责和任职要求、原始链接、处理状态、判断来源、语义证据、评分拆解与最终结论。默认正式推荐必须标记为 `agent`；`python_fallback` 只能进入待复核候选队列。即使零推荐、全部被过滤或链接校验后无推荐，也必须生成这份审计附录。
+推荐区只展示最终入选岗位；同一文档底部追加 `全量抓取与判断记录`，保留本次抓取的所有结构化岗位、完整职责和任职要求、原始链接、处理状态、判断来源、语义证据、评分拆解与最终结论。默认正式推荐必须标记为 `agent`，且最终结论只能是 `strong_apply` 或 `apply`；`maybe` 作为备选观察保留在审计附录，`python_fallback` 只能进入待复核候选队列。即使零推荐、全部被过滤或链接校验后无推荐，也必须生成这份审计附录。
 
 岗位链接必须使用抓取到的原始完整字符串：可见文本和 Markdown href 完全一致，禁止切片、摘要、省略号或改写查询参数。
 

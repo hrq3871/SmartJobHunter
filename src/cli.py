@@ -996,9 +996,16 @@ class JobHunter:
                 evaluation = (record.get("evaluation") or {}).get("raw") or {}
                 decision = evaluation.get("recommendation")
                 score = evaluation.get("score", 0) or 0
-                if decision in {"strong_apply", "apply", "maybe"} and score >= threshold_score:
+                if decision in {"strong_apply", "apply"} and score >= threshold_score:
                     agent_pairs.append((record.get("raw_job") or {}, evaluation))
                     eligible_agent_record_ids.add(record_id)
+                elif decision == "maybe" and score >= threshold_score:
+                    update_record_stage(
+                        run_records,
+                        {record_id},
+                        "agent_maybe",
+                        "agent_semantic_decision_maybe_observe",
+                    )
                 else:
                     update_record_stage(
                         run_records,

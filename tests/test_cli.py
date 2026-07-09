@@ -423,6 +423,113 @@ def test_run_profile_uses_agent_review_results_for_formal_recommendations(
     assert captured["records"][0]["evaluation"]["score"] == 84
 
 
+def test_run_profile_keeps_agent_maybe_out_of_main_recommendations(monkeypatch, tmp_path):
+    hunter = JobHunter()
+    hunter.memory_dir = tmp_path
+    hunter.output_dir = tmp_path
+    results_path = tmp_path / "agent_review_results.json"
+    results_path.write_text(
+        json.dumps(
+            {
+                "queue_id": "agent_review",
+                "results": [
+                    {
+                        "record_id": "20260709_120000_000001:1",
+                        "role_family": "product_manager",
+                        "agent_decision": "apply",
+                        "agent_score": 82,
+                        "role_fit": 4,
+                        "core_responsibility_fit": 4,
+                        "domain_fit": 4,
+                        "resume_evidence_fit": 4,
+                        "seniority_fit": 3,
+                        "risk_level": 2,
+                        "apply_priority": 4,
+                        "reason": "正式推荐岗位。",
+                    },
+                    {
+                        "record_id": "20260709_120000_000001:2",
+                        "role_family": "adjacent",
+                        "agent_decision": "maybe",
+                        "agent_score": 90,
+                        "role_fit": 3,
+                        "core_responsibility_fit": 3,
+                        "domain_fit": 4,
+                        "resume_evidence_fit": 3,
+                        "seniority_fit": 3,
+                        "risk_level": 3,
+                        "apply_priority": 2,
+                        "reason": "方向相邻但证据不足，只能观察。",
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    hunter.config = {
+        "global": {"time_filter_days": 30, "threshold_score": 70},
+        "output": {"max_jobs_per_report": 5},
+        "agent_review": {
+            "required_for_recommendation": True,
+            "max_candidates": 2,
+            "results_path": str(results_path),
+        },
+    }
+    hunter.seen_hashes = set()
+    jobs = [
+        {
+            "id": "job-1",
+            "hash": "job-1",
+            "title": "AI产品经理",
+            "company": "示例公司",
+            "duty": "负责 AI 产品规划和需求分析。",
+            "requirement": "需要 AI 产品经验。",
+            "url": "https://example.com/jobs/job-1",
+        },
+        {
+            "id": "job-2",
+            "hash": "job-2",
+            "title": "AI产品合作经理",
+            "company": "示例公司",
+            "duty": "负责 AI 合作项目推进和资源协调。",
+            "requirement": "有产品理解优先。",
+            "url": "https://example.com/jobs/job-2",
+        },
+    ]
+    captured = {}
+
+    monkeypatch.setattr("src.cli.datetime", _FixedDatetime)
+    monkeypatch.setattr(hunter, "crawl_jobs", lambda *args, **kwargs: jobs)
+    monkeypatch.setattr(hunter, "filter_jobs", lambda jobs, profile, job_type=None: jobs)
+    monkeypatch.setattr(
+        hunter,
+        "evaluate_job",
+        lambda job, profile: {
+            "score": 88,
+            "recommendation": "apply",
+            "match_reasons": ["fallback says yes"],
+        },
+    )
+    monkeypatch.setattr(hunter, "_url_is_available", lambda url: True)
+    monkeypatch.setattr(hunter, "generate_application_package", lambda *args, **kwargs: None)
+    monkeypatch.setattr(hunter, "generate_report", lambda jobs, profile, evaluations, run_records=None: (
+        captured.update({"jobs": jobs, "profile": profile, "evaluations": evaluations, "records": run_records})
+        or "output/agent-reviewed.md"
+    ))
+
+    result = hunter.run_profile(
+        {"name": "AI产品经理", "_profile_id": "ai_pm_task", "target_roles": ["AI产品经理"]}
+    )
+
+    assert [job["title"] for job in result] == ["AI产品经理"]
+    assert [job["title"] for job in captured["jobs"]] == ["AI产品经理"]
+    assert captured["records"][0]["processing"]["stage"] == "recommended"
+    assert captured["records"][1]["processing"]["stage"] == "agent_maybe"
+    assert captured["records"][1]["processing"]["reason"] == "agent_semantic_decision_maybe_observe"
+    assert captured["records"][1]["evaluation"]["raw"]["recommendation"] == "maybe"
+
+
 def test_run_profile_reviews_more_candidates_than_final_report_limit(monkeypatch, tmp_path):
     hunter = JobHunter()
     hunter.memory_dir = tmp_path

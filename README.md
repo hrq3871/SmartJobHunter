@@ -363,7 +363,7 @@ The matching flow is:
 2. **Semantic intent filter**: the Agent judges whether the job's real responsibilities match the profile intent. Keywords are only supporting evidence.
 3. **Agent review queue**: Python writes threshold-passing candidates to `output/<date>/agent_review_queues/`, up to `agent_review.max_candidates=40` by default; the Agent reads the full JD, profile, and fallback reference before scoring.
 4. **Resume-job fit scoring**: the Agent scores role fit, core responsibilities, domain fit, resume evidence, seniority, risk, and application priority.
-5. **Report ranking**: jobs are sorted by the Agent final score, filtered by `threshold_score`, and only the final display is capped by `output.max_jobs_per_report`.
+5. **Report ranking**: only Agent `strong_apply` and `apply` results above `threshold_score` enter the main recommendation section; `maybe` stays in the full audit as an observation candidate. Final display size is capped by `output.max_jobs_per_report`.
 6. **URL validation**: report generation checks job detail links and drops empty or unreachable URLs.
 7. **Application package**: the Top 3 scored jobs get a dedicated Cover Letter package.
 8. **Python fallback**: `src.matching` supports candidate ranking, regression tests, and risk hints; by default it cannot create formal recommendations on its own.
@@ -379,7 +379,7 @@ Scoring dimensions:
 | `evidence_quality` | 10 | How clear and verifiable the JD/resume evidence is |
 | `risk_penalty` | -20 | Keyword noise, role mismatch, or missing core evidence |
 
-The Agent prompts live in `.claude/skills/jobhunter/prompts/` and require evidence-backed JSON output. For example, an "AI labeling operations" role should not be scored as a strong AI product match just because it contains "AI".
+The Agent prompts live in `.claude/skills/jobhunter/prompts/` and require evidence-backed JSON output. For example, an "AI labeling operations" role should not be scored as a strong AI product match just because it contains "AI"; an uncertain `maybe` decision is not a formal recommendation.
 
 ## 💻 Command Reference
 
@@ -723,7 +723,7 @@ Located in `.claude/skills/jobhunter/`:
 
 Reports are written under the current run date. The same run can also create an application package for the Top 3 scored jobs.
 
-The recommendation section only shows final selected jobs. The same report keeps a full audit appendix with every crawled job, complete JD fields, original URL, processing stage, judgment source, evidence, scoring breakdown, and final decision. By default, formal recommendations must have `judgment_source=agent`; `python_fallback` can only feed the review queue.
+The recommendation section only shows final selected jobs. The same report keeps a full audit appendix with every crawled job, complete JD fields, original URL, processing stage, judgment source, evidence, scoring breakdown, and final decision. By default, formal recommendations must have `judgment_source=agent` and final decision `strong_apply` or `apply`; `maybe` remains an observation candidate, and `python_fallback` can only feed the review queue.
 
 ```markdown
 # Job Hunting Report

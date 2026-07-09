@@ -235,7 +235,9 @@ Agent review 运行约束：
 - 当前 Agent 必须读取 queue 中的完整 JD、profile、Python 机械事实和 fallback 参考，再用 `prompts/match_candidate_job.md` 独立评分。
 - Agent 结果默认写到同目录 `<queue_stem>_results.json`；也可由 `config/agent.yaml` 的 `agent_review.results_path` 指定。
 - 如果 `agent_review.required_for_recommendation: true` 且结果文件不存在，CLI 只能生成含 `needs_agent_review` 的审计报告，不得生成正式推荐。
-- 只有 `判断来源=agent` 且 Agent 分数达到 `threshold_score` 的岗位可以进入正式推荐、URL 校验和投递包；最终报告再按 `output.max_jobs_per_report` 截断，截断项标记为 `report_limit_omitted`，不归为语义误杀。
+- 正式推荐区只接受 `判断来源=agent`、Agent 分数达到 `threshold_score`、且最终结论为 `strong_apply` 或 `apply` 的岗位。
+- `maybe` 不进入正式推荐、URL 校验、投递包或飞书推荐；CLI 会标记为 `agent_maybe`，保留在全量审计和真实巡检人工标注里，作为备选观察样本。
+- 最终报告再按 `output.max_jobs_per_report` 截断，截断项标记为 `report_limit_omitted`，不归为语义误杀。
 
 Agent 打分维度：
 
@@ -249,7 +251,7 @@ Agent 打分维度：
 | `risk_level` | 1-5 | 非目标角色、标题党、证据不足、硬性缺口等风险；5 表示高风险 |
 | `apply_priority` | 1-5 | 综合角色、领域、证据、风险后的投递优先级 |
 
-硬性规则：如果岗位真实角色是公关传播、品牌、社媒、舆情、前端工程、后端工程、算法研发、销售、客服、审核、标注或纯运营，而 profile 目标不是这些角色，`role_fit` 和 `core_responsibility_fit` 应低分，`agent_decision` 应为 `reject` 或至多 `maybe`，不得进入强推荐。
+硬性规则：如果岗位真实角色是公关传播、品牌、社媒、舆情、前端工程、后端工程、算法研发、销售、客服、审核、标注或纯运营，而 profile 目标不是这些角色，`role_fit` 和 `core_responsibility_fit` 应低分，`agent_decision` 应为 `reject` 或至多 `maybe`；`maybe` 只能作为备选观察，不得进入正式推荐区。
 
 输出必须包含：
 

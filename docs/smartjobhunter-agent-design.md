@@ -421,13 +421,15 @@ ranked fallback candidates
      (default max agent_review.max_candidates=40)
   -> Agent reads queue + match_candidate_job.md
   -> output/{YYYY-MM-DD}/agent_review_queues/<profile_id>_<run_id>_results.json
-  -> report accepts only source=agent recommendations
+  -> report accepts only source=agent strong_apply/apply recommendations
   -> final display capped by output.max_jobs_per_report
 ```
 
 当 `agent_review.required_for_recommendation: true` 时，缺少 Agent result 的运行不会生成正式推荐，只会生成包含 `needs_agent_review` 状态的全量审计报告。这样可以防止 Python fallback 粗分把“AI 产品公关传播经理”“AI 产品前端工程师”等非目标角色送入推荐区。
 
 `agent_review.max_candidates` 控制 Agent 语义复核池宽度，默认 40；`output.max_jobs_per_report` 只控制最终报告展示数量。没有进入复核池的高分候选标记为 `candidate_limit_omitted`，Agent 评分后因最终报告上限未展示的岗位标记为 `report_limit_omitted`；两者属于候选路由/展示容量问题，不归为语义误杀。
+
+正式推荐区只接受 Agent 最终结论为 `strong_apply` 或 `apply` 的岗位。`maybe` 会标记为 `agent_maybe`，只进入全量审计、真实巡检人工标注和 badcase 复盘，不进入主推荐区、投递包或飞书推荐。
 
 Agent 评分维度：
 
@@ -550,7 +552,7 @@ output/evals/real_runs/{YYYY-MM-DD}/{report_stem}_{HHMMSS}/
 - `matching.f1`
 - `bad_case_attribution`
 - real-run `recommendation_precision`
-- real-run `strict_recommendation_precision`
+- real-run `strict_recommendation_precision` (only system `strong_apply` recommendations)
 - real-run `agent_reviewed_recommendation_rate`
 - real-run `reviewed_recall`
 - real-run `reviewed_false_negative_rate`
