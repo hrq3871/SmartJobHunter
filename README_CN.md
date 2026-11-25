@@ -206,16 +206,19 @@ python -m uvicorn src.web_ui:app --host 127.0.0.1 --port 8080
 
 打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。主要模块：
 
-- **简历与巡检**：上传 PDF/MD/TXT 简历，编辑 `search_intent`，启动可见 Claude Code 巡检，查看生成报告。
+- **简历与岗位**：选择 PDF/MD/TXT 简历，管理它的搜索意向和岗位报告；点击“查找岗位”启动任务，在居中大弹框中阅读 Markdown 报告。
 - **公司配置**：新增或禁用公司，编辑社招/校招/实习官网链接，单公司测试抓取。
 - **策略健康**：检查变化、未知、失败或阻断的公司链接，生成给 Agent 分析的网站策略任务。
-- **飞书推送 / 定时任务**：配置本地飞书推送和定时巡检参数。
+- **飞书推送**：配置本地飞书推送设置。
+- **定时任务**：配置自动查找岗位和推送选项。
 
-控制台采用深色主题，支持窄屏布局。下方截图使用演示数据。
+五个模块均可从导航直接进入。深色控制台围绕所选简历组织搜索意向和报告，支持窄屏布局，并用颜色区分结果指标。下方截图使用演示数据。
 
 ![SmartJobHunter 深色控制台：简历与报告](docs/assets/web-console-resumes-reports.png)
 
 ![SmartJobHunter 深色控制台：公司管理](docs/assets/web-console-company-management.png)
+
+运行 `python -X utf8 tests/check_web_console.py` 可复查隔离的浏览器交互；添加 `--screenshots` 可用演示数据重新生成这两张截图。
 
 ## 📁 目录结构
 

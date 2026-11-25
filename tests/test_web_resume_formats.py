@@ -22,7 +22,7 @@ def test_frontend_exposes_only_pdf_markdown_and_text():
     assert "['png','jpg','jpeg'" not in html
 
 
-def test_frontend_uses_search_intent_and_claude_launch_states():
+def test_frontend_uses_search_intent_and_platform_neutral_launch_states():
     html = Path("templates/index.html").read_text(encoding="utf-8")
 
     assert "resumePayload.resumes" in html
@@ -30,7 +30,10 @@ def test_frontend_uses_search_intent_and_claude_launch_states():
     assert "/intent" in html
     assert "待补充关键词" in html
     assert "待 Agent 建档" in html
-    assert "Claude Code 已在新窗口打开" in html
+    assert "任务已启动" in html
+    assert "Claude Code" not in html
+    assert 'data-tab="health"' in html
+    assert "查找岗位" in html
 
 
 def test_web_module_main_stays_local_only():
