@@ -211,9 +211,11 @@ python -m uvicorn src.web_ui:app --host 127.0.0.1 --port 8080
 - **策略健康**：检查变化、未知、失败或阻断的公司链接，生成给 Agent 分析的网站策略任务。
 - **飞书推送 / 定时任务**：配置本地飞书推送和定时巡检参数。
 
-![SmartJobHunter 控制台：简历与报告](docs/assets/web-console-resumes-reports.png)
+控制台采用深色主题，支持窄屏布局。下方截图使用演示数据。
 
-![SmartJobHunter 控制台：公司管理](docs/assets/web-console-company-management.png)
+![SmartJobHunter 深色控制台：简历与报告](docs/assets/web-console-resumes-reports.png)
+
+![SmartJobHunter 深色控制台：公司管理](docs/assets/web-console-company-management.png)
 
 ## 📁 目录结构
 

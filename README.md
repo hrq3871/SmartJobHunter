@@ -213,9 +213,11 @@ Open [http://127.0.0.1:8080](http://127.0.0.1:8080). Main modules:
 - **Strategy Health**: inspect changed, unknown, failed, or blocked company links; create strategy tasks for the Agent to analyze.
 - **Feishu Push / Schedule**: configure local Feishu push settings and scheduled inspection parameters.
 
-![SmartJobHunter console: resumes and reports](docs/assets/web-console-resumes-reports.png)
+The console uses a dark theme with responsive layouts. The screenshots below show demo data.
 
-![SmartJobHunter console: company management](docs/assets/web-console-company-management.png)
+![SmartJobHunter dark console: resumes and reports](docs/assets/web-console-resumes-reports.png)
+
+![SmartJobHunter dark console: company management](docs/assets/web-console-company-management.png)
 
 ## 📁 Directory Structure
 
