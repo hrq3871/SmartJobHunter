@@ -301,13 +301,15 @@ Agent 必须检查：
 
 ### Web Agent 启动链
 
-Web 控制台不直接运行 Python CLI 冒充 Agent。点击“启动巡检”时打开可见 CMD：
+Web 保留简历与岗位、策略健康、公司配置、飞书推送、定时任务五个独立入口，不改变后端接口和任务启动链。前端以当前简历组织其搜索意向与岗位报告；报告按 profile 映射回简历，使用已有 Marked 渲染原始 Markdown，在居中大弹框中展示。简历切换会同步更新意向和报告，关闭的报告请求不得覆盖新简历的内容。
+
+Web 控制台不直接运行 Python CLI 冒充 Agent。点击“查找岗位”时打开可见 CMD：
 
 ```powershell
 claude --permission-mode auto --name "SmartHunter-巡检-<run_id>" "<任务 Prompt>"
 ```
 
-Claude Code 必须先读取简历和 `search_intent`、生成正式 profile，再执行抓取、JD 画像、Agent 语义匹配和报告。点击批量修复时使用：
+Claude Code 必须先读取简历和 `search_intent`、生成正式 profile，再执行抓取、JD 画像、Agent 语义匹配和报告。独立策略健康页面的“策略巡检”批量操作使用：
 
 ```powershell
 claude --permission-mode auto --agent crawler-strategy-inspector --name "SmartHunter-策略修复-<run_id>" "<批量任务 Prompt>"

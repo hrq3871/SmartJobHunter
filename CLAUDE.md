@@ -143,7 +143,9 @@ INIT -> LOADED -> CRAWLED -> FILTERED -> EVALUATED -> URL_VALIDATED -> REPORTED 
 
 ### Web 启动 Claude Code
 
-Web 控制台的“启动巡检”和“策略修复”必须打开可见 CMD，并启动真实 Claude Code 交互会话：
+Web 控制台保留“简历与岗位”“策略健康”“公司配置”“飞书推送”“定时任务”五个独立入口。简历是页面主对象，搜索意向属于该简历，岗位报告通过 profile 关联回简历；切换简历时同步更新意向和报告。求职按钮显示“查找岗位”，报告以 Markdown 在居中大弹框中阅读；“策略巡检”用于独立的策略健康页面。
+
+“查找岗位”和策略健康中的策略修复沿用现有接口，必须打开可见 CMD，并启动真实 Claude Code 交互会话：
 
 ```powershell
 claude --permission-mode auto --name "SmartHunter-巡检-<run_id>" "<任务 Prompt>"

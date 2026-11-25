@@ -208,14 +208,19 @@ python -m uvicorn src.web_ui:app --host 127.0.0.1 --port 8080
 
 Open [http://127.0.0.1:8080](http://127.0.0.1:8080). Main modules:
 
-- **Resume & Inspection**: upload PDF/MD/TXT resumes, edit `search_intent`, start a visible Claude Code inspection, and view generated reports.
+- **Resume & Jobs**: select a PDF/MD/TXT resume to manage its search intent and report cards. Find jobs for the selected resume and read Markdown reports in a centered dialog.
 - **Company Config**: add or disable companies, edit social/campus/internship career links, and run a single-company crawl test.
 - **Strategy Health**: inspect changed, unknown, failed, or blocked company links; create strategy tasks for the Agent to analyze.
-- **Feishu Push / Schedule**: configure local Feishu push settings and scheduled inspection parameters.
+- **Feishu Push**: configure local Feishu push settings.
+- **Scheduled Tasks**: configure automatic job searches and push options.
 
-![SmartJobHunter console: resumes and reports](docs/assets/web-console-resumes-reports.png)
+All five modules remain directly accessible in the navigation. The dark console keeps each resume's search intent and reports together, with responsive layouts and colored result indicators. The screenshots below show demo data.
 
-![SmartJobHunter console: company management](docs/assets/web-console-company-management.png)
+![SmartJobHunter dark console: resumes and reports](docs/assets/web-console-resumes-reports.png)
+
+![SmartJobHunter dark console: company management](docs/assets/web-console-company-management.png)
+
+Replay isolated browser checks with `python -X utf8 tests/check_web_console.py`. Add `--screenshots` to refresh these two screenshots using demo data.
 
 ## 📁 Directory Structure
 
